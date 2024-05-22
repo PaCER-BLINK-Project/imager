@@ -1,0 +1,8 @@
+#!/bin/bash
+
+for ch in `ls -d ??????`
+do
+   cd ${ch}
+   image_casa_dumps.sh
+   cd ..
+done

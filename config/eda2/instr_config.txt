@@ -1,0 +1,541 @@
+##################################################            Y
+# this file maps inputs into the receiver/correlator to antennas and polarisations.
+# in addition, a cable length delta (in meters) can be specified
+# the first column is not actually used by the uvfits writer, but is there as
+# an aide to human readers. Inputs are ordered from 0 to n_inp-1
+# antenna numbering starts at 0 and is an index into the corresponding antenna_locations.txt file
+# lines beginning with '\#' and blank lines are ignored. Do not leave spaces in empty lines.
+#
+# Input flagging: put a 1 in the flag column to flag all data from that input.
+#                 0 means no flag.
+# Cable lengths: if length is prefixed by EL_ then no velocity correction factor is needed
+#               since the value is interpreted directly as an electrical length
+# this is based on decoding from an email from Alessio 12/2/2018, which notes internal re-ordering
+# inside preADU:
+#antenna_preadu_mapping      =      Y      1,      1:      2,      2:      3,      3:      4,
+#                          8: 5,  9: 6,  10: 7,  11: 8,
+#                         15: 9, 14: 10, 13: 11, 12: 12,
+#                          7: 13, 6: 14,  5: 15,  4: 16}
+# email from Marcin 5/6/2019: TPMS should be 21, 22 and 23.
+# 
+# Flaaging/unflagging based on http://aavs1-server.mwa128t.org/phase1/eda2 :
+# 20191205
+#
+##################################################            
+# Flagged antennas identified using automatic antenna health monitor : http://telemetry-static.mwa128t.org/aavs/calibration/eda2/antenna_health/eda2_bad_antennas.html
+# http://telemetry-static.mwa128t.org/aavs/calibration/eda2/antenna_health/
+# Only flatline antennas have been flagged 
+# Unflagged on 2022-03-30 - based on recent data and antenna health monitor (all antennas seem to be fixed now)
+# INPUT   ANTENNA   POL     DELTA   FLAG 
+0	0	X	0	0		# Ant061
+1	0	Y	0	0		
+2	1	X	0	0		# Ant063
+3	1	Y	0	0		
+4	2	X	0	0		# Ant064
+5	2	Y	0	0		
+6	3	X	0	0		# Ant083
+7	3	Y	0	0		
+8	4	X	0	0		# Ant136
+9	4	Y	0	0		
+10	5	X	0	0		# Ant124
+11	5	Y	0	0		
+12	6	X	0	0		# Ant123
+13	6	Y	0	0		
+14	7	X	0	0		# Ant122
+15	7	Y	0	0		
+16	8	X	0	0		# Ant084
+17	8	Y	0	0		
+18	9	X	0	0		# Ant085
+19	9	Y	0	0		
+20	10	X	0	0		# Ant086
+21	10	Y	0	0		
+22	11	X	0	0		# Ant097
+23	11	Y	0	0		
+24	12	X	0	0		# Ant121
+25	12	Y	0	0		
+26	13	X	0	0		# Ant120
+27	13	Y	0	0		
+28	14	X	0	0		# Ant099
+29	14	Y	0	0		
+30	15	X	0	0		# Ant098
+31	15	Y	0	0		
+32	16	X	0	0		# Ant134
+33	16	Y	0	0		
+34	17	X	0	0		# Ant135
+35	17	Y	0	0		
+36	18	X	0	0		# Ant152
+37	18	Y	0	0		
+38	19	X	0	0		# Ant153
+39	19	Y	0	0		
+40	20	X	0	0		# Ant201
+41	20	Y	0	0		
+42	21	X	0	0		# Ant200 , unflagged on 2022-03-30
+43	21	Y	0	0		
+44	22	X	0	0		# Ant199
+45	22	Y	0	0		
+46	23	X	0	0		# Ant188
+47	23	Y	0	0		
+48	24	X	0	0		# Ant154
+49	24	Y	0	0		
+50	25	X	0	0		# Ant155
+51	25	Y	0	0		
+52	26	X	0	0		# Ant156
+53	26	Y	0	0		
+54	27	X	0	0		# Ant167
+55	27	Y	0	0		
+56	28	X	0	0		# Ant187
+57	28	Y	0	0		
+58	29	X	0	0		# Ant186
+59	29	Y	0	0		
+60	30	X	0	0		# Ant169
+61	30	Y	0	0		
+62	31	X	0	0		# Ant168
+63	31	Y	0	0		
+64	32	X	0	0		# Ant118
+65	32	Y	0	0		
+66	33	X	0	0		# Ant137
+67	33	Y	0	0		
+68	34	X	0	0		# Ant138
+69	34	Y	0	0		
+70	35	X	0	0		# Ant147
+71	35	Y	0	0		
+72	36	X	0	0		# Ant204
+73	36	Y	0	0		
+74	37	X	0	0		# Ant203
+75	37	Y	0	0		
+76	38	X	0	0		# Ant185
+77	38	Y	0	0		
+78	39	X	0	0		# Ant184
+79	39	Y	0	0		
+80	40	X	0	0		# Ant148 , unflagged on 2022-03-30
+81	40	Y	0	0		
+82	41	X	0	0		# Ant149
+83	41	Y	0	0		
+84	42	X	0	0		# Ant150
+85	42	Y	0	0		
+86	43	X	0	0		# Ant151
+87	43	Y	0	0		
+88	44	X	0	0		# Ant183
+89	44	Y	0	0		
+90	45	X	0	0		# Ant172 , unflagged on 2022-03-30
+91	45	Y	0	0		
+92	46	X	0	0		# Ant171
+93	46	Y	0	0		
+94	47	X	0	0		# Ant170
+95	47	Y	0	0		
+96	48	X	0	0		# Ant065 , tile4 turned off 2022-04-08
+97	48	Y	0	0		
+98	49	X	0	0		# Ant066
+99	49	Y	0	0		
+100	50	X	0	0		# Ant079
+101	50	Y	0	0		
+102	51	X	0	0		# Ant080
+103	51	Y	0	0		
+104	52	X	0	0		# Ant139
+105	52	Y	0	0		
+106	53	X	0	0		# Ant119
+107	53	Y	0	0		
+108	54	X	0	0		# Ant117
+109	54	Y	0	0		
+110	55	X	0	0		# Ant116
+111	55	Y	0	0		
+112	56	X	0	0		# Ant081 , tile4 turned off 2022-04-08
+113	56	Y	0	0		
+114	57	X	0	0		# Ant082
+115	57	Y	0	0		
+116	58	X	0	0		# Ant100
+117	58	Y	0	0		
+118	59	X	0	0		# Ant101
+119	59	Y	0	0		
+120	60	X	0	0		# Ant105
+121	60	Y	0	0		
+122	61	X	0	0		# Ant104
+123	61	Y	0	0		
+124	62	X	0	0		# Ant103
+125	62	Y	0	0		
+126	63	X	0	0		# Ant102
+127	63	Y	0	0		
+128	64	X	0	0		# Ant006
+129	64	Y	0	0		
+130	65	X	0	0		# Ant007
+131	65	Y	0	0		
+132	66	X	0	0		# Ant008
+133	66	Y	0	0		
+134	67	X	0	0		# Ant021
+135	67	Y	0	0		
+136	68	X	0	0		# Ant062
+137	68	Y	0	0		
+138	69	X	0	0		# Ant053
+139	69	Y	0	0		
+140	70	X	0	0		# Ant052
+141	70	Y	0	0		
+142	71	X	0	0		# Ant051
+143	71	Y	0	0		
+144	72	X	0	0		# Ant023
+145	72	Y	0	0		
+146	73	X	0	0		# Ant024
+147	73	Y	0	0		
+148	74	X	0	1		# Ant025 , flagged on 2022-11-23 based on power plots (flatline) and non-calibration
+149	74	Y	0	1		
+150	75	X	0	0		# Ant026
+151	75	Y	0	0		
+152	76	X	0	0		# Ant032
+153	76	Y	0	0		
+154	77	X	0	0		# Ant031
+155	77	Y	0	0		
+156	78	X	0	0		# Ant030
+157	78	Y	0	0		
+158	79	X	0	0		# Ant029
+159	79	Y	0	0		
+160	80	X	0	0		# Ant027
+161	80	Y	0	0		
+162	81	X	0	0		# Ant028
+163	81	Y	0	0		
+164	82	X	0	0		# Ant054
+165	82	Y	0	0		
+166	83	X	0	0		# Ant055
+167	83	Y	0	0		
+168	84	X	0	0		# Ant096
+169	84	Y	0	0		
+170	85	X	0	0		# Ant095
+171	85	Y	0	0		
+172	86	X	0	0		# Ant091 , unflagged on 2022-03-30
+173	86	Y	0	0		
+174	87	X	0	0		# Ant090 , unflagged on 2022-03-30
+175	87	Y	0	0		
+176	88	X	0	0		# Ant056
+177	88	Y	0	0		
+178	89	X	0	0		# Ant057
+179	89	Y	0	0		
+180	90	X	0	0		# Ant058
+181	90	Y	0	0		
+182	91	X	0	0		# Ant059
+183	91	Y	0	0		
+184	92	X	0	0		# Ant089
+185	92	Y	0	0		
+186	93	X	0	0		# Ant088
+187	93	Y	0	0		
+188	94	X	0	0		# Ant087
+189	94	Y	0	0		
+190	95	X	0	0		# Ant060
+191	95	Y	0	0		
+192	96	X	0	0		# Ant092
+193	96	Y	0	0		
+194	97	X	0	0		# Ant093
+195	97	Y	0	0		
+196	98	X	0	0		# Ant094
+197	98	Y	0	0		
+198	99	X	0	0		# Ant125
+199	99	Y	0	0		
+200	100	X	0	0		# Ant162
+201	100	Y	0	0		
+202	101	X	0	0		# Ant161
+203	101	Y	0	0		
+204	102	X	0	0		# Ant160
+205	102	Y	0	0		
+206	103	X	0	0		# Ant159
+207	103	Y	0	0		
+208	104	X	0	0		# Ant126
+209	104	Y	0	0		
+210	105	X	0	0		# Ant127
+211	105	Y	0	0		
+212	106	X	0	0		# Ant128
+213	106	Y	0	0		
+214	107	X	0	0		# Ant129
+215	107	Y	0	0		
+216	108	X	0	0		# Ant133
+217	108	Y	0	0		
+218	109	X	0	0		# Ant132
+219	109	Y	0	0		
+220	110	X	0	0		# Ant131
+221	110	Y	0	0		
+222	111	X	0	0		# Ant130
+223	111	Y	0	0		
+224	112	X	0	0		# Ant157
+225	112	Y	0	0		
+226	113	X	0	0		# Ant158
+227	113	Y	0	0		
+228	114	X	0	0		# Ant163
+229	114	Y	0	0		
+230	115	X	0	0		# Ant164
+231	115	Y	0	0		
+232	116	X	0	0		# Ant223
+233	116	Y	0	0		
+234	117	X	0	0		# Ant197
+235	117	Y	0	0		
+236	118	X	0	0		# Ant196
+237	118	Y	0	0		
+238	119	X	0	0		# Ant195
+239	119	Y	0	0		
+240	120	X	0	0		# Ant165
+241	120	Y	0	0		
+242	121	X	0	0		# Ant166
+243	121	Y	0	0		
+244	122	X	0	0		# Ant189
+245	122	Y	0	0		
+246	123	X	0	0		# Ant190
+247	123	Y	0	0		
+248	124	X	0	0		# Ant194
+249	124	Y	0	0		
+250	125	X	0	0		# Ant193
+251	125	Y	0	0		
+252	126	X	0	0		# Ant192
+253	126	Y	0	0		
+254	127	X	0	1		# Ant191 , flagged on 2022-11-23 based on power plots (flatline) and non-calibration
+255	127	Y	0	1		
+256	128	X	0	0		# Ant198
+257	128	Y	0	0		
+258	129	X	0	0		# Ant220
+259	129	Y	0	0		
+260	130	X	0	0		# Ant221 , unflagged on 2022-03-30 
+261	130	Y	0	0		
+262	131	X	0	0		# Ant222
+263	131	Y	0	0		
+264	132	X	0	0		# Ant252
+265	132	Y	0	0		
+266	133	X	0	0		# Ant251
+267	133	Y	0	0		
+268	134	X	0	0		# Ant250
+269	134	Y	0	0		
+270	135	X	0	0		# Ant249
+271	135	Y	0	0		
+272	136	X	0	0		# Ant224
+273	136	Y	0	0		
+274	137	X	0	0		# Ant225
+275	137	Y	0	0		
+276	138	X	0	0		# Ant226
+277	138	Y	0	0		
+278	139	X	0	0		# Ant227
+279	139	Y	0	0		
+280	140	X	0	0		# Ant248
+281	140	Y	0	0		
+282	141	X	0	0		# Ant247
+283	141	Y	0	0		
+284	142	X	0	0		# Ant246
+285	142	Y	0	0		
+286	143	X	0	0		# Ant228
+287	143	Y	0	0		
+288	144	X	0	0		# Ant202
+289	144	Y	0	0		
+290	145	X	0	0		# Ant217
+291	145	Y	0	0		
+292	146	X	0	0		# Ant218
+293	146	Y	0	0		
+294	147	X	0	0		# Ant219
+295	147	Y	0	0		
+296	148	X	0	0		# Ant255
+297	148	Y	0	0		
+298	149	X	0	0		# Ant254
+299	149	Y	0	0		
+300	150	X	0	0		# Ant253
+301	150	Y	0	0		
+302	151	X	0	0		# Ant245
+303	151	Y	0	0		
+304	152	X	0	0		# Ant229
+305	152	Y	0	0		
+306	153	X	0	0		# Ant230
+307	153	Y	0	0		
+308	154	X	0	0		# Ant231
+309	154	Y	0	0		
+310	155	X	0	0		# Ant240
+311	155	Y	0	0		
+312	156	X	0	0		# Ant244
+313	156	Y	0	0		
+314	157	X	0	0		# Ant243
+315	157	Y	0	0		
+316	158	X	0	0		# Ant242
+317	158	Y	0	0		
+318	159	X	0	0		# Ant241
+319	159	Y	0	0		
+320	160	X	0	0		# Ant205
+321	160	Y	0	0		
+322	161	X	0	0		# Ant206
+323	161	Y	0	0		
+324	162	X	0	0		# Ant212
+325	162	Y	0	0		
+326	163	X	0	0		# Ant213
+327	163	Y	0	0		
+328	164	X	0	0		# Ant256
+329	164	Y	0	0		
+330	165	X	0	0		# Ant239
+331	165	Y	0	0		
+332	166	X	0	0		# Ant238
+333	166	Y	0	0		
+334	167	X	0	0		# Ant237
+335	167	Y	0	0		
+336	168	X	0	0		# Ant214 , unflagged on 2022-03-30
+337	168	Y	0	0		
+338	169	X	0	0		# Ant215 , unflagged on 2022-03-30
+339	169	Y	0	0		
+340	170	X	0	0		# Ant216 , unflagged on 2022-03-30 
+341	170	Y	0	0
+342	171	X	0	0		# Ant232
+343	171	Y	0	0		
+344	172	X	0	0		# Ant236
+345	172	Y	0	0		
+346	173	X	0	0		# Ant235
+347	173	Y	0	0		
+348	174	X	0	0		# Ant234
+349	174	Y	0	0		
+350	175	X	0	0		# Ant233
+351	175	Y	0	0		
+352	176	X	0	0		# Ant140 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+353	176	Y	0	0		
+354	177	X	0	0		# Ant145 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+355	177	Y	0	0		
+356	178	X	0	0		# Ant146 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+357	178	Y	0	0		
+358	179	X	0	0		# Ant173 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+359	179	Y	0	0		
+360	180	X	0	0		# Ant211 , unflagged on 2022-03-30 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+361	180	Y	0	0		
+362	181	X	0	0		# Ant210 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+363	181	Y	0	0		
+364	182	X	0	0		# Ant209 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+365	182	Y	0	0		
+366	183	X	0	0		# Ant208 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+367	183	Y	0	0		
+368	184	X	0	0		# Ant174 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+369	184	Y	0	0		
+370	185	X	0	0		# Ant175 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+371	185	Y	0	0		
+372	186	X	0	0		# Ant178 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+373	186	Y	0	0		
+374	187	X	0	0		# Ant179 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+375	187	Y	0	0		
+376	188	X	0	0		# Ant207 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+377	188	Y	0	0		
+378	189	X	0	0		# Ant182 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+379	189	Y	0	0		
+380	190	X	0	0		# Ant181 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+381	190	Y	0	0		
+382	191	X	0	0		# Ant180 2023-02-09 - Tile12 is broken and turns off by itself , 20230309 - unflagged (turn-off temperature threshold set to 70*C)
+383	191	Y	0	0		
+384	192	X	0	0		# Ant073
+385	192	Y	0	0		
+386	193	X	0	0		# Ant107
+387	193	Y	0	0		
+388	194	X	0	0		# Ant108
+389	194	Y	0	0		
+390	195	X	0	0		# Ant109
+391	195	Y	0	0		
+392	196	X	0	0		# Ant177
+393	196	Y	0	0		
+394	197	X	0	0		# Ant176
+395	197	Y	0	0		
+396	198	X	0	0		# Ant144
+397	198	Y	0	0		
+398	199	X	0	0		# Ant143
+399	199	Y	0	0		
+400	200	X	0	0		# Ant110
+401	200	Y	0	0		
+402	201	X	0	0		# Ant111
+403	201	Y	0	0		
+404	202	X	0	0		# Ant112
+405	202	Y	0	0		
+406	203	X	0	0		# Ant113
+407	203	Y	0	0		
+408	204	X	0	0		# Ant142
+409	204	Y	0	0		
+410	205	X	0	0		# Ant141
+411	205	Y	0	0		
+412	206	X	0	0		# Ant115
+413	206	Y	0	0		
+414	207	X	0	0		# Ant114
+415	207	Y	0	0		
+416	208	X	0	0		# Ant040
+417	208	Y	0	0		
+418	209	X	0	0		# Ant041
+419	209	Y	0	0		
+420	210	X	0	0		# Ant042
+421	210	Y	0	0		
+422	211	X	0	0		# Ant043
+423	211	Y	0	0		
+424	212	X	0	0		# Ant106
+425	212	Y	0	0		
+426	213	X	0	0		# Ant078
+427	213	Y	0	0		
+428	214	X	0	0		# Ant077
+429	214	Y	0	0		
+430	215	X	0	0		# Ant076
+431	215	Y	0	0		
+432	216	X	0	0		# Ant045
+433	216	Y	0	0		
+434	217	X	0	0		# Ant068
+435	217	Y	0	0		
+436	218	X	0	0		# Ant069
+437	218	Y	0	0		
+438	219	X	0	0		# Ant070
+439	219	Y	0	0		
+440	220	X	0	0		# Ant075
+441	220	Y	0	0		
+442	221	X	0	0		# Ant074
+443	221	Y	0	0		
+444	222	X	0	0		# Ant072
+445	222	Y	0	0		
+446	223	X	0	0		# Ant071
+447	223	Y	0	0		
+448	224	X	0	0		# Ant001
+449	224	Y	0	0		
+450	225	X	0	0		# Ant012
+451	225	Y	0	0		
+452	226	X	0	0		# Ant013
+453	226	Y	0	0		
+454	227	X	0	0		# Ant014
+455	227	Y	0	0		
+456	228	X	0	0		# Ant067 , unflagged on 2022-03-30
+457	228	Y	0	0		
+458	229	X	0	0		# Ant048
+459	229	Y	0	0		
+460	230	X	0	0		# Ant047
+461	230	Y	0	0		
+462	231	X	0	0		# Ant046
+463	231	Y	0	0		
+464	232	X	0	0		# Ant015
+465	232	Y	0	0		
+466	233	X	0	0		# Ant016
+467	233	Y	0	0		
+468	234	X	0	0		# Ant017
+469	234	Y	0	0		
+470	235	X	0	0		# Ant036 , unflagged on 022-03-30,  2021-12-01 based on 2021-11-16 data which would not give a decent image without flagging this antenna
+471	235	Y	0	0		#        it was actually calibration which when applied was messing up 
+472	236	X	0	0		# Ant044
+473	236	Y	0	0		
+474	237	X	0	0		# Ant039
+475	237	Y	0	0		
+476	238	X	0	0		# Ant038
+477	238	Y	0	0		
+478	239	X	0	0		# Ant037
+479	239	Y	0	0		
+480	240	X	0	0		# Ant002 , unflagged on 2022-03-30
+481	240	Y	0	0		
+482	241	X	0	0		# Ant003
+483	241	Y	0	0		
+484	242	X	0	0		# Ant004
+485	242	Y	0	0		
+486	243	X	0	0		# Ant005
+487	243	Y	0	0		
+488	244	X	0	0		# Ant050
+489	244	Y	0	0		
+490	245	X	0	0		# Ant049
+491	245	Y	0	0		
+492	246	X	0	0		# Ant035
+493	246	Y	0	0		
+494	247	X	0	0		# Ant034
+495	247	Y	0	0		
+496	248	X	0	0		# Ant009
+497	248	Y	0	0		
+498	249	X	0	0		# Ant010
+499	249	Y	0	0		
+500	250	X	0	0		# Ant011
+501	250	Y	0	0		
+502	251	X	0	0		# Ant018
+503	251	Y	0	0		
+504	252	X	0	0		# Ant033
+505	252	Y	0	0		
+506	253	X	0	0		# Ant022
+507	253	Y	0	0		
+508	254	X	0	0		# Ant020
+509	254	Y	0	0		
+510	255	X	0	0		# Ant019
+511	255	Y	0	0		

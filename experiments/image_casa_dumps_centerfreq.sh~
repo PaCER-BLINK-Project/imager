@@ -1,0 +1,65 @@
+#!/bin/bash
+
+obsID=1276619416
+if [[ -n "$1" && "$1" != "-" ]]; then
+   obsID=$1
+fi
+
+center_coarse_channel=133
+if [[ -n "$2" && "$2" != "-" ]]; then
+   center_coarse_channel=$2
+fi
+
+base=1276619416_20200619163000
+if [[ -n "$3" && "$3" != "-" ]]; then
+   base=$3
+fi
+
+max_ch=768
+if [[ -n "$4" && "$4" != "-" ]]; then
+   max_ch=$4
+fi
+
+size=4096
+if [[ -n "$5" && "$5" != "-" ]]; then
+   size=$5
+fi
+
+fov=16.72
+if [[ -n "$6" && "$6" != "-" ]]; then
+   fov=$6
+fi
+
+options=""
+if [[ -n "$7" && "$7" != "-" ]]; then
+   options="$7"
+fi
+
+force=0
+
+# cd /media/msok/5508b34c-040a-4dce-a8ff-2c4510a5d1a3/mwa/data/1276619416/20240120/single_script_execution_24ch_SCRATCH/000000/
+
+fine_ch=0
+while [[ $fine_ch -lt $max_ch ]]; 
+do
+   freq_mhz=`echo $center_coarse_channel | awk '{print $1*1.28;}'`
+   fine_ch_str=`echo $fine_ch | awk '{printf("%03d\n",$1);}'`
+   echo 
+   echo "------------------------------ channel = $fine_ch (freq_mhz = $freq_mhz - using centre freq. ) ------------------------------"
+   
+   count=`ls ${fine_ch_str}/dirty_image*_real.fits | wc -l`      
+   if [[ $count -le 0 || $force -gt 0 ]]; then     
+      mkdir -p ${fine_ch_str}
+      echo "/usr/local/bin/pacer_dirty_imager_cpu ${base} -p _channel${fine_ch_str}_time000000_pol0 -n ${size} -f ${freq_mhz} -F ${fov} -w N -M ${obsID}.metafits -O ${fine_ch_str}/ ${options} > ${fine_ch_str}/out 2>&1"
+      /usr/local/bin/pacer_dirty_imager_cpu ${base} -p _channel${fine_ch_str}_time000000_pol0 -n ${size} -f ${freq_mhz} -F ${fov} -w N -M ${obsID}.metafits -O ${fine_ch_str}/ ${options} > ${fine_ch_str}/out 2>&1
+   else
+      echo "WARNING : already imaged -> skipped"
+   fi
+   
+   fine_ch=$(($fine_ch+1))
+done
+
+ls ???/dirty*_real.fits > fits_list
+
+echo "avg_images fits_list avg.fits rms.fits -r 100000.000"
+avg_images fits_list avg.fits rms.fits -r 100000.000 

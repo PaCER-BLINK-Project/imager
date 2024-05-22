@@ -1,0 +1,35 @@
+FITS (Flexible Image Transport System) format is defined in 'Astronomy
+and Astrophysics', volume 376, page 359; bibcode: 2001A&A...376..359H
+AIPS WTSCAL =  1.0
+written by the UV FITS writer of RBW.
+FITS: Miriad fits: Revision 1.34, 2019/08/04 23:07:40 UTC
+FITS: Executed on: 2023-02-05T12:04:26.0
+FITS: Command line inputs follow:
+FITS:   op=uvin
+FITS:   in=chan_204_20230205T034618.uvfits
+FITS:   out=chan_204_20230205T034618.uv
+FITS:   options=compress
+PUTHD: Miriad PutHd: puthd: Revision 1.3, 2011/09/15 05:53:36 UTC
+PUTHD: Executed on: 2023-02-05T12:04:26.0
+PUTHD: Command line inputs follow:
+PUTHD:   in=chan_204_20230205T034618.uv/jyperk
+PUTHD:   value=2000.0
+PUTHD: Miriad PutHd: puthd: Revision 1.3, 2011/09/15 05:53:36 UTC
+PUTHD: Executed on: 2023-02-05T12:04:26.0
+PUTHD: Command line inputs follow:
+PUTHD:   in=chan_204_20230205T034618.uv/systemp
+PUTHD:   value=200.0
+UVCAT: Miriad UvCat: version 15-oct-2012
+UVCAT: Executed on: 2023-05-27T13:22:19.0
+UVCAT: Command line inputs follow:
+UVCAT:   vis=chan_204_20230205T034618.uv
+UVCAT:   stokes=xx
+UVCAT:   out=chan_204_20230205T034618_XX.uv
+UVMODEL: Miriad UvModel uvmodel: Revision 1.9, 2018/12/04 04:06:01 UTC
+UVMODEL: Executed on: 2023-05-27T13:22:19.0
+UVMODEL: Command line inputs follow:
+UVMODEL:   vis=chan_204_20230205T034618_XX.uv
+UVMODEL:   model=1675568778_159_Xsky.xy
+UVMODEL:   out=1675568778_159_simul_vis_XX_test2.uv
+UVMODEL:   options=replace
+UVMODEL:   select=polarization(xx)

@@ -1,0 +1,140 @@
+#!/bin/bash
+
+# based on data /data/2023_02_05_ch204_corr/chan_204_20230205T034618.uv .
+# date2date -ut2ux=20230205_034618
+# unixtime = 1675568778
+
+export AAVSCAL=/home/msok/aavs-calibration/
+
+src=chan_204_20230205T034618
+if [[ -n "$1" && "$1" != "-" ]]; then
+   src="$1"
+fi
+
+do_cross_check=0
+if [[ -n "$2" && "$2" != "-" ]]; then
+   do_cross_check=$2
+fi
+
+# clean output data
+echo "rm -fr *.xy *.uv *.fits *.map *.beam *.uvfits blink/"
+rm -fr *.xy *.uv *.fits *.map *.beam *.uvfits blink/
+
+
+echo "cp -a $BLINK_DIR/imager/scripts/simul/eda2/20230205/templates/${src}.uv ."
+cp -a $BLINK_DIR/imager/scripts/simul/eda2/20230205/templates/${src}.uv .
+
+# generate sky model using HASLAM map :
+echo "$AAVSCAL/SkyModel/make_skymodel_msok.sh -f 159.375 -T 1675568778 -B EDA2 -I 512"
+$AAVSCAL/SkyModel/make_skymodel_msok.sh -f 159.375 -T 1675568778 -B EDA2 -I 512
+
+echo "fits op=xyout in=1675568778_159_Xsky.xy out=1675568778_159_Xsky.fits"
+fits op=xyout in=1675568778_159_Xsky.xy out=1675568778_159_Xsky.fits
+
+echo "fits op=xyout in=1675568778_159_Ysky.xy out=1675568778_159_Ysky.fits"
+fits op=xyout in=1675568778_159_Ysky.xy out=1675568778_159_Ysky.fits
+
+
+# generate visibilities using images in X and Y polarisations :
+uvcat vis=${src}.uv stokes=xx out=${src}_XX.uv
+uvcat vis=${src}.uv stokes=yy out=${src}_YY.uv
+
+echo "uvmodel vis=${src}_XX.uv model=1675568778_159_Xsky.xy out=1675568778_159_simul_vis_XX.uv options=replace"
+uvmodel vis=${src}_XX.uv model=1675568778_159_Xsky.xy out=1675568778_159_simul_vis_XX.uv options=replace
+
+echo "uvmodel vis=${src}_YY.uv model=1675568778_159_Ysky.xy out=1675568778_159_simul_vis_YY.uv options=replace"
+uvmodel vis=${src}_YY.uv model=1675568778_159_Ysky.xy out=1675568778_159_simul_vis_YY.uv options=replace
+
+# create test images from simulated data using MIRIAD :
+imsize=180
+robust=-0.5
+
+echo "invert vis=1675568778_159_simul_vis_XX.uv map=1675568778_159_simul_vis_XX.map beam=1675568778_159_simul_vis_XX.beam robust=$robust options=double,mfs stokes=XX select='uvrange(0.0,100000)' imsize=${imsize},${imsize}"
+invert vis=1675568778_159_simul_vis_XX.uv map=1675568778_159_simul_vis_XX.map beam=1675568778_159_simul_vis_XX.beam robust=$robust options=double,mfs stokes=XX select='uvrange(0.0,100000)' imsize=${imsize},${imsize}
+
+echo "fits op=xyout in=1675568778_159_simul_vis_XX.map out=1675568778_159_simul_vis_XX.fits"
+fits op=xyout in=1675568778_159_simul_vis_XX.map out=1675568778_159_simul_vis_XX.fits
+
+echo "invert vis=1675568778_159_simul_vis_YY.uv map=1675568778_159_simul_vis_YY.map beam=1675568778_159_simul_vis_YY.beam robust=$robust options=double,mfs stokes=YY select='uvrange(0.0,100000)' imsize=${imsize},${imsize}"
+invert vis=1675568778_159_simul_vis_YY.uv map=1675568778_159_simul_vis_YY.map beam=1675568778_159_simul_vis_YY.beam robust=$robust options=double,mfs stokes=YY select='uvrange(0.0,100000)' imsize=${imsize},${imsize}
+
+echo "fits op=xyout in=1675568778_159_simul_vis_YY.map out=1675568778_159_simul_vis_YY.fits"
+fits op=xyout in=1675568778_159_simul_vis_YY.map out=1675568778_159_simul_vis_YY.fits
+
+# naturally weighted MIRIAD images :
+echo "invert vis=1675568778_159_simul_vis_XX.uv map=1675568778_159_simul_vis_XX_Natural.map beam=1675568778_159_simul_vis_XX_Natural.beam options=double,mfs stokes=XX select='uvrange(0.0,100000)' imsize=${imsize},${imsize} sup=0"
+invert vis=1675568778_159_simul_vis_XX.uv map=1675568778_159_simul_vis_XX_Natural.map beam=1675568778_159_simul_vis_XX_Natural.beam options=double,mfs stokes=XX select='uvrange(0.0,100000)' imsize=${imsize},${imsize} sup=0
+
+echo "invert vis=1675568778_159_simul_vis_YY.uv map=1675568778_159_simul_vis_YY_Natural.map beam=1675568778_159_simul_vis_YY_Natural.beam options=double,mfs stokes=YY select='uvrange(0.0,100000)' imsize=${imsize},${imsize} sup=0"
+invert vis=1675568778_159_simul_vis_YY.uv map=1675568778_159_simul_vis_YY_Natural.map beam=1675568778_159_simul_vis_YY_Natural.beam options=double,mfs stokes=YY select='uvrange(0.0,100000)' imsize=${imsize},${imsize} sup=0
+
+echo "fits op=xyout in=1675568778_159_simul_vis_XX_Natural.map out=1675568778_159_simul_vis_XX_Natural.fits"
+fits op=xyout in=1675568778_159_simul_vis_XX_Natural.map out=1675568778_159_simul_vis_XX_Natural.fits
+
+echo "fits op=xyout in=1675568778_159_simul_vis_YY_Natural.map out=1675568778_159_simul_vis_YY_Natural.fits"
+fits op=xyout in=1675568778_159_simul_vis_YY_Natural.map out=1675568778_159_simul_vis_YY_Natural.fits
+
+# convert .uv to .uvfits to use my code to dump correlation matrix :
+echo "fits op=uvout in=1675568778_159_simul_vis_XX.uv out=${src}_simul_vis_XX.uvfits"
+fits op=uvout in=1675568778_159_simul_vis_XX.uv out=${src}_simul_vis_XX.uvfits
+
+echo "fits op=uvout in=1675568778_159_simul_vis_YY.uv out=${src}_simul_vis_YY.uvfits"
+fits op=uvout in=1675568778_159_simul_vis_YY.uv out=${src}_simul_vis_YY.uvfits
+
+# dump correlation matrix to be used by blink imager :
+mkdir -p blink/
+cd blink/
+ln -s ../${src}_simul_vis_XX.uvfits ${src}_simul_XX_vis.uvfits
+ln -s ../${src}_simul_vis_YY.uvfits ${src}_simul_YY_vis.uvfits
+
+echo "python $BLINK_DIR/imager/scripts/eda2_calibration.py ${src}_simul_XX_vis.uvfits"
+python $BLINK_DIR/imager/scripts/eda2_calibration.py ${src}_simul_XX_vis.uvfits
+
+ln -s ${src}_simul_XX_vis_CorrMatrix_IM.fits ${src}_simul_XX_vis_imag.fits
+ln -s ${src}_simul_XX_vis_CorrMatrix_RE.fits ${src}_simul_XX_vis_real.fits
+
+echo "python $BLINK_DIR/imager/scripts/eda2_calibration.py ${src}_simul_YY_vis.uvfits"
+python $BLINK_DIR/imager/scripts/eda2_calibration.py ${src}_simul_YY_vis.uvfits
+
+ln -s ${src}_simul_YY_vis_CorrMatrix_IM.fits ${src}_simul_YY_vis_imag.fits
+ln -s ${src}_simul_YY_vis_CorrMatrix_RE.fits ${src}_simul_YY_vis_real.fits
+
+# create images using BLINK imager :
+echo "cp ../templates/antenna_locations.txt ."
+cp ../templates/antenna_locations.txt .
+
+echo "pacer_dirty_imager ${src}_simul_XX -f 159.375 -a antenna_locations.txt -n 180 -w N -o miriad -O XX/ -Z -v 100 > blink_XX.out 2>&1"
+pacer_dirty_imager ${src}_simul_XX -f 159.375 -a antenna_locations.txt -n 180 -w N -o miriad -O XX/ -Z -v 100 > blink_XX.out 2>&1 
+
+echo "pacer_dirty_imager ${src}_simul_YY -f 159.375 -a antenna_locations.txt -n 180 -w N -o miriad -O YY/ -Z -v 100 > blink_YY.out 2>&1"
+pacer_dirty_imager ${src}_simul_YY -f 159.375 -a antenna_locations.txt -n 180 -w N -o miriad -O YY/ -Z -v 100 > blink_YY.out 2>&1 
+cd ../
+
+if [[ $do_cross_check -gt 0 ]]; then
+   echo "INFO : generating visibilities and simulated images using a different approach is request. WARNING : this may produce twice as much data products !"
+   
+   # test2 - using visibitiles generated in slightly different way:
+   # test2 : generate in a slightly different way:
+   echo "uvmodel vis=${src}_XX.uv model=1675568778_159_Xsky.xy out=1675568778_159_simul_vis_XX_test2.uv options=replace select= \"polarization(xx)\""
+   uvmodel vis=${src}_XX.uv model=1675568778_159_Xsky.xy out=1675568778_159_simul_vis_XX_test2.uv options=replace select="polarization(xx)"
+
+   echo "uvmodel vis=${src}_YY.uv model=1675568778_159_Ysky.xy out=1675568778_159_simul_vis_YY_test2.uv options=replace select=\"polarization(yy)\""
+   uvmodel vis=${src}_YY.uv model=1675568778_159_Ysky.xy out=1675568778_159_simul_vis_YY_test2.uv options=replace select="polarization(yy)"
+
+   echo "invert vis=1675568778_159_simul_vis_XX_test2.uv map=1675568778_159_simul_vis_XX_test2.map beam=1675568778_159_simul_vis_XX_test2.beam robust=$robust options=double,mfs stokes=XX select='uvrange(0.0,100000)' imsize=${imsize},${imsize}"
+   invert vis=1675568778_159_simul_vis_XX_test2.uv map=1675568778_159_simul_vis_XX_test2.map beam=1675568778_159_simul_vis_XX_test2.beam robust=$robust options=double,mfs stokes=XX select='uvrange(0.0,100000)' imsize=${imsize},${imsize}
+
+   echo "fits op=xyout in=1675568778_159_simul_vis_XX_test2.map out=1675568778_159_simul_vis_XX_test2.fits"
+   fits op=xyout in=1675568778_159_simul_vis_XX_test2.map out=1675568778_159_simul_vis_XX_test2.fits
+
+   echo "invert vis=1675568778_159_simul_vis_YY_test2.uv map=1675568778_159_simul_vis_YY_test2.map beam=1675568778_159_simul_vis_YY_test2.beam robust=$robust options=double,mfs stokes=YY select='uvrange(0.0,100000)' imsize=${imsize},${imsize}"
+   invert vis=1675568778_159_simul_vis_YY_test2.uv map=1675568778_159_simul_vis_YY_test2.map beam=1675568778_159_simul_vis_YY_test2.beam robust=$robust options=double,mfs stokes=YY select='uvrange(0.0,100000)' imsize=${imsize},${imsize}
+
+   echo "fits op=xyout in=1675568778_159_simul_vis_YY_test2.map out=1675568778_159_simul_vis_YY_test2.fits"
+   fits op=xyout in=1675568778_159_simul_vis_YY_test2.map out=1675568778_159_simul_vis_YY_test2.fits
+else
+   echo "WARNING : generating visibilities and simulated images using a different approach is not required"
+fi   
+
+
+
