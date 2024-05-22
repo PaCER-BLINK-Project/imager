@@ -34,9 +34,11 @@
 
    msfitslib follow the installation instructions at https://github.com/marcinsokolowski/msfitslib 
 
+   astroio follow the installation instructions at https://github.com/PaCER-BLINK-Project/astroio
+
 # installation:
 
-   On Topaz super computer :
+   On super computer :
 
    git clone git@146.118.67.64:blink/imager.git
 
@@ -61,9 +63,6 @@ On any desktop computer:
 
       - Starting with demonstration software using CASA dumps of visibility and UVW data
       - Scripts for dumping CASA ms are in cotter_wsclean/scripts/casa/
-
-
-   - pacer_uvgrid_generator - visibility simulator (filling UV grid with requested pattern) - it's just for testing.
 
 
    - pacer_dirty_image - reads visibilities and UVW data from FITS files as produced by script cotter_wsclean/scripts/casa/get_corrmatrix_from_casa.py (may be moved here now)
