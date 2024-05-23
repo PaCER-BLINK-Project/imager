@@ -75,7 +75,8 @@ install(TARGETS imaging
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-install(FILES ${CMAKE_BINARY_DIR}/pacerimagerlib.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
+# This tries to install to /pkgconfig - ${CMAKE_INSTALL_DATAROOTDIR} not defined?
+# install(FILES ${CMAKE_BINARY_DIR}/pacerimagerlib.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
 # External dependencies
 
@@ -120,13 +121,13 @@ target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3
 # target_link_libraries(test_calsol imaging)
 add_executable(pacer_imager_test apps/pacer_imager_test.cpp src/antenna_positions.cpp src/pacer_imager.cpp src/pacer_imager_thread.cpp src/pacer_common.cpp src/apply_calibration.cpp src/pacer_imager_parameters.cpp src/observation_metadata.cpp)
 add_executable(test_calsol apps/test_calsol/main.cpp src/apply_calibration.cpp src/antenna_positions.cpp src/pacer_imager.cpp src/pacer_imager_thread.cpp src/pacer_common.cpp src/pacer_imager_parameters.cpp src/observation_metadata.cpp)
-target_link_libraries(pacer_imager_test ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl)
+target_link_libraries(pacer_imager_test ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl)
 
 # Test FFTW program :
 add_executable(fftw_blocks apps/fftw_blocks.cpp src/antenna_positions.cpp src/pacer_imager.cpp src/pacer_imager_thread.cpp src/pacer_common.cpp src/apply_calibration.cpp src/pacer_imager_parameters.cpp src/observation_metadata.cpp)
-target_link_libraries(fftw_blocks ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl -lfftw3f_threads -lfftw3f)
+target_link_libraries(fftw_blocks ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl -lfftw3f_threads -lfftw3f)
 
-target_link_libraries(test_calsol ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl)
+target_link_libraries(test_calsol ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl)
 if(USE_HIP OR USE_CUDA)
     if(USE_CUDA)
        set(CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS};-gencode arch=compute_${SM},code=sm_${SM})
@@ -141,8 +142,8 @@ if(USE_HIP OR USE_CUDA)
         target_compile_options(pacer_dirty_imager PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_NVCC_FLAGS}>)
         target_compile_options(pacer_dirty_imager_gpu PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_NVCC_FLAGS}>)
     endif()
-    target_link_libraries(pacer_dirty_imager ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl ${GPU_LIBS})
-    target_link_libraries(pacer_dirty_imager_gpu ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl ${GPU_LIBS})
+    target_link_libraries(pacer_dirty_imager ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl ${GPU_LIBS})
+    target_link_libraries(pacer_dirty_imager_gpu ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl ${GPU_LIBS})
 
     # Gayatri's multi-block version:
     add_executable(cufft_blocks apps/cufft_blocks.cpp src/antenna_positions.cpp src/pacer_imager.cpp src/pacer_imager_thread.cpp src/pacer_common.cpp src/apply_calibration.cpp src/pacer_imager_parameters.cpp src/observation_metadata.cpp ${gpu_sources})
@@ -150,21 +151,21 @@ if(USE_HIP OR USE_CUDA)
        set_source_files_properties( apps/cufft_blocks.cpp PROPERTIES LANGUAGE CUDA)
        target_compile_options( cufft_blocks PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:${CUDA_NVCC_FLAGS}>)
     endif()
-    target_link_libraries(cufft_blocks ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl ${GPU_LIBS})
+    target_link_libraries(cufft_blocks ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl ${GPU_LIBS})
 
     # gridding debugger 
     if(DEBUG_GRIDDING)
       add_executable(debug_gpu_gridding debug/debug_gpu_gridding.cu src/antenna_positions.cpp src/pacer_imager.cpp src/pacer_imager_thread.cpp src/pacer_common.cpp src/apply_calibration.cpp src/pacer_imager_parameters.cpp src/observation_metadata.cpp ${gpu_sources})
-      target_link_libraries(debug_gpu_gridding ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl ${GPU_LIBS})
+      target_link_libraries(debug_gpu_gridding ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl ${GPU_LIBS})
       message("INFO : debug_gridding program will be build")
     endif()
 
 else()
   add_executable(pacer_dirty_imager apps/pacer_imager_main.cpp src/antenna_positions.cpp src/pacer_imager.cpp src/pacer_imager_thread.cpp src/pacer_common.cpp src/apply_calibration.cpp src/pacer_imager_parameters.cpp src/observation_metadata.cpp)
-  target_link_libraries(pacer_dirty_imager ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl)
+  target_link_libraries(pacer_dirty_imager ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl)
 
   add_executable(pacer_dirty_imager_cpu apps/pacer_imager_main.cpp src/antenna_positions.cpp src/pacer_imager.cpp src/pacer_imager_thread.cpp src/pacer_common.cpp src/apply_calibration.cpp src/pacer_imager_parameters.cpp src/observation_metadata.cpp)
-  target_link_libraries(pacer_dirty_imager_cpu ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl)
+  target_link_libraries(pacer_dirty_imager_cpu ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${BLINK_ASTROIO} -lpthread -ldl)
 endif()
 
 if(BUILD_LFILE_IMAGER)
