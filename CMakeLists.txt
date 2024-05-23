@@ -108,7 +108,7 @@ else()
    set(GPU_LIBS "")
 endif()
 
-target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} -lpthread -ldl)
+target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${GPU_LIBS}  -lpthread -ldl)
 
 # temporary changed back to NOT LINKING imaging library due to 
 # see Issue #3 ( program crashes at the end when linking using imaging library )
