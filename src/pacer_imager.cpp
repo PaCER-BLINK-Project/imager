@@ -654,8 +654,9 @@ void CPacerImager::dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_im
    // 2022-12-29 : moved here to allocate m_pSkyImageRealTmp and m_pSkyImageImagTmp :
    //              it now allocates both temporary (Tmp) buffers and output images m_pSkyImageReal and m_pSkyImageImag
    // AllocOutPutImages( uv_grid_real_param.GetXSize(), uv_grid_real_param.GetYSize() );
-   m_pSkyImageRealTmp->SetValue( 0.00 );
-   m_pSkyImageImagTmp->SetValue( 0.00 );
+   // MS (2024-06-12) : not required as these are overwritten later in a loop where normalisation factor fnorm is applied:
+   // m_pSkyImageRealTmp->SetValue( 0.00 );
+   // m_pSkyImageImagTmp->SetValue( 0.00 );
 
    // copy resulting data from out_buffer to out_image_real :
    // WARNING : this is image in l,m = cos(alpha), cos(beta) coordinates and still needs to go to SKY COORDINATES !!!
@@ -1066,9 +1067,9 @@ void CPacerImager::gridding( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, CBg
 
 
   // simple gridding :
-  uv_grid_real.SetValue( 0.00 );
-  uv_grid_imag.SetValue( 0.00 );
-  uv_grid_counter.SetValue( 0.00 );
+  uv_grid_real.SetZeroValue();
+  uv_grid_imag.SetZeroValue();
+  uv_grid_counter.SetZeroValue();
       
   int added=0, high_value=0;
   for( int ant1 = 0 ; ant1 < fits_vis_real.GetXSize(); ant1++ ){
@@ -1319,9 +1320,9 @@ void CPacerImager::gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag
 
 
   // simple gridding :
-  uv_grid_real.SetValue( 0.00 );
-  uv_grid_imag.SetValue( 0.00 );
-  uv_grid_counter.SetValue( 0.00 );
+  uv_grid_real.SetZeroValue();
+  uv_grid_imag.SetZeroValue();
+  uv_grid_counter.SetZeroValue();
       
   int added=0, high_value=0;
   for( int ant1 = 0 ; ant1 < fits_vis_real.GetXSize(); ant1++ ){
@@ -1609,9 +1610,9 @@ void CPacerImager::gridding_fast( Visibilities& xcorr,
 
 
   // simple gridding :
-  uv_grid_real.SetValue( 0.00 );
-  uv_grid_imag.SetValue( 0.00 );
-  uv_grid_counter.SetValue( 0.00 );
+  uv_grid_real.SetZeroValue();
+  uv_grid_imag.SetZeroValue();
+  uv_grid_counter.SetZeroValue();
 
   int n_ant = xcorr.obsInfo.nAntennas;      
   int added=0, high_value=0;
@@ -1849,7 +1850,7 @@ void CPacerImager::gridding_fast( void* visibilities_param,
 
 
   // simple gridding :
-  uv_grid_counter.SetValue( 0.00 );
+  uv_grid_counter.SetZeroValue();
 
   int added=0, high_value=0;
   for( int ant1 = 0 ; ant1 < n_ant; ant1++ ){
@@ -2845,8 +2846,8 @@ bool CPacerImager::run_imager( float* data_real,
   
   if( bCornerTurnRequired )
   {
-     fits_vis_real.SetValue(0.00);
-     fits_vis_imag.SetValue(0.00);
+     fits_vis_real.SetZeroValue();
+     fits_vis_imag.SetZeroValue();
 
      // ~corner-turn operation which can be quickly done on GPU: 
      int counter=0;

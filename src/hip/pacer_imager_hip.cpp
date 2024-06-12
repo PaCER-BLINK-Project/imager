@@ -418,16 +418,17 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   }
 
   // initialise values in the UV GRID to zeros: 
-  m_uv_grid_real->SetValue( 0.00 );
-  m_uv_grid_imag->SetValue( 0.00 );
-  m_uv_grid_counter->SetValue( 0.00 );
+  m_uv_grid_real->SetZeroValue();
+  m_uv_grid_imag->SetZeroValue();
+  m_uv_grid_counter->SetZeroValue();
 
   // out_image_real and out_image_imag 
   CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
 
   // Setting the initial values of out_image_real/out_image_imag 
-  out_image_real.SetValue( 0.00 );
-  out_image_imag.SetValue( 0.00 );
+  // MS (2024-06-12) : not required as these are overwritten later in a loop where normalisation factor fnorm is applied:
+  // out_image_real.SetZeroValue();
+  // out_image_imag.SetZeroValue();
 
   // Step 1: Declare GPU(Device) and CPU(Host) Variables 
   // CPU input variables 
@@ -771,16 +772,17 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   }
 
   // initialise values in the UV GRID to zeros: 
-  m_uv_grid_real->SetValue( 0.00 );
-  m_uv_grid_imag->SetValue( 0.00 );
-  m_uv_grid_counter->SetValue( 0.00 );
+  m_uv_grid_real->SetZeroValue();
+  m_uv_grid_imag->SetZeroValue();
+  m_uv_grid_counter->SetZeroValue();
 
   // out_image_real and out_image_imag 
   CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
 
   // Setting the initial values of out_image_real/out_image_imag 
-  out_image_real.SetValue( 0.00 );
-  out_image_imag.SetValue( 0.00 );
+  // MS (2024-06-12) : not required as these are overwritten later in a loop where normalisation factor fnorm is applied:
+  // out_image_real.SetValue( 0.00 );
+  // out_image_imag.SetValue( 0.00 );
 
   // Step 1: Declare GPU(Device) and CPU(Host) Variables 
   // CPU input variables 
