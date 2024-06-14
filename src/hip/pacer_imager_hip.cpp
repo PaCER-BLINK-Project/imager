@@ -25,7 +25,7 @@ CPacerImagerHip::CPacerImagerHip()
   u_gpu(NULL), v_gpu(NULL), w_gpu(NULL), vis_real_gpu(NULL), vis_imag_gpu(NULL), uv_grid_real_gpu(NULL), uv_grid_imag_gpu(NULL), uv_grid_counter_gpu(NULL), uv_grid_counter_cpu(NULL),
   m_in_buffer_gpu(NULL), m_out_buffer_gpu(NULL), m_AllocatedXYSize(0), m_AllocatedImageSize(0), m_out_buffer_cpu(NULL),
   m_FFTPlan(0), vis_gpu(NULL), cable_lengths_gpu(NULL), cable_lengths_cpu(NULL), test_data_real_gpu(NULL), test_data_imag_gpu(NULL),
-  antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL)
+  antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL), m_out_data(NULL)
 {
 
 }
@@ -138,6 +138,10 @@ void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size )
       (gpuMemset((float*)test_data_imag_gpu, 0, corr_size*sizeof(float)));
    }
    
+   if( !m_out_data ){
+      m_out_data = (gpufftComplex*)malloc(sizeof(gpufftComplex) * image_size);
+   }
+   
 }
 
 
@@ -238,6 +242,12 @@ void CPacerImagerHip::CleanGPUMemory()
    if( antenna_weights_cpu ){
       delete [] antenna_weights_cpu;
       antenna_weights_cpu = NULL;
+   }
+   
+   if( m_out_data )
+   {
+      free( (gpufftComplex*)m_out_data);
+      m_out_data = NULL;
    }
 
 // TODO : why it is commented out - does it cause memory leak ???    
@@ -522,10 +532,8 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   (gpuMemcpy((float*)uv_grid_imag_cpu, (float*)uv_grid_imag_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
   PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just after gpuMemcpy]\n",m_uv_grid_real->getXY(4,0));
 
-  // CPU Variable 
-  gpufftComplex* m_out_data;
-  m_out_data = (gpufftComplex*)malloc(sizeof(gpufftComplex) * image_size);
-  (gpuMemcpy(m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
+  // CPU Variable   
+  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
 
   // End of gpuMemcpy() GPU to CPU 
   PACER_PROFILER_SHOW("GPU memory copy from device to host took")
@@ -545,8 +553,8 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   // Assigning back 
   for(int i = 0; i < image_size; i++) 
    {
-     out_data_real[i] = m_out_data[i].x*fnorm; 
-     out_data_imag[i] = m_out_data[i].y*fnorm; 
+     out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; 
+     out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; 
    }   
 
   // Saving gridding() output files 
@@ -1023,9 +1031,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   PRINTF_DEBUG("\nDEBUG : GPU gridding (0,0) = %.20f [just after hipMemcpy] vs. xcorr = %.8f /   %.8f\n",m_uv_grid_real->getXY(0,0),xcorr.data()[0].real(),xcorr.data()[0].imag());
 
   // CPU Variable 
-  gpufftComplex* m_out_data;
-  m_out_data = (gpufftComplex*)malloc(sizeof(gpufftComplex) * image_size);
-  (gpuMemcpy(m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
+  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
 
   // End of gpuMemcpy() GPU to CPU 
   clock_t end_time5 = clock();
@@ -1049,8 +1055,8 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Assigning back 
   for(int i = 0; i < image_size; i++) 
    {
-     out_data_real[i] = m_out_data[i].x*fnorm; 
-     out_data_imag[i] = m_out_data[i].y*fnorm; 
+     out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; 
+     out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; 
    }   
 
   // Saving gridding() output files 

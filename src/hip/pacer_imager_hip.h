@@ -16,6 +16,7 @@ protected :
 
    void* m_out_buffer_gpu; // output of cu/hip FFT - GPU memory (Device)
    void* m_out_buffer_cpu; // output of cu/fip FFT - Host memory (Host)
+   void* m_out_data; // temporary CPU buffer to apply normalisation. TODO : apply normalisation in a GPU kernal
 
 
    // Additional GPU Input variables 
