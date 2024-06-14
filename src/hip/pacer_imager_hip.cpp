@@ -418,9 +418,11 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   }
 
   // initialise values in the UV GRID to zeros: 
-  m_uv_grid_real->SetZeroValue();
-  m_uv_grid_imag->SetZeroValue();
-  m_uv_grid_counter->SetZeroValue();
+  // 2024-06-14 : this code is not need as it is only used to initialise GPU arrays with zeros later in the code (cudaMemcpy), but these arrays are already initialised with zeros in 
+  //              AllocGPUMemory function using cudaMemset
+  // m_uv_grid_real->SetZeroValue();
+  // m_uv_grid_imag->SetZeroValue();
+  // m_uv_grid_counter->SetZeroValue();
 
   // out_image_real and out_image_imag 
   CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
@@ -439,6 +441,9 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   float *vis_imag_cpu = fits_vis_imag.get_data();
 
   // CPU Output variables
+  // MS (2024-06-14) I leave these for know, but in fact they should only be used/executed if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
+  //                 because otherwise we do not need to have all these data copied from GPU to CPU
+  // TODO : add if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ) -> will require more testing
   float *uv_grid_real_cpu = m_uv_grid_real->get_data();
   float *uv_grid_imag_cpu = m_uv_grid_imag->get_data();
   float *uv_grid_counter_cpu = m_uv_grid_counter->get_data();
@@ -772,9 +777,11 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   }
 
   // initialise values in the UV GRID to zeros: 
-  m_uv_grid_real->SetZeroValue();
-  m_uv_grid_imag->SetZeroValue();
-  m_uv_grid_counter->SetZeroValue();
+  // 2024-06-14 : this code is not need as it is only used to initialise GPU arrays with zeros later in the code (cudaMemcpy), but these arrays are already initialised with zeros in 
+  //              AllocGPUMemory function using cudaMemset
+  // m_uv_grid_real->SetZeroValue();
+  // m_uv_grid_imag->SetZeroValue();
+  // m_uv_grid_counter->SetZeroValue();
 
   // out_image_real and out_image_imag 
   CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
@@ -793,6 +800,9 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 //  float *vis_imag_cpu = fits_vis_imag.get_data();
 
   // CPU Output variables
+  // MS (2024-06-14) I leave these for know, but in fact they should only be used/executed if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
+  //                 because otherwise we do not need to have all these data copied from GPU to CPU
+  // TODO : add if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ) -> will require more testing
   float *uv_grid_real_cpu = m_uv_grid_real->get_data();
   float *uv_grid_imag_cpu = m_uv_grid_imag->get_data();
   float *uv_grid_counter_cpu = m_uv_grid_counter->get_data();
