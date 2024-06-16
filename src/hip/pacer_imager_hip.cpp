@@ -8,6 +8,7 @@
 #include <gpu_fft.hpp>
 
 #include "../pacer_common.h"
+#include "gpu_utils.h"
 #include <mystring.h>
 #include <mydate.h>
 
@@ -531,9 +532,18 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
   (gpuMemcpy((float*)uv_grid_imag_cpu, (float*)uv_grid_imag_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
   PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just after gpuMemcpy]\n",m_uv_grid_real->getXY(4,0));
+  
+  // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
+  double fnorm = 1.00/m_uv_grid_counter->Sum();
+  
+  // TODO : for now keeping it as it was as there is no clear advantage of doing normalsation on GPU 
+  // apply normalisation constant on GPU :
+  // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
+  // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
 
   // CPU Variable   
   (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
+   
 
   // End of gpuMemcpy() GPU to CPU 
   PACER_PROFILER_SHOW("GPU memory copy from device to host took")
@@ -548,13 +558,12 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   // float pointers to 1D Arrays 
   float* out_data_real = out_image_real.get_data();
   float* out_data_imag = out_image_imag.get_data();
-  double fnorm = 1.00/m_uv_grid_counter->Sum();    
 
   // Assigning back 
   for(int i = 0; i < image_size; i++) 
    {
-     out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; 
-     out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; 
+       out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
+       out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
    }   
 
   // Saving gridding() output files 
@@ -1029,7 +1038,15 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
   (gpuMemcpy((float*)uv_grid_imag_cpu, (float*)uv_grid_imag_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
   PRINTF_DEBUG("\nDEBUG : GPU gridding (0,0) = %.20f [just after hipMemcpy] vs. xcorr = %.8f /   %.8f\n",m_uv_grid_real->getXY(0,0),xcorr.data()[0].real(),xcorr.data()[0].imag());
-
+  
+  // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
+  double fnorm = 1.00/m_uv_grid_counter->Sum();
+  
+  // TODO : for now keeping it as it was as there is no clear advantage of doing normalsation on GPU 
+  // apply normalisation constant on GPU :
+  // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
+  // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
+  
   // CPU Variable 
   (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
 
@@ -1050,13 +1067,12 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // float pointers to 1D Arrays 
   float* out_data_real = out_image_real.get_data();
   float* out_data_imag = out_image_imag.get_data();
-  double fnorm = 1.00/m_uv_grid_counter->Sum();    
 
   // Assigning back 
   for(int i = 0; i < image_size; i++) 
    {
-     out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; 
-     out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; 
+      out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
+      out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
    }   
 
   // Saving gridding() output files 
