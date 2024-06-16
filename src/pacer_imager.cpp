@@ -479,7 +479,7 @@ bool CPacerImager::SaveSkyImage( const char* outFitsName, CBgFits* pFits, double
        pixscale = m_PixscaleAtZenith;       
    }
 
-   PRINTF_DEBUG("DEBUG : m_PixscaleAtZenith = %.6f [deg] -> pixscale = %.6f [deg] , FoV = %.4f [deg], ImageSize = %d x %d\n",m_PixscaleAtZenith,pixscale,m_ImagerParameters.m_ImageFOV_degrees,pFits->GetXSize(),pFits->GetYSize());
+   PRINTF_DEBUG("DEBUG : m_PixscaleAtZenith = %.6f [deg] -> pixscale = %.6f [deg] , FoV = %.4f [deg], ImageSize = %ld x %ld\n",m_PixscaleAtZenith,pixscale,m_ImagerParameters.m_ImageFOV_degrees,pFits->GetXSize(),pFits->GetYSize());
    // azh2radec 1581220006 mwa 0 90
    // (RA,DEC) = ( 312.07545047 , -26.70331900 )
    // 20.80503003133333333333
@@ -2424,7 +2424,7 @@ bool CPacerImager::ApplySolutions( CBgFits& fits_vis_real, CBgFits& fits_vis_ima
    }
    
    if( fits_vis_real.GetXSize() != calsol.size() ){
-      printf("WARNING : wrong number of calibration solutions (%d vs. required %d)\n",int(calsol.size()),fits_vis_real.GetXSize());
+      printf("WARNING : wrong number of calibration solutions (%d vs. required %ld)\n",int(calsol.size()),fits_vis_real.GetXSize());
       
       return false;
    }
@@ -2558,7 +2558,7 @@ bool CPacerImager::run_imager( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, C
         ApplySolutions( fits_vis_real, fits_vis_imag, frequency_mhz, m_CalibrationSolutions );
      }else
      {
-        printf("WARNING : wrong number of calibration solutions (%d vs. required %d)\n",int(m_CalibrationSolutions.size()),fits_vis_real.GetXSize());
+        printf("WARNING : wrong number of calibration solutions (%d vs. required %ld)\n",int(m_CalibrationSolutions.size()),fits_vis_real.GetXSize());
      }
   }else{
      printf("WARNING : no calibration solutions (size=%d) -> no applied!\n",int(m_CalibrationSolutions.size()));
