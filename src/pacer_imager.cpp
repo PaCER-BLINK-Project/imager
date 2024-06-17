@@ -2461,11 +2461,13 @@ bool CPacerImager::ApplySolutions( CBgFits& fits_vis_real, CBgFits& fits_vis_ima
    }
    
    // may be temporary :
-   char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
-   sprintf(szOutPutFitsRE,"%s/cal_re.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   sprintf(szOutPutFitsIM,"%s/cal_im.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
-   fits_vis_real.WriteFits( szOutPutFitsRE );
-   fits_vis_imag.WriteFits( szOutPutFitsIM );
+   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+      char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
+      sprintf(szOutPutFitsRE,"%s/cal_re.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
+      sprintf(szOutPutFitsIM,"%s/cal_im.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
+      fits_vis_real.WriteFits( szOutPutFitsRE );
+      fits_vis_imag.WriteFits( szOutPutFitsIM );
+   }
 
    
    return true;
