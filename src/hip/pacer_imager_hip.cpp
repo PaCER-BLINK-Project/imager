@@ -534,7 +534,10 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just after gpuMemcpy]\n",m_uv_grid_real->getXY(4,0));
   
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
-  double fnorm = 1.00/m_uv_grid_counter->Sum();
+  // double fnorm = 1.00/m_uv_grid_counter->Sum();
+  double fnorm = 1.00/sum_gpu_atomicadd( uv_grid_counter_gpu, image_size );
+  // double fnorm = 1.00/sum_gpu_parallel_reduce( uv_grid_counter_gpu, image_size );
+  
   
   // TODO : for now keeping it as it was as there is no clear advantage of doing normalsation on GPU 
   // apply normalisation constant on GPU :
@@ -1040,7 +1043,10 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   PRINTF_DEBUG("\nDEBUG : GPU gridding (0,0) = %.20f [just after hipMemcpy] vs. xcorr = %.8f /   %.8f\n",m_uv_grid_real->getXY(0,0),xcorr.data()[0].real(),xcorr.data()[0].imag());
   
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
-  double fnorm = 1.00/m_uv_grid_counter->Sum();
+  // double fnorm = 1.00/m_uv_grid_counter->Sum();
+  double fnorm = 1.00/sum_gpu_atomicadd( uv_grid_counter_gpu, image_size );
+  // double fnorm = 1.00/sum_gpu_parallel_reduce( uv_grid_counter_gpu, image_size );
+
   
   // TODO : for now keeping it as it was as there is no clear advantage of doing normalsation on GPU 
   // apply normalisation constant on GPU :
