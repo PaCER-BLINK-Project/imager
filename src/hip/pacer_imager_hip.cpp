@@ -605,6 +605,7 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   float* out_data_real = out_image_real.get_data();
   float* out_data_imag = out_image_imag.get_data();
 
+  // TODO : next part to move to GPU
   // Assigning back 
   for(int i = 0; i < image_size; i++) 
   {
@@ -1125,6 +1126,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   float* out_data_imag = out_image_imag.get_data();
 
   // Assigning back 
+  // TODO : next part to move to GPU 
   for(int i = 0; i < image_size; i++) 
    {
       out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
