@@ -544,23 +544,8 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
   // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
 
-  // CPU Variable   
-  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
-   
-
   // End of gpuMemcpy() GPU to CPU 
   PACER_PROFILER_SHOW("GPU memory copy from device to host took")
-
-  // float pointers to 1D Arrays 
-  float* out_data_real = out_image_real.get_data();
-  float* out_data_imag = out_image_imag.get_data();
-
-  // Assigning back 
-  for(int i = 0; i < image_size; i++) 
-   {
-       out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
-       out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
-   }   
 
   // Saving gridding() output files 
   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
@@ -607,10 +592,28 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
      }
   }
 
+  // CPU Variable
+  // TODO : this will only be done if saving intermediate / debug FITS files is required, otherwise stays on GPU :   
+  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
 
-  char outDirtyImageReal[1024],outDirtyImageImag[1024];   
-   
-   if( bSaveIntermediate ){ // I will keep this if - assuming it's always TRUE, but there is still control using , if bSaveIntermediate=false it has priority over m_SaveFilesLevel
+  // TODO : once fft_shift is implemneted on GPU this code may be move inside if( bSaveIntermediate ){ 
+  //        then this operation will be performed only if really required for saving intermediate files 
+  //        Once fft_shift is performed on GPU multipilcation by fnorm can also be done there. 
+  //        Then final output will be copied from GPU to CPU only when required by CPacerImager::m_SaveFilesLevel parameter
+  // 
+  // float pointers to 1D Arrays 
+  float* out_data_real = out_image_real.get_data();
+  float* out_data_imag = out_image_imag.get_data();
+
+  // Assigning back 
+  for(int i = 0; i < image_size; i++) 
+  {
+       out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
+       out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
+  }   
+
+  char outDirtyImageReal[1024],outDirtyImageImag[1024];      
+  if( bSaveIntermediate ){ // I will keep this if - assuming it's always TRUE, but there is still control using , if bSaveIntermediate=false it has priority over m_SaveFilesLevel
       if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
          sprintf(outDirtyImageReal,"%s/dirty_test_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
          sprintf(outDirtyImageImag,"%s/dirty_test_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
@@ -631,6 +634,7 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
       return;
    }
 
+   // TODO : CPU -> GPU 
    fft_shift( out_image_real, *m_pSkyImageReal );
    fft_shift( out_image_imag, *m_pSkyImageImag );
    
@@ -1054,26 +1058,12 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
   // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
   
-  // CPU Variable 
-  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
-
   // End of gpuMemcpy() GPU to CPU 
   clock_t end_time5 = clock();
   double duration_sec5 = double(end_time5-start_time5)/CLOCKS_PER_SEC;
   double duration_ms5 = duration_sec5*1000;
   printf("\n ** CLOCK gpuMemcpy() GPU to CPU took : %.6f [seconds], %.3f [ms]\n",duration_sec5,duration_ms5);
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 5 GPU to CPU copied"); 
-
-  // float pointers to 1D Arrays 
-  float* out_data_real = out_image_real.get_data();
-  float* out_data_imag = out_image_imag.get_data();
-
-  // Assigning back 
-  for(int i = 0; i < image_size; i++) 
-   {
-      out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
-      out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
-   }   
 
   // Saving gridding() output files 
   printf("DEBUG : imager : CPacerImager::m_SaveFilesLevel = %d\n",CPacerImager::m_SaveFilesLevel);
@@ -1121,6 +1111,25 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
      }
   }
 
+  // CPU Variable 
+  // TODO : this will only be done if saving intermediate / debug FITS files is required, otherwise stays on GPU :
+  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
+
+  // TODO : once fft_shift is implemneted on GPU this code may be move inside if( bSaveIntermediate ){ 
+  //        then this operation will be performed only if really required for saving intermediate files 
+  //        Once fft_shift is performed on GPU multipilcation by fnorm can also be done there. 
+  //        Then final output will be copied from GPU to CPU only when required by CPacerImager::m_SaveFilesLevel parameter
+  // 
+  // float pointers to 1D Arrays 
+  float* out_data_real = out_image_real.get_data();
+  float* out_data_imag = out_image_imag.get_data();
+
+  // Assigning back 
+  for(int i = 0; i < image_size; i++) 
+   {
+      out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
+      out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
+   }   
 
   char outDirtyImageReal[1024],outDirtyImageImag[1024];   
    
@@ -1145,6 +1154,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
       return;
    }
 
+   // TODO : CPU -> GPU 
    fft_shift( out_image_real, *m_pSkyImageReal );
    fft_shift( out_image_imag, *m_pSkyImageImag );
    
