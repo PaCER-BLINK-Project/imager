@@ -551,13 +551,6 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   // End of gpuMemcpy() GPU to CPU 
   PACER_PROFILER_SHOW("GPU memory copy from device to host took")
 
-  // Uniform weighting (Not implemented here)
-  if( strcmp(weighting, "U" ) == 0 )
-  {
-     m_uv_grid_real->Divide( *m_uv_grid_counter );
-     m_uv_grid_imag->Divide( *m_uv_grid_counter );
-  } 
-
   // float pointers to 1D Arrays 
   float* out_data_real = out_image_real.get_data();
   float* out_data_imag = out_image_imag.get_data();
@@ -572,6 +565,14 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   // Saving gridding() output files 
   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
   {
+     // WARNING : this is only required for debugging (saving intermediate test files) - hence moved inside this if 
+     // Uniform weighting (Not implemented here)
+     if( strcmp(weighting, "U" ) == 0 )
+     {
+        m_uv_grid_real->Divide( *m_uv_grid_counter );
+        m_uv_grid_imag->Divide( *m_uv_grid_counter );
+     }      
+  
      char uv_grid_re_name[1024],uv_grid_im_name[1024],uv_grid_counter_name[1024];
      sprintf(uv_grid_re_name,"%s/uv_grid_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
      sprintf(uv_grid_im_name,"%s/uv_grid_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
@@ -1063,13 +1064,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   printf("\n ** CLOCK gpuMemcpy() GPU to CPU took : %.6f [seconds], %.3f [ms]\n",duration_sec5,duration_ms5);
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 5 GPU to CPU copied"); 
 
-  // Uniform weighting (Not implemented here)
-  if( strcmp(weighting, "U" ) == 0 )
-  {
-     m_uv_grid_real->Divide( *m_uv_grid_counter );
-     m_uv_grid_imag->Divide( *m_uv_grid_counter );
-  } 
-
   // float pointers to 1D Arrays 
   float* out_data_real = out_image_real.get_data();
   float* out_data_imag = out_image_imag.get_data();
@@ -1085,6 +1079,14 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   printf("DEBUG : imager : CPacerImager::m_SaveFilesLevel = %d\n",CPacerImager::m_SaveFilesLevel);
   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
   {
+     // Uniform weighting (Not implemented here)
+     // WARNING : this is only required for debugging (saving intermediate test files) - hence moved inside this if 
+     if( strcmp(weighting, "U" ) == 0 )
+     {
+        m_uv_grid_real->Divide( *m_uv_grid_counter );
+        m_uv_grid_imag->Divide( *m_uv_grid_counter );
+     } 
+       
      char uv_grid_re_name[1024],uv_grid_im_name[1024],uv_grid_counter_name[1024];
      sprintf(uv_grid_re_name,"%s/uv_grid_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
      sprintf(uv_grid_im_name,"%s/uv_grid_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
