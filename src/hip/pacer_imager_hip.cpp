@@ -340,7 +340,9 @@ void CPacerImagerHip::SaveTestFitsFilesAndShowStat( int n_pixels,
 {
    if( CPacerImager::m_SaveFilesLevel > 0 ){
        // out_image_real and out_image_imag 
-       CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
+       // 2024-06-23 : these images are not saved in GPU version. In CPU version there were after 2D FFT and normalisation but before FFTShift. 
+       //              However, in GPU version 2D FFT is followed by FFTShift+normalisation in one kernel (no DeviceToHost copy in between) -> cannot save this product
+       // CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
    
        // CPU Output variables
        // MS (2024-06-14) I leave these for know, but in fact they should only be used/executed if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
@@ -409,8 +411,8 @@ void CPacerImagerHip::SaveTestFitsFilesAndShowStat( int n_pixels,
        //        Then final output will be copied from GPU to CPU only when required by CPacerImager::m_SaveFilesLevel parameter
        // 
        // float pointers to 1D Arrays 
-       float* out_data_real = out_image_real.get_data();
-       float* out_data_imag = out_image_imag.get_data();
+       // float* out_data_real = out_image_real.get_data();
+       // float* out_data_imag = out_image_imag.get_data();
 
        // DONE : next part to move to GPU
        // Assigning back 
@@ -421,14 +423,15 @@ void CPacerImagerHip::SaveTestFitsFilesAndShowStat( int n_pixels,
        } */  
 
        // 2024-06-22 : temporary, TODO : this if-s "level" should be adjusted perhaps >= SAVE_FILES_FINAL, also get rid of m_pSkyImageReal / m_pSkyImageImag
-       if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL ){
+       // 2024-06-23 : these images are not saved in GPU version. In CPU version there were after 2D FFT and normalisation but before FFTShift. 
+       //              However, in GPU version 2D FFT is followed by FFTShift+normalisation in one kernel (no DeviceToHost copy in between) -> cannot save this product 
+       /*if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL ){
           for(int i = 0; i < image_size; i++){
             out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x;
             out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y;
           }
         } 
 
-        char outDirtyImageReal[1024],outDirtyImageImag[1024];      
         if( bSaveIntermediate ){ // I will keep this if - assuming it's always TRUE, but there is still control using , if bSaveIntermediate=false it has priority over m_SaveFilesLevel
            if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
               sprintf(outDirtyImageReal,"%s/dirty_test_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
@@ -437,13 +440,14 @@ void CPacerImagerHip::SaveTestFitsFilesAndShowStat( int n_pixels,
               out_image_real.WriteFits( outDirtyImageReal );
               out_image_imag.WriteFits( outDirtyImageImag );
            }
-         }
+         }*/
    
         // 2022-04-02 : test change to use member variable for final image (have to be careful with threads and to not use this class as global variable):
         // calculate and save FFT-shifted image :
         // CBgFits out_image_real2( out_image_real.GetXSize(), out_image_real.GetYSize() ), out_image_imag2( out_image_real.GetXSize(), out_image_real.GetYSize() );
-        AllocOutPutImages( out_image_real.GetXSize(), out_image_real.GetYSize() );
-   
+        AllocOutPutImages( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize()  );
+
+        char outDirtyImageReal[1024],outDirtyImageImag[1024];   
         if( !m_pSkyImageReal || !m_pSkyImageImag )
         {
            printf("ERROR in code : internal image buffers not allocated -> cannot continue\n");
@@ -471,8 +475,8 @@ void CPacerImagerHip::SaveTestFitsFilesAndShowStat( int n_pixels,
             float* sky_data_real = m_pSkyImageReal->get_data();
             float* sky_data_imag = m_pSkyImageImag->get_data();
             for(int i = 0; i < image_size; i++){
-               sky_data_real[i] = out_data_real[i];
-               sky_data_imag[i] = out_data_imag[i];
+               sky_data_real[i] = ((gpufftComplex*)m_out_data)[i].x; // was in CPU FFTSHIFT version : out_data_real[i];
+               sky_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y; // was in CPU FFTSHIFT version : out_data_imag[i];
             }
    
             if( szBaseOutFitsName && strlen(szBaseOutFitsName) ){
