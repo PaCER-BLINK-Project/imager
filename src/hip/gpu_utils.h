@@ -13,4 +13,7 @@ __global__ void mult_arrays( float* data, float* data2, int size );
 float sum_gpu_atomicadd( float* data_gpu, int size );
 float sum_gpu_parallel_reduce( float* data_gpu, int size );
 
+// fft shift on complex data :
+bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
+
 #endif

@@ -330,6 +330,200 @@ void CPacerImagerHip::UpdateAntennaFlags( int n_ant )
 
 }
 
+// Saving intermediate / test FITS files and printing statistics:
+void CPacerImagerHip::SaveTestFitsFilesAndShowStat( int n_pixels, 
+                                                    const char* weighting,
+                                                    const char* szBaseOutFitsName, 
+                                                    bool bSaveIntermediate, 
+                                                    bool bSaveImaginary 
+                                                  )
+{
+   if( CPacerImager::m_SaveFilesLevel > 0 ){
+       // out_image_real and out_image_imag 
+       CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
+   
+       // CPU Output variables
+       // MS (2024-06-14) I leave these for know, but in fact they should only be used/executed if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
+       //                 because otherwise we do not need to have all these data copied from GPU to CPU
+       // TODO : add if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ) -> will require more testing
+       int uv_grid_counter_xSize = m_uv_grid_counter->GetXSize();
+       int uv_grid_counter_ySize = m_uv_grid_counter->GetYSize();
+       int image_size = (uv_grid_counter_xSize*uv_grid_counter_ySize); 
+
+       float *uv_grid_real_cpu = m_uv_grid_real->get_data();
+       float *uv_grid_imag_cpu = m_uv_grid_imag->get_data();
+       float *uv_grid_counter_cpu = m_uv_grid_counter->get_data();
+ 
+       // 2024-06-22: TODO : move saving FITS files to a separate function:
+       // Saving gridding() output files 
+       if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
+       {
+          (gpuMemcpy((float*)uv_grid_counter_cpu, (float*)uv_grid_counter_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
+          (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
+          (gpuMemcpy((float*)uv_grid_imag_cpu, (float*)uv_grid_imag_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
+          PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just after gpuMemcpy]\n",m_uv_grid_real->getXY(4,0));
+  
+          // WARNING : this is only required for debugging (saving intermediate test files) - hence moved inside this if 
+          // TODO: Uniform weighting (Not implemented in GPU version). Divie UV grid real/imag by counter before FFT-2D
+          if( strcmp(weighting, "U" ) == 0 )
+          {
+             m_uv_grid_real->Divide( *m_uv_grid_counter );
+             m_uv_grid_imag->Divide( *m_uv_grid_counter );
+          }      
+  
+          char uv_grid_re_name[1024],uv_grid_im_name[1024],uv_grid_counter_name[1024];
+          sprintf(uv_grid_re_name,"%s/uv_grid_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
+          sprintf(uv_grid_im_name,"%s/uv_grid_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
+          sprintf(uv_grid_counter_name,"%s/uv_grid_counter_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
+    
+          PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just before saving]\n",m_uv_grid_real->getXY(4,0));
+          if( m_uv_grid_real->WriteFits( uv_grid_re_name ) ){
+             printf("ERROR : could not write output file %s\n",uv_grid_re_name);
+          }else{
+             PRINTF_INFO("INFO : saved file %s\n",uv_grid_re_name);
+          }
+
+          if( m_uv_grid_imag->WriteFits( uv_grid_im_name ) ){
+             printf("ERROR : could not write output file %s\n",uv_grid_im_name);
+          }else{
+             PRINTF_INFO("INFO : saved file %s\n",uv_grid_im_name);
+          }
+  
+          if( m_uv_grid_counter->WriteFits( uv_grid_counter_name ) ){
+             printf("ERROR : could not write output file %s\n",uv_grid_counter_name);
+          }else{
+             PRINTF_INFO("INFO : saved file %s\n",uv_grid_counter_name);
+          }
+       }
+
+       // CPU Variable
+       // TODO : this will only be done if saving intermediate / debug FITS files is required, otherwise stays on GPU :   
+       (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
+
+       // 2024-06-22: TODO : move saving FITS files to a separate function:
+
+       // 2024-06-22 : fft shift is executed on GPU together with normalisation (multiplication by fnorm)
+       // TODO : once fft_shift is implemneted on GPU this code may be move inside if( bSaveIntermediate ){ 
+       //        then this operation will be performed only if really required for saving intermediate files 
+       //        Once fft_shift is performed on GPU multipilcation by fnorm can also be done there. 
+       //        Then final output will be copied from GPU to CPU only when required by CPacerImager::m_SaveFilesLevel parameter
+       // 
+       // float pointers to 1D Arrays 
+       float* out_data_real = out_image_real.get_data();
+       float* out_data_imag = out_image_imag.get_data();
+
+       // DONE : next part to move to GPU
+       // Assigning back 
+       /*for(int i = 0; i < image_size; i++) 
+       {
+          out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
+          out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
+       } */  
+
+       // 2024-06-22 : temporary, TODO : this if-s "level" should be adjusted perhaps >= SAVE_FILES_FINAL, also get rid of m_pSkyImageReal / m_pSkyImageImag
+       if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL ){
+          for(int i = 0; i < image_size; i++){
+            out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x;
+            out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y;
+          }
+        } 
+
+        char outDirtyImageReal[1024],outDirtyImageImag[1024];      
+        if( bSaveIntermediate ){ // I will keep this if - assuming it's always TRUE, but there is still control using , if bSaveIntermediate=false it has priority over m_SaveFilesLevel
+           if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+              sprintf(outDirtyImageReal,"%s/dirty_test_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
+              sprintf(outDirtyImageImag,"%s/dirty_test_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
+   
+              out_image_real.WriteFits( outDirtyImageReal );
+              out_image_imag.WriteFits( outDirtyImageImag );
+           }
+         }
+   
+        // 2022-04-02 : test change to use member variable for final image (have to be careful with threads and to not use this class as global variable):
+        // calculate and save FFT-shifted image :
+        // CBgFits out_image_real2( out_image_real.GetXSize(), out_image_real.GetYSize() ), out_image_imag2( out_image_real.GetXSize(), out_image_real.GetYSize() );
+        AllocOutPutImages( out_image_real.GetXSize(), out_image_real.GetYSize() );
+   
+        if( !m_pSkyImageReal || !m_pSkyImageImag )
+        {
+           printf("ERROR in code : internal image buffers not allocated -> cannot continue\n");
+           return;
+        }
+
+        // 2022-04-02 : test change to use member variable for final image (have to be careful with threads and to not use this class as global variable):
+        // TODO : CPU -> GPU 
+        // fft_shift( out_image_real, *m_pSkyImageReal );
+        // fft_shift( out_image_imag, *m_pSkyImageImag );
+   
+        int rest = 1; // just so that by default it is !=0 -> image not saved 
+        if( CPacerImager::m_SaveControlImageEveryNth > 0 )
+        {
+           rest = (m_SkyImageCounter % CPacerImager::m_SaveControlImageEveryNth);
+           if( rest == 0 )
+           {
+              PRINTF_INFO("INFO : saving %d-th control sky image\n",m_SkyImageCounter);
+           }
+        }
+
+         if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL || rest==0 )
+         {   
+            // 2024-06-22 : temporary code m_pSkyImageReal and m_pSkyImageImag are no longer needed as normalised and FFT shifted image is already in out_image_real / out_image_imag
+            float* sky_data_real = m_pSkyImageReal->get_data();
+            float* sky_data_imag = m_pSkyImageImag->get_data();
+            for(int i = 0; i < image_size; i++){
+               sky_data_real[i] = out_data_real[i];
+               sky_data_imag[i] = out_data_imag[i];
+            }
+   
+            if( szBaseOutFitsName && strlen(szBaseOutFitsName) ){
+               sprintf(outDirtyImageReal,"%s/%s_real.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
+            }else{
+               // sprintf(outDirtyImageReal,"dirty_test_real_fftshift_%dx%d.fits",width,height);
+               // const char* get_filename(  time_t ut_time , char* out_buffer, int usec=0, const char* full_dir_path="./", const char* prefix="dirty_image_", const char* postfix="", const char* formater="%.2u%.2u%.2uT%.2u%.2u%.2u" );
+               get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageReal, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_real" ); // uxtime=0 -> it will be taken as current system time
+            }
+            SaveSkyImage( outDirtyImageReal , m_pSkyImageReal );
+            PRINTF_DEBUG("Saved read file to %s\n",outDirtyImageReal);
+   
+            if( bSaveImaginary ){
+               if( szBaseOutFitsName && strlen(szBaseOutFitsName) )
+               {
+                  sprintf(outDirtyImageImag,"%s/%s_imag.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
+               }else{
+                  // sprintf(outDirtyImageImag,"dirty_test_imag_fftshift_%dx%d.fits",width,height);
+                  get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageImag, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_imag" );
+               }
+
+               m_pSkyImageImag->SetFileName( outDirtyImageImag );      
+               m_pSkyImageImag->WriteFits( outDirtyImageImag );
+               PRINTF_DEBUG("Saved imaginary file to %s\n",outDirtyImageImag);
+            }
+         }
+   
+         if( CPacerImager::m_bPrintImageStatistics ){
+            double mean, rms, minval, maxval, median, iqr, rmsiqr;
+            int cnt;
+            int radius = int( sqrt( m_pSkyImageReal->GetXSize()*m_pSkyImageReal->GetXSize() + m_pSkyImageReal->GetYSize()*m_pSkyImageReal->GetYSize() ) ) + 10;
+            // m_SkyImageReal.GetStat( mean, rms, minval, maxval );
+            m_pSkyImageReal->GetStatRadiusAll( mean, rms, minval, maxval, median, iqr, rmsiqr, cnt, radius, true );
+            printf("STAT : full image %s statistics in radius = %d around the center using %d pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = %.6f, median = %.6f, rms_iqr = %.6f\n",outDirtyImageReal,radius,cnt,mean, rms, minval, maxval, median, rmsiqr );
+      
+      
+            // TODO : this will be parameterised to specified requested windown in the image to get RMS value from:
+            double mean_window, rms_window, minval_window, maxval_window, median_window, iqr_window, rmsiqr_window;
+            radius = 10; // TODO : make it use parameter and also position in the image 
+            m_pSkyImageReal->GetStatRadiusAll( mean_window, rms_window, minval_window, maxval_window, median_window, iqr_window, rmsiqr_window, cnt, radius, true );
+            printf("STAT : statistics of %s in radius = %d around the center using %d pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = %.6f, median = %.6f, rms_iqr = %.6f\n",outDirtyImageReal,radius,cnt,mean_window, rms_window, minval_window, maxval_window, median_window, rmsiqr_window );
+         }
+   
+         // TODO : re-grid to SKY COORDINATES !!!
+         // convert cos(alpha) to alpha - see notes !!!
+         // how to do it ???
+   }else{ 
+      printf("WARNING : saving temporary FITS files is disabled. Hence, statistics is not printed either. Enable with option -V 100 (or lower)\n");
+   }
+}
+
 // TODO : 
 //     - do more cleanup of this function as this is nearly "RAW" copy paste from Gayatri's code:
 //     - optimise (same in CPU version) uv_grid_counter, uv_grid_real, uv_grid_imag to become member variables.
@@ -435,9 +629,6 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   // m_uv_grid_imag->SetZeroValue();
   // m_uv_grid_counter->SetZeroValue();
 
-  // out_image_real and out_image_imag 
-  CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
-
   // Setting the initial values of out_image_real/out_image_imag 
   // MS (2024-06-12) : not required as these are overwritten later in a loop where normalisation factor fnorm is applied:
   // out_image_real.SetZeroValue();
@@ -450,14 +641,6 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   float *w_cpu = fits_vis_w.get_data();
   float *vis_real_cpu = fits_vis_real.get_data();
   float *vis_imag_cpu = fits_vis_imag.get_data();
-
-  // CPU Output variables
-  // MS (2024-06-14) I leave these for know, but in fact they should only be used/executed if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
-  //                 because otherwise we do not need to have all these data copied from GPU to CPU
-  // TODO : add if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ) -> will require more testing
-  float *uv_grid_real_cpu = m_uv_grid_real->get_data();
-  float *uv_grid_imag_cpu = m_uv_grid_imag->get_data();
-  float *uv_grid_counter_cpu = m_uv_grid_counter->get_data();
 
   // GPU Variables: (Corresponding GPU Variables) declared in class 
 
@@ -505,11 +688,14 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   PACER_PROFILER_RESTART
   gridding_imaging_cuda<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, center_x, center_y, is_odd_x, is_odd_y, vis_real_gpu, vis_imag_gpu, uv_grid_counter_gpu, uv_grid_real_gpu, uv_grid_imag_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
-
+  
   // Gives the error in the kernel! 
   (gpuGetLastError());
   (gpuDeviceSynchronize());
   PACER_PROFILER_SHOW("Gridding kernel call took")
+  
+  // TODO: 2024-06-22 : DIVIDE m_in_buffer_gpu and uv_grid_real_gpu, uv_grid_imag_gpu by uv_grid_counter_gpu for uniform and other weightings to really work
+  //            are uv_grid_imag_gpu uv_grid_real_gpu really needed ???
 
   // Checking Execution time for cuFFT 
   PACER_PROFILER_RESTART
@@ -528,13 +714,10 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
 
   // Start of gpuMemcpy() 
   PACER_PROFILER_RESTART
-  (gpuMemcpy((float*)uv_grid_counter_cpu, (float*)uv_grid_counter_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  (gpuMemcpy((float*)uv_grid_imag_cpu, (float*)uv_grid_imag_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just after gpuMemcpy]\n",m_uv_grid_real->getXY(4,0));
   
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
   // double fnorm = 1.00/m_uv_grid_counter->Sum();
+  // TODO : ??? this can also be done in gridding_imaging_cuda<<<nBlocks,NTHREADS>>> , right, will not reduce efficiency if another atomicAdd is used for the sum ???
   double fnorm = 1.00/sum_gpu_atomicadd( uv_grid_counter_gpu, image_size );
   // double fnorm = 1.00/sum_gpu_parallel_reduce( uv_grid_counter_gpu, image_size );
   
@@ -543,166 +726,16 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   // apply normalisation constant on GPU :
   // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
   // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
+  
+  // FFT shift together with multiplication by fnorm (normalisation)
+  // bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
+  fft_shift_and_norm_gpu( (gpufftComplex*)m_out_buffer_gpu, m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize(), fnorm );
 
   // End of gpuMemcpy() GPU to CPU 
   PACER_PROFILER_SHOW("GPU memory copy from device to host took")
-
-  // Saving gridding() output files 
-  if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
-  {
-     // WARNING : this is only required for debugging (saving intermediate test files) - hence moved inside this if 
-     // Uniform weighting (Not implemented here)
-     if( strcmp(weighting, "U" ) == 0 )
-     {
-        m_uv_grid_real->Divide( *m_uv_grid_counter );
-        m_uv_grid_imag->Divide( *m_uv_grid_counter );
-     }      
   
-     char uv_grid_re_name[1024],uv_grid_im_name[1024],uv_grid_counter_name[1024];
-     sprintf(uv_grid_re_name,"%s/uv_grid_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-     sprintf(uv_grid_im_name,"%s/uv_grid_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-     sprintf(uv_grid_counter_name,"%s/uv_grid_counter_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-    
-     PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just before saving]\n",m_uv_grid_real->getXY(4,0));
-     if( m_uv_grid_real->WriteFits( uv_grid_re_name ) )
-     {
-        printf("ERROR : could not write output file %s\n",uv_grid_re_name);
-     }
-     else
-     {
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_re_name);
-     }
-
-     if( m_uv_grid_imag->WriteFits( uv_grid_im_name ) )
-     {
-        printf("ERROR : could not write output file %s\n",uv_grid_im_name);
-     }
-     else
-     {
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_im_name);
-     }
-  
-     if( m_uv_grid_counter->WriteFits( uv_grid_counter_name ) )
-     {
-        printf("ERROR : could not write output file %s\n",uv_grid_counter_name);
-     }
-     else
-     {
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_counter_name);
-     }
-  }
-
-  // CPU Variable
-  // TODO : this will only be done if saving intermediate / debug FITS files is required, otherwise stays on GPU :   
-  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
-
-  // TODO : once fft_shift is implemneted on GPU this code may be move inside if( bSaveIntermediate ){ 
-  //        then this operation will be performed only if really required for saving intermediate files 
-  //        Once fft_shift is performed on GPU multipilcation by fnorm can also be done there. 
-  //        Then final output will be copied from GPU to CPU only when required by CPacerImager::m_SaveFilesLevel parameter
-  // 
-  // float pointers to 1D Arrays 
-  float* out_data_real = out_image_real.get_data();
-  float* out_data_imag = out_image_imag.get_data();
-
-  // TODO : next part to move to GPU
-  // Assigning back 
-  for(int i = 0; i < image_size; i++) 
-  {
-       out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
-       out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
-  }   
-
-  char outDirtyImageReal[1024],outDirtyImageImag[1024];      
-  if( bSaveIntermediate ){ // I will keep this if - assuming it's always TRUE, but there is still control using , if bSaveIntermediate=false it has priority over m_SaveFilesLevel
-      if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
-         sprintf(outDirtyImageReal,"%s/dirty_test_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
-         sprintf(outDirtyImageImag,"%s/dirty_test_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
-   
-         out_image_real.WriteFits( outDirtyImageReal );
-         out_image_imag.WriteFits( outDirtyImageImag );
-      }
-   }
-   
-   // 2022-04-02 : test change to use member variable for final image (have to be careful with threads and to not use this class as global variable):
-   // calculate and save FFT-shifted image :
-   // CBgFits out_image_real2( out_image_real.GetXSize(), out_image_real.GetYSize() ), out_image_imag2( out_image_real.GetXSize(), out_image_real.GetYSize() );
-   AllocOutPutImages( out_image_real.GetXSize(), out_image_real.GetYSize() );
-   
-   if( !m_pSkyImageReal || !m_pSkyImageImag )
-   {
-      printf("ERROR in code : internal image buffers not allocated -> cannot continue\n");
-      return;
-   }
-
-   // TODO : CPU -> GPU 
-   fft_shift( out_image_real, *m_pSkyImageReal );
-   fft_shift( out_image_imag, *m_pSkyImageImag );
-   
-   int rest = 1; // just so that by default it is !=0 -> image not saved 
-   if( CPacerImager::m_SaveControlImageEveryNth > 0 )
-   {
-      rest = (m_SkyImageCounter % CPacerImager::m_SaveControlImageEveryNth);
-      if( rest == 0 )
-      {
-          PRINTF_INFO("INFO : saving %d-th control sky image\n",m_SkyImageCounter);
-      }
-   }
-
-   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL || rest==0 )
-   {   
-      if( szBaseOutFitsName && strlen(szBaseOutFitsName) )
-      {
-         sprintf(outDirtyImageReal,"%s/%s_real.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
-      }
-      else
-      {
-         // sprintf(outDirtyImageReal,"dirty_test_real_fftshift_%dx%d.fits",width,height);
-         // const char* get_filename(  time_t ut_time , char* out_buffer, int usec=0, const char* full_dir_path="./", const char* prefix="dirty_image_", const char* postfix="", const char* formater="%.2u%.2u%.2uT%.2u%.2u%.2u" );
-         get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageReal, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_real" ); // uxtime=0 -> it will be taken as current system time
-      }
-      SaveSkyImage( outDirtyImageReal , m_pSkyImageReal );
-      PRINTF_DEBUG("Saved read file to %s\n",outDirtyImageReal);
-   
-      if( bSaveImaginary )
-      {
-         if( szBaseOutFitsName && strlen(szBaseOutFitsName) )
-         {
-            sprintf(outDirtyImageImag,"%s/%s_imag.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
-         }
-         else
-         {
-            // sprintf(outDirtyImageImag,"dirty_test_imag_fftshift_%dx%d.fits",width,height);
-            get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageImag, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_imag" );
-         }
-
-         m_pSkyImageImag->SetFileName( outDirtyImageImag );      
-         m_pSkyImageImag->WriteFits( outDirtyImageImag );
-         PRINTF_DEBUG("Saved imaginary file to %s\n",outDirtyImageImag);
-      }
-   }
-   
-   if( CPacerImager::m_bPrintImageStatistics )
-   {
-      double mean, rms, minval, maxval, median, iqr, rmsiqr;
-      int cnt;
-      int radius = int( sqrt( m_pSkyImageReal->GetXSize()*m_pSkyImageReal->GetXSize() + m_pSkyImageReal->GetYSize()*m_pSkyImageReal->GetYSize() ) ) + 10;
-      // m_SkyImageReal.GetStat( mean, rms, minval, maxval );
-      m_pSkyImageReal->GetStatRadiusAll( mean, rms, minval, maxval, median, iqr, rmsiqr, cnt, radius, true );
-      printf("STAT : full image %s statistics in radius = %d around the center using %d pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = %.6f, median = %.6f, rms_iqr = %.6f\n",outDirtyImageReal,radius,cnt,mean, rms, minval, maxval, median, rmsiqr );
-      
-      
-      // TODO : this will be parameterised to specified requested windown in the image to get RMS value from:
-      double mean_window, rms_window, minval_window, maxval_window, median_window, iqr_window, rmsiqr_window;
-      radius = 10; // TODO : make it use parameter and also position in the image 
-      m_pSkyImageReal->GetStatRadiusAll( mean_window, rms_window, minval_window, maxval_window, median_window, iqr_window, rmsiqr_window, cnt, radius, true );
-      printf("STAT : statistics of %s in radius = %d around the center using %d pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = %.6f, median = %.6f, rms_iqr = %.6f\n",outDirtyImageReal,radius,cnt,mean_window, rms_window, minval_window, maxval_window, median_window, rmsiqr_window );
-   }
-   
-   // TODO : re-grid to SKY COORDINATES !!!
-   // convert cos(alpha) to alpha - see notes !!!
-   // how to do it ???
-
+  // save test FITS files and print STAT (if file debug level is high enough)
+  SaveTestFitsFilesAndShowStat( n_pixels, weighting, szBaseOutFitsName, bSaveIntermediate, bSaveImaginary );
 }
 
 // TODO : 
@@ -809,9 +842,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // m_uv_grid_imag->SetZeroValue();
   // m_uv_grid_counter->SetZeroValue();
 
-  // out_image_real and out_image_imag 
-  CBgFits out_image_real( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ), out_image_imag( m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize() ); 
-
   // Setting the initial values of out_image_real/out_image_imag 
   // MS (2024-06-12) : not required as these are overwritten later in a loop where normalisation factor fnorm is applied:
   // out_image_real.SetValue( 0.00 );
@@ -849,9 +879,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
   // TODO : warning GPU UV grid is not initialised to ZEROs :
   AllocGPUMemory(xySize, image_size ); //  out_image_real.get_data() );
-
-  
-
  
   if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL){
      printf("\n GRIDDING CHECK: Step 2 Memory allocated for GPU variables");
@@ -999,7 +1026,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
   gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, center_x, center_y, is_odd_x, is_odd_y, vis_local_gpu, uv_grid_counter_gpu, uv_grid_real_gpu, uv_grid_imag_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
-
+  
   // End of kernel call 
   clock_t end_time4 = clock();
   double duration_sec4 = double(end_time4-start_time4)/CLOCKS_PER_SEC;
@@ -1009,6 +1036,10 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Gives the error in the kernel! 
   (gpuGetLastError());
   (gpuDeviceSynchronize());
+  
+  // TODO: 2024-06-22 : DIVIDE m_in_buffer_gpu and uv_grid_real_gpu, uv_grid_imag_gpu by uv_grid_counter_gpu for uniform and other weightings to really work
+  //            are uv_grid_imag_gpu uv_grid_real_gpu really needed ???
+
 
   // TEMPORARY - check if UV Grid values are already truncated straight after after the kernel call
   // (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
@@ -1043,11 +1074,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Start of gpuMemcpy() 
   clock_t start_time5 = clock();
 
-  (gpuMemcpy((float*)uv_grid_counter_cpu, (float*)uv_grid_counter_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  (gpuMemcpy((float*)uv_grid_imag_cpu, (float*)uv_grid_imag_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  PRINTF_DEBUG("\nDEBUG : GPU gridding (0,0) = %.20f [just after hipMemcpy] vs. xcorr = %.8f /   %.8f\n",m_uv_grid_real->getXY(0,0),xcorr.data()[0].real(),xcorr.data()[0].imag());
-  
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
   // double fnorm = 1.00/m_uv_grid_counter->Sum();
   double fnorm = 1.00/sum_gpu_atomicadd( uv_grid_counter_gpu, image_size );
@@ -1059,6 +1085,10 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
   // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
   
+  // FFT shift together with multiplication by fnorm (normalisation)
+  // bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
+  fft_shift_and_norm_gpu( (gpufftComplex*)m_out_buffer_gpu, m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize(), fnorm );
+  
   // End of gpuMemcpy() GPU to CPU 
   clock_t end_time5 = clock();
   double duration_sec5 = double(end_time5-start_time5)/CLOCKS_PER_SEC;
@@ -1066,164 +1096,8 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   printf("\n ** CLOCK gpuMemcpy() GPU to CPU took : %.6f [seconds], %.3f [ms]\n",duration_sec5,duration_ms5);
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 5 GPU to CPU copied"); 
 
-  // Saving gridding() output files 
-  printf("DEBUG : imager : CPacerImager::m_SaveFilesLevel = %d\n",CPacerImager::m_SaveFilesLevel);
-  if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG )
-  {
-     // Uniform weighting (Not implemented here)
-     // WARNING : this is only required for debugging (saving intermediate test files) - hence moved inside this if 
-     if( strcmp(weighting, "U" ) == 0 )
-     {
-        m_uv_grid_real->Divide( *m_uv_grid_counter );
-        m_uv_grid_imag->Divide( *m_uv_grid_counter );
-     } 
-       
-     char uv_grid_re_name[1024],uv_grid_im_name[1024],uv_grid_counter_name[1024];
-     sprintf(uv_grid_re_name,"%s/uv_grid_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-     sprintf(uv_grid_im_name,"%s/uv_grid_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-     sprintf(uv_grid_counter_name,"%s/uv_grid_counter_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-    
-     PRINTF_DEBUG("\nDEBUG : GPU gridding (4,0) = %.20f [just before saving]\n",m_uv_grid_real->getXY(4,0));
-     if( m_uv_grid_real->WriteFits( uv_grid_re_name ) )
-     {
-        printf("ERROR : could not write output file %s\n",uv_grid_re_name);
-     }
-     else
-     {
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_re_name);
-     }
-
-     if( m_uv_grid_imag->WriteFits( uv_grid_im_name ) )
-     {
-        printf("ERROR : could not write output file %s\n",uv_grid_im_name);
-     }
-     else
-     {
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_im_name);
-     }
-  
-     if( m_uv_grid_counter->WriteFits( uv_grid_counter_name ) )
-     {
-        printf("ERROR : could not write output file %s\n",uv_grid_counter_name);
-     }
-     else
-     {
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_counter_name);
-     }
-  }
-
-  // CPU Variable 
-  // TODO : this will only be done if saving intermediate / debug FITS files is required, otherwise stays on GPU :
-  (gpuMemcpy( (gpufftComplex*)m_out_data, m_out_buffer_gpu, sizeof(gpufftComplex)*image_size, gpuMemcpyDeviceToHost));
-
-  // TODO : once fft_shift is implemneted on GPU this code may be move inside if( bSaveIntermediate ){ 
-  //        then this operation will be performed only if really required for saving intermediate files 
-  //        Once fft_shift is performed on GPU multipilcation by fnorm can also be done there. 
-  //        Then final output will be copied from GPU to CPU only when required by CPacerImager::m_SaveFilesLevel parameter
-  // 
-  // float pointers to 1D Arrays 
-  float* out_data_real = out_image_real.get_data();
-  float* out_data_imag = out_image_imag.get_data();
-
-  // Assigning back 
-  // TODO : next part to move to GPU 
-  for(int i = 0; i < image_size; i++) 
-   {
-      out_data_real[i] = ((gpufftComplex*)m_out_data)[i].x*fnorm; // was *fnorm - now on GPU
-      out_data_imag[i] = ((gpufftComplex*)m_out_data)[i].y*fnorm; // was *fnorm - now on GPU
-   }   
-
-  char outDirtyImageReal[1024],outDirtyImageImag[1024];   
-   
-   if( bSaveIntermediate ){ // I will keep this if - assuming it's always TRUE, but there is still control using , if bSaveIntermediate=false it has priority over m_SaveFilesLevel
-      if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
-         sprintf(outDirtyImageReal,"%s/dirty_test_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
-         sprintf(outDirtyImageImag,"%s/dirty_test_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),uv_grid_counter_xSize,uv_grid_counter_ySize);
-   
-         out_image_real.WriteFits( outDirtyImageReal );
-         out_image_imag.WriteFits( outDirtyImageImag );
-      }
-   }
-   
-   // 2022-04-02 : test change to use member variable for final image (have to be careful with threads and to not use this class as global variable):
-   // calculate and save FFT-shifted image :
-   // CBgFits out_image_real2( out_image_real.GetXSize(), out_image_real.GetYSize() ), out_image_imag2( out_image_real.GetXSize(), out_image_real.GetYSize() );
-   AllocOutPutImages( out_image_real.GetXSize(), out_image_real.GetYSize() );
-   
-   if( !m_pSkyImageReal || !m_pSkyImageImag )
-   {
-      printf("ERROR in code : internal image buffers not allocated -> cannot continue\n");
-      return;
-   }
-
-   // TODO : CPU -> GPU 
-   fft_shift( out_image_real, *m_pSkyImageReal );
-   fft_shift( out_image_imag, *m_pSkyImageImag );
-   
-   int rest = 1; // just so that by default it is !=0 -> image not saved 
-   if( CPacerImager::m_SaveControlImageEveryNth > 0 )
-   {
-      rest = (m_SkyImageCounter % CPacerImager::m_SaveControlImageEveryNth);
-      if( rest == 0 )
-      {
-          PRINTF_INFO("INFO : saving %d-th control sky image\n",m_SkyImageCounter);
-      }
-   }
-
-   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL || rest==0 )
-   {   
-      if( szBaseOutFitsName && strlen(szBaseOutFitsName) )
-      {
-         sprintf(outDirtyImageReal,"%s/%s_real.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
-      }
-      else
-      {
-         // sprintf(outDirtyImageReal,"dirty_test_real_fftshift_%dx%d.fits",width,height);
-         // const char* get_filename(  time_t ut_time , char* out_buffer, int usec=0, const char* full_dir_path="./", const char* prefix="dirty_image_", const char* postfix="", const char* formater="%.2u%.2u%.2uT%.2u%.2u%.2u" );
-         get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageReal, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_real" ); // uxtime=0 -> it will be taken as current system time
-      }
-      SaveSkyImage( outDirtyImageReal , m_pSkyImageReal );
-      PRINTF_DEBUG("Saved read file to %s\n",outDirtyImageReal);
-   
-      if( bSaveImaginary )
-      {
-         if( szBaseOutFitsName && strlen(szBaseOutFitsName) )
-         {
-            sprintf(outDirtyImageImag,"%s/%s_imag.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
-         }
-         else
-         {
-            // sprintf(outDirtyImageImag,"dirty_test_imag_fftshift_%dx%d.fits",width,height);
-            get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageImag, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_imag" );
-         }
-
-         m_pSkyImageImag->SetFileName( outDirtyImageImag );      
-         m_pSkyImageImag->WriteFits( outDirtyImageImag );
-         PRINTF_DEBUG("Saved imaginary file to %s\n",outDirtyImageImag);
-      }
-   }
-   
-   if( CPacerImager::m_bPrintImageStatistics )
-   {
-      double mean, rms, minval, maxval, median, iqr, rmsiqr;
-      int cnt;
-      int radius = int( sqrt( m_pSkyImageReal->GetXSize()*m_pSkyImageReal->GetXSize() + m_pSkyImageReal->GetYSize()*m_pSkyImageReal->GetYSize() ) ) + 10;
-      // m_SkyImageReal.GetStat( mean, rms, minval, maxval );
-      m_pSkyImageReal->GetStatRadiusAll( mean, rms, minval, maxval, median, iqr, rmsiqr, cnt, radius, true );
-      printf("STAT : full image %s statistics in radius = %d around the center using %d pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = %.6f, median = %.6f, rms_iqr = %.6f\n",outDirtyImageReal,radius,cnt,mean, rms, minval, maxval, median, rmsiqr );
-      
-      
-      // TODO : this will be parameterised to specified requested windown in the image to get RMS value from:
-      double mean_window, rms_window, minval_window, maxval_window, median_window, iqr_window, rmsiqr_window;
-      radius = 10; // TODO : make it use parameter and also position in the image 
-      m_pSkyImageReal->GetStatRadiusAll( mean_window, rms_window, minval_window, maxval_window, median_window, iqr_window, rmsiqr_window, cnt, radius, true );
-      printf("STAT : statistics of %s in radius = %d around the center using %d pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = %.6f, median = %.6f, rms_iqr = %.6f\n",outDirtyImageReal,radius,cnt,mean_window, rms_window, minval_window, maxval_window, median_window, rmsiqr_window );
-   }
-   
-   // TODO : re-grid to SKY COORDINATES !!!
-   // convert cos(alpha) to alpha - see notes !!!
-   // how to do it ???
-
+  // save test FITS files and print STAT (if file debug level is high enough)
+  SaveTestFitsFilesAndShowStat( n_pixels, weighting, szBaseOutFitsName, bSaveIntermediate, bSaveImaginary );
 }
 
 bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz )

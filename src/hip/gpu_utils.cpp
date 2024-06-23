@@ -191,3 +191,176 @@ float sum_gpu_parallel_reduce( float* data_gpu, int size )
 
     return sum_cpu;
 }
+
+
+//----------------------------------------------------- FFT SHIFT ----------------------------------------------------- 
+// FFT shift in X direction:
+__global__ void fft_shift_x( float* data, int xSize, int size, int y )
+{
+   extern __shared__ float shared_memory[];
+   int t = threadIdx.x;
+   int center_freq_x = xSize / 2;
+   int is_odd = 0;
+
+   // initialise shared memory 
+   // for(; t < xSize; t += blockDim.x) shared_memory[t] = data[t];
+   for( int x=t; x < xSize; x += blockDim.x){
+      if( x < center_freq_x ){
+         shared_memory[center_freq_x+x] = data[x];
+      }else{
+         shared_memory[x-(center_freq_x+is_odd)] = data[x];
+      }
+   }
+   __syncthreads();
+
+  for( int x=t; x < xSize; x += blockDim.x){
+    data[x] = shared_memory[x]; // back to memory (in place)
+  }
+  __syncthreads();
+}
+
+// FFT shift in Y direction (may be inefficient due to long strides)
+__global__ void fft_shift_y( float* data, int xSize, int ySize, int size, int x )
+{
+   extern __shared__ float shared_memory[];
+   int t = threadIdx.x;
+   int center_freq_y = ySize / 2;
+   int is_odd = 0;
+
+   // 
+   for( int y=t; y < ySize; y += blockDim.x){
+      int pos = y*xSize + x; // calculate index in the entire array
+
+      if( y < center_freq_y ){
+         shared_memory[center_freq_y+y] = data[pos];
+      }else{
+         shared_memory[y-(center_freq_y+is_odd)] = data[pos];
+      }
+   }
+   __syncthreads();
+
+  for( int y=t; y < ySize; y += blockDim.x){
+    int pos = y*xSize + x; // calculate index in the entire array
+    data[pos] = shared_memory[y]; // back to memory (in place)
+  }
+  __syncthreads();
+}
+
+
+bool fft_shift_gpu( float* data_gpu, int xSize, int ySize )
+{
+   if( xSize != ySize ){
+      printf("ERROR : function fft_shift_gpu currently only handles square images %d != %d\n",xSize,ySize);
+      return false;
+   }
+   if( (xSize % 2) != 0 ){
+      printf("ERROR : function fft_shift_gpu currently only handles even image size -> %d not supported\n",xSize);
+      return false;
+   }
+
+   int size = xSize*ySize;
+   int shared_memory_size_bytes = xSize*sizeof(float);
+   if( shared_memory_size_bytes >= MAX_SHARED_MEMORY_BYTES ){
+      printf("ERROR : maximum size of shared memory exceeded %d > %d\n",shared_memory_size_bytes,MAX_SHARED_MEMORY_BYTES);
+   }
+
+   for(int y=0;y<ySize;y++){
+      fft_shift_x<<<1,NTHREADS,shared_memory_size_bytes>>>(data_gpu + y*xSize, xSize, size, y );
+   }
+
+   for(int x=0;x<xSize;x++){
+      fft_shift_y<<<1,NTHREADS,shared_memory_size_bytes>>>(data_gpu, xSize, ySize, size, x );
+   }
+
+   return true;
+}
+
+
+//-------------------------------------------------------------------- FFT shift on complex data ---------------------------------------------------------------------------------------------------
+// FFT shift in X direction:
+__global__ void fft_shift_and_norm_x( gpufftComplex* data, int xSize, int size, int y )
+{
+   extern __shared__ gpufftComplex shared_memory_complex[];
+   int t = threadIdx.x;
+   int center_freq_x = xSize / 2;
+   int is_odd = 0;
+
+   // initialise shared memory 
+   // for(; t < xSize; t += blockDim.x) shared_memory[t] = data[t];
+   for( int x=t; x < xSize; x += blockDim.x){
+      if( x < center_freq_x ){
+         shared_memory_complex[center_freq_x+x] = data[x];
+      }else{
+         shared_memory_complex[x-(center_freq_x+is_odd)] = data[x];
+      }
+   }
+   __syncthreads();
+
+  for( int x=t; x < xSize; x += blockDim.x){
+    data[x] = shared_memory_complex[x]; // back to memory (in place)
+  }
+  __syncthreads();
+}
+
+// FFT shift in Y direction (may be inefficient due to long strides)
+__global__ void fft_shift_and_norm_y( gpufftComplex* data, int xSize, int ySize, int size, int x, float fnorm )
+{
+   extern __shared__ gpufftComplex shared_memory_complex[];
+   int t = threadIdx.x;
+   int center_freq_y = ySize / 2;
+   int is_odd = 0;
+
+   // 
+   for( int y=t; y < ySize; y += blockDim.x){
+      int pos = y*xSize + x; // calculate index in the entire array
+
+      if( y < center_freq_y ){
+         shared_memory_complex[center_freq_y+y] = data[pos];
+      }else{         
+         shared_memory_complex[y-(center_freq_y+is_odd)] = data[pos];
+      }
+   }
+   __syncthreads();
+
+  for( int y=t; y < ySize; y += blockDim.x){
+    int pos = y*xSize + x; // calculate index in the entire array
+    data[pos].x = shared_memory_complex[y].x*fnorm; // back to memory (in place)
+    data[pos].y = shared_memory_complex[y].y*fnorm; // back to memory (in place)
+  }
+  __syncthreads();
+
+
+}
+
+
+
+// fft shift on complex data :
+bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm /*=1.00*/ )
+{
+   if( (xSize % 2) != 0 ){
+      printf("ERROR : function fft_shift_gpu currently only handles even image size -> %d not supported\n",xSize);
+      return false;
+   }
+
+   int size = xSize*ySize;
+   int shared_memory_size_bytes = xSize*sizeof(gpufftComplex);
+   if( shared_memory_size_bytes >= MAX_SHARED_MEMORY_BYTES ){
+      printf("ERROR : maximum size of shared memory exceeded %d > %d\n",shared_memory_size_bytes,MAX_SHARED_MEMORY_BYTES);
+   }
+
+   for(int y=0;y<ySize;y++){
+      fft_shift_and_norm_x<<<1,NTHREADS,shared_memory_size_bytes>>>(data_gpu + y*xSize, xSize, size, y );
+   }
+
+   shared_memory_size_bytes = ySize*sizeof(gpufftComplex);
+   if( shared_memory_size_bytes >= MAX_SHARED_MEMORY_BYTES ){
+      printf("ERROR : maximum size of shared memory exceeded %d > %d\n",shared_memory_size_bytes,MAX_SHARED_MEMORY_BYTES);
+   }
+   for(int x=0;x<xSize;x++){
+      fft_shift_and_norm_y<<<1,NTHREADS,shared_memory_size_bytes>>>(data_gpu, xSize, ySize, size, x, fnorm ); // final multiplication
+   }
+
+   return true;
+}
+
+

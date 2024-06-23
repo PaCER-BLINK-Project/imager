@@ -118,6 +118,12 @@ protected :
     virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz );
 
 
+    virtual void SaveTestFitsFilesAndShowStat( int n_pixels, 
+                                               const char* weighting,
+                                               const char* szBaseOutFitsName, 
+                                               bool bSaveIntermediate, 
+                                               bool bSaveImaginary 
+                                             );
 public :
    //-----------------------------------------------------------------------------------------------------------------------------
    // IsGPU() - returns true if CPacerImagerHip object and false here:
