@@ -1,8 +1,0 @@
-#include <limits>
-#include <stdio.h>
-
-int main()
-{
-
-    printf("Limits of double = %e - %e",std::numeric_limits<double>::min(),std::numeric_limits<double>::max());
-}
