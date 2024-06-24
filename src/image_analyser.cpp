@@ -33,12 +33,12 @@ void CComplexImage::SetValue( float value )
 CComplexImage& CComplexImage::operator=( CComplexImage& right )
 {
    if( m_pImageReal->GetXSize() != right.m_pImageReal->GetXSize() || m_pImageReal->GetYSize() != right.m_pImageReal->GetYSize() ){
-       printf("ERROR in code CComplexImage::operator= Real image sizes are not the same (%d,%d) != (%d,%d)\n",m_pImageReal->GetXSize(),m_pImageReal->GetYSize(),right.m_pImageReal->GetXSize(),right.m_pImageReal->GetYSize());
+       printf("ERROR in code CComplexImage::operator= Real image sizes are not the same (%ld,%ld) != (%ld,%ld)\n",m_pImageReal->GetXSize(),m_pImageReal->GetYSize(),right.m_pImageReal->GetXSize(),right.m_pImageReal->GetYSize());
        throw string("ERROR in code CComplexImage::operator= Real image sizes are not the same");
    }
 
    if( m_pImageImag->GetXSize() != right.m_pImageImag->GetXSize() || m_pImageImag->GetYSize() != right.m_pImageImag->GetYSize() ){
-       printf("ERROR in code CComplexImage::operator= Imag image sizes are not the same (%d,%d) != (%d,%d)\n",m_pImageImag->GetXSize(),m_pImageImag->GetYSize(),right.m_pImageImag->GetXSize(),right.m_pImageImag->GetYSize());
+       printf("ERROR in code CComplexImage::operator= Imag image sizes are not the same (%ld,%ld) != (%ld,%ld)\n",m_pImageImag->GetXSize(),m_pImageImag->GetYSize(),right.m_pImageImag->GetXSize(),right.m_pImageImag->GetYSize());
        throw string("ERROR in code CComplexImage::operator= Imag image sizes are not the same");
    }
 
