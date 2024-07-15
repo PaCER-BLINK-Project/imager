@@ -80,20 +80,6 @@ protected :
    //          - uv_grid_real, uv_grid_imag : visibilities on UV grid (real and imag arrays)
    //          - uv_grid_counter : visibility counter and 
    //-----------------------------------------------------------------------------------------------------------------------------
-   virtual void gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                  double delta_u, double delta_v,
-                  double frequency_mhz,
-                  int    n_pixels,
-                  double min_uv=-1000,    // minimum UV 
-                  const char* weighting="", // weighting : U for uniform (others not implemented)
-                  const char* szBaseOutFitsName=NULL,
-                  bool do_gridding=true,                  
-                  bool do_dirty_image=true,
-                  const char* in_fits_file_uv_re = "", // gridded visibilities can be provided externally
-                  const char* in_fits_file_uv_im = "", // gridded visibilities can be provided externally
-                  bool bSaveIntermediate=false , bool bSaveImaginary=true 
-                );
-
    virtual void gridding_imaging( Visibilities& xcorr, 
                   int time_step, 
                   int fine_channel,

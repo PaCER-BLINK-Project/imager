@@ -310,50 +310,8 @@ void CPacerImager::Initialise()
       }
     }       
     
-    
-    if( strlen(m_CalibrationSolutions.m_filename.c_str()) > 0 ){
-       if( MyFile::DoesFileExist(m_CalibrationSolutions.m_filename.c_str()) ){
-          // read calibration solutions (if specified) :
-          PRINTF_INFO("INFO : reading calibration solutions from file |%s|\n",m_CalibrationSolutions.m_filename.c_str());
-          double sign_value = -1.00; // for EDA2 
-          bool bInvertAmp = false;
-          if( m_MetaData.eTelescopeName == eMWA ){
-             // sign_value = 1.00; // for MWA use cal. solutions with the same sign of phase as in the file 
-             bInvertAmp = true; // invert amplitudes when using MWA calibration solutions from .bin file
-          }
-          if( m_CalibrationSolutions.read_calsolutions( sign_value, bInvertAmp ) > 0 ) // sign_value=-1, and inverse amplitude is the best ?
-          {
-             m_CalibrationSolutions.show();
-          }
-       }else{
-          PRINTF_WARNING("WARNING : calibration solutions file %s does not exist, ignoring as it may just be a template for multiple channel processing\n",m_CalibrationSolutions.m_filename.c_str());
-       }
-    }
+   
   }
-}
-
-void CPacerImager::UpdateCalSolFile( const char* calsol_filename )
-{
-   m_CalibrationSolutions.m_filename = calsol_filename;
-    
-   if( strlen(m_CalibrationSolutions.m_filename.c_str()) > 0 ){
-      if( MyFile::DoesFileExist(m_CalibrationSolutions.m_filename.c_str()) ){
-         // read calibration solutions (if specified) :
-         PRINTF_INFO("INFO : reading calibration solutions from file |%s|\n",m_CalibrationSolutions.m_filename.c_str());
-         double sign_value = -1.00; // for EDA2 
-         bool bInvertAmp = false;
-         if( m_MetaData.eTelescopeName == eMWA ){
-            // sign_value = 1.00; // for MWA use cal. solutions with the same sign of phase as in the file 
-            bInvertAmp = true; // invert amplitudes when using MWA calibration solutions from .bin file
-         }
-         if( m_CalibrationSolutions.read_calsolutions( sign_value, bInvertAmp, true ) > 0 ) // sign_value=-1, and inverse amplitude is the best. true to force reading in this function
-         {
-            m_CalibrationSolutions.show();
-         }
-      }else{
-         PRINTF_WARNING("WARNING : calibration solutions file %s does not exist, ignoring as it may just be a template for multiple channel processing\n",m_CalibrationSolutions.m_filename.c_str());
-      }
-   }
 }
 
 bool CPacerImager::CheckSize( CBgFits& image, int sizeX, int sizeY )
@@ -1729,29 +1687,10 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
         delta_v = .63624180895350226815; // at ch=315
      }
   }
-  
-  // Apply Calibration if provided :
-  // TODO: Calibration needs to be implemented for AstroIO Visibility library, currently it only takes CBgFits class as an input:
-  if( m_CalibrationSolutions.size() > 0 )
-  {
-     if( m_CalibrationSolutions.size() == xcorr.obsInfo.nAntennas )
-     {
-        printf("INFO : applying calibration solutions (for %d antennas)\n",int(m_CalibrationSolutions.size()));
-        // ApplySolutions( fits_vis_real, fits_vis_imag, frequency_mhz, m_CalibrationSolutions );
-        ApplySolutions( xcorr, frequency_mhz, m_CalibrationSolutions, time_step, fine_channel );
-        
-     }else
-     {
-        printf("WARNING : wrong number of calibration solutions (%d vs. required %d)\n",int(m_CalibrationSolutions.size()),xcorr.obsInfo.nAntennas);
-     }
-//     printf("ERROR : application of calibration is not implemented in the current version\n");
-//     exit(-1);
-  }
 
   if( do_gridding || do_dirty_image ){
      // virtual function calls gridding and imaging in GPU/HIP version it is overwritten and 
      // both gridding and imaging are performed on GPU memory :
-// TODO : create gridding_imaging( Visibilities& xcorr, ... )
      gridding_imaging( xcorr, time_step, fine_channel,
                        fits_vis_u, fits_vis_v, fits_vis_w, 
                        delta_u, delta_v, frequency_mhz, n_pixels, min_uv, weighting,
@@ -1773,203 +1712,6 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
   return  true;   
    
 }                  
-
-
-//-----------------------------------------------------------------------------------------------------------------------------
-// Wrapper to run_imager :
-// Reads FITS files and executes overloaded function run_imager ( as above )
-//-----------------------------------------------------------------------------------------------------------------------------
-bool CPacerImager::run_imager( const char* basename, const char* szPostfix,
-                               bool   do_gridding             /*=true*/, // excute gridding  (?)
-                               bool   do_dirty_image          /*=true*/, // form dirty image (?)
-                               const char* in_fits_file_uv_re /*=""*/,   // gridded visibilities can be provided externally
-                               const char* in_fits_file_uv_im /*=""*/,   // gridded visibilities can be provided externally                    
-                               const char* szBaseOutFitsName  /*=NULL*/
-                             )
-{
-    return run_imager( basename, szPostfix, 
-                       m_ImagerParameters.m_fCenterFrequencyMHz,
-                       m_ImagerParameters.m_ImageSize,
-                       m_ImagerParameters.m_ImageFOV_degrees,
-                       m_ImagerParameters.m_fMinUV,
-                       do_gridding,
-                       do_dirty_image,
-                       m_ImagerParameters.m_szWeighting.c_str(),
-                       in_fits_file_uv_re, in_fits_file_uv_im,
-                       szBaseOutFitsName
-                     );
-}                             
-                             
-                             
-bool CPacerImager::run_imager( const char* basename, const char* szPostfix,
-                               double frequency_mhz, 
-                               int n_pixels,
-                               double FOV_degrees,
-                               double min_uv,                  /*=-1000,*/
-                               bool do_gridding,               /*=true*/
-                               bool do_dirty_image,            /*=true*/
-                               const char* weighting,          /* ="" */   // weighting : U for uniform (others not implemented)
-                               const char* in_fits_file_uv_re, /*=""*/ // gridded visibilities can be provided externally
-                               const char* in_fits_file_uv_im, /*=""*/ // gridded visibilities can be provided externally                               
-                               const char* szBaseOutFitsName   /*=NULL*/
-                  )
-{
-   // ensures initalisation of object structures 
-   Initialise();  
-
-   // read input data (correlation matrix and UVW) :
-   CBgFits fits_vis_real, fits_vis_imag;
-   if( read_corr_matrix( basename, fits_vis_real, fits_vis_imag, szPostfix ) )
-   { // also included reading or calculation of UVW 
-      PRINTF_INFO("OK : input files read ok\n");
-   }else
-   {
-      printf("ERROR : could not read one of the input files\n");
-      return false;
-   }
-   
-   // read calibration solutions (if specified) :
-   if( m_CalibrationSolutions.read_calsolutions() > 0 )
-   {
-      m_CalibrationSolutions.show();
-   }
-
-   // TODO : once application of calibration is implemented in the xcorr-path of the code -> comment/remove the below call and uncomment the code later:
-   bool ret = run_imager( fits_vis_real, fits_vis_imag, m_U, m_V, m_W,
-                         frequency_mhz, 
-                         n_pixels, 
-                         FOV_degrees, 
-                         min_uv,
-                         do_gridding, 
-                         do_dirty_image, 
-                         weighting, 
-                         in_fits_file_uv_re, in_fits_file_uv_im, 
-                         szBaseOutFitsName
-                        );
-
-   // READY TO GO CODE FOR THE FUTURE - please do not remove - see comment above
-   // WARNING : this version already works ok, but does not pass test 1 because application of calibration is not implemented yet !
-   // TODO : implemented application of calibration for xcorr-version !
-   // TODO : New version, which requires allocation of xcorr.data (some new function in astroio Visibilities):
-   // convert from CBgFits re/im to xcorr to use the same function:
-
-/*   printf("DEBUG : this is experimental version of code CBgFits -> xcorr -> run_imager( xcorr )\n");fflush(stdout);
-   Visibilities* xcorr = ConvertFits2XCorr( fits_vis_real, fits_vis_imag );
-   printf("DEBUG : this is experimental version after ConvertFits2XCorr\n");fflush(stdout);
-   // 0,0 -> because there is only single timestamp and frequency for CBgFits input :
-   bool ret = run_imager(  *xcorr, 0, 0, frequency_mhz, n_pixels, FOV_degrees, min_uv, do_gridding, do_dirty_image, weighting, szBaseOutFitsName );
-
-   // remove xcorr which was allocated (new) inside ConvertFits2XCorr   
-   delete xcorr;
-*/
-
-   return ret;               
-}
-
-//-----------------------------------------------------------------------------------------------------------------------------
-// Wrapper to run_imager - executes overloaded function run_imager ( as above ) :
-//  INPUT : pointer to data
-//-----------------------------------------------------------------------------------------------------------------------------
-bool CPacerImager::run_imager( float* data_real, 
-                               float* data_imag,
-                               int n_ant, 
-                               int n_pol,
-                               double frequency_mhz, 
-                               int n_pixels,
-                               double FOV_degrees,
-                               double min_uv,                   /*=-1000,*/
-                               bool do_gridding,                /*=true  */
-                               bool do_dirty_image,             /*=true  */
-                               const char* weighting,           /* =""   */   // weighting : U for uniform (others not implement
-                               const char* szBaseOutFitsName,   /* =NULL */
-                               bool bCornerTurnRequired         /* =true , TODO : change default to false and perform corner-turn in eda2 imager code using correlation matrix from xGPU correlator */
-                             )
-{
-  // ensures initalisation of object structures 
-  Initialise();
-
-  CBgFits fits_vis_real( n_ant, n_ant ), fits_vis_imag( n_ant, n_ant );
-  
-  if( bCornerTurnRequired )
-  {
-     fits_vis_real.SetValue(0.00);
-     fits_vis_imag.SetValue(0.00);
-
-     // ~corner-turn operation which can be quickly done on GPU: 
-     int counter=0;
-     for(int i=0;i<n_ant;i++)
-     {
-        for(int j=0;j<(i + 1);j++)
-        {
-           fits_vis_real.setXY( i, j , data_real[counter] );
-           fits_vis_real.setXY( j, i , data_real[counter] );
-           counter++;
-        }
-     }
-
-     counter=0;
-     for(int i=0;i<n_ant;i++)
-     {
-        for(int j=0;j<(i + 1);j++)
-        {
-           fits_vis_imag.setXY( i, j , data_imag[counter] );
-           fits_vis_imag.setXY( j, i , -(data_imag[counter]) );
-           counter++;
-        }
-     }
-  }else
-  {
-     fits_vis_real.SetData( data_real );
-     fits_vis_imag.SetData( data_imag );
-  }
-  
-  // const char* get_filename(  time_t ut_time , char* out_buffer, int usec=0, const char* full_dir_path="./", const char* prefix="dirty_image_", const char* postfix=""
-  if( m_ImagerParameters.m_fUnixTime <= 0.0001 ){
-     m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
-     PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n",m_ImagerParameters.m_fUnixTime);
-  }
-  
-  if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_INFO ){
-     char outDirtyImageReal[1024];
-     // sprintf(outDirtyImageReal,"%s/%s_vis_real.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
-     get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageReal, m_ImagerParameters.m_szOutputDirectory.c_str(), "visibility_", "_real" );
-   
-     fits_vis_real.WriteFits( outDirtyImageReal );
-     PRINTF_DEBUG("Saved real file to %s\n",outDirtyImageReal);
-  }
-     
-  if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_INFO ){
-     char outDirtyImageImag[1024];
-     // sprintf(outDirtyImageImag,"%s/%s_vis_imag.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
-     get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageImag, m_ImagerParameters.m_szOutputDirectory.c_str(), "visibility_", "_imag" );
-        
-     fits_vis_imag.WriteFits( outDirtyImageImag );
-     PRINTF_DEBUG("Saved imag file to %s\n",outDirtyImageImag);
-  }
-
-  // calculate UVW (if required)
-  CalculateUVW();
-  
-  if( m_ImagerParameters.m_bApplyGeomCorr ){
-     ApplyGeometricCorrections( fits_vis_real, fits_vis_imag, m_U, m_V, m_W, frequency_mhz );
-  }
-  
-  if( m_ImagerParameters.m_bApplyCableCorr ){
-     ApplyCableCorrections( fits_vis_real, fits_vis_imag, frequency_mhz );
-  }
-  
-  bool ret = run_imager( fits_vis_real, fits_vis_imag, m_U, m_V, m_W,
-                         frequency_mhz, 
-                         n_pixels, 
-                         FOV_degrees, 
-                         min_uv,
-                         do_gridding, 
-                         do_dirty_image, 
-                         weighting, "","", szBaseOutFitsName );
-
-   return ret;    
-}
-
 
 
 void CPacerImager::ConvertXCorr2Fits( Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, int time_step, int fine_channel, const char* szBaseFitsName )
@@ -2061,37 +1803,16 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
   // calculate UVW (if required)
   CalculateUVW();
   
-  if( m_ImagerParameters.m_bApplyGeomCorr ){
-     if( IsGPU() ){
-        printf("DEBUG : this is object CPacerImagerHIP -> geometric correction will be applied by the GPU Kernel (skipped here to avoid double-correction)\n");
-     }else{
-        printf("DEBUG : xcorr path test of ApplyGeometricCorrections\n");
-        ApplyGeometricCorrections( xcorr, m_U, m_V, m_W, frequency_mhz, time_step, fine_channel  );
-     }
-  }
+  if( m_ImagerParameters.m_bApplyGeomCorr )
+   ApplyGeometricCorrections( xcorr, m_U, m_V, m_W, frequency_mhz, time_step, fine_channel  );
   
-  if( m_ImagerParameters.m_bApplyCableCorr ){
-     if( IsGPU() ){
-        printf("DEBUG : this is object CPacerImagerHIP -> cable correction will be applied by the GPU Kernel (skipped here to avoid double-correction)\n");
-     }else{
-        printf("DEBUG : xcorr path test of ApplyCableCorrections\n");
-        ApplyCableCorrections( xcorr, frequency_mhz, time_step, fine_channel  );
-     }
-  }
   
-  if( IsGPU() ){
-     printf("DEBUG : this is object CPacerImagerHIP -> cable/geo. corrections not executed here -> not saving control corr. matrix imager_test_vis_re.fits / imager_test_vis_im.fits\n");
-     CBgFits re( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas) ,im( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas );
-     ConvertXCorr2Fits( xcorr, re, im, time_step, fine_channel, "corrmatrix_before_run_imager_nocorrections_gpu" );
-  }else{
-     printf("DEBUG : saving control corr-matrix just before imaging and after applying (or not) corrections and cal (if required)\n");
-     CBgFits re( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas) ,im( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas );
-     ConvertXCorr2Fits( xcorr, re, im, time_step, fine_channel, "corrmatrix_after_cable_and_geo_corr_cpu" );
-  }
+  if( m_ImagerParameters.m_bApplyCableCorr )
+     ApplyCableCorrections( xcorr, frequency_mhz, time_step, fine_channel  );
+  
 
   printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n",time_step, fine_channel);fflush(stdout);  
-  bool ret = // run_imager( fits_vis_real, fits_vis_imag, m_U, m_V, m_W,
-             run_imager( xcorr, time_step, fine_channel, 
+  bool ret = run_imager( xcorr, time_step, fine_channel, 
                          m_U, m_V, m_W,
                          frequency_mhz, 
                          n_pixels, 
