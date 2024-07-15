@@ -39,7 +39,7 @@ file(GLOB tests "tests/*.cpp")
 if(USE_HIP OR USE_CUDA)
     add_definitions("-DIMAGER_HIP")
     file(GLOB gpu_sources "src/hip/*.cpp")
-    file(GLOB gpu_headers "src/hip/*.hpp")    
+    file(GLOB gpu_headers "src/hip/*.h")
 endif()
 
 if(USE_CUDA)
@@ -74,7 +74,7 @@ install(TARGETS imaging
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-
+install(FILES ${gpu_headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include/hip")
 # This tries to install to /pkgconfig - ${CMAKE_INSTALL_DATAROOTDIR} not defined?
 # install(FILES ${CMAKE_BINARY_DIR}/pacerimagerlib.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
