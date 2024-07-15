@@ -22,7 +22,7 @@
 
 CPacerImagerHip::CPacerImagerHip()
 : CPacerImager(),
-  u_gpu(NULL), v_gpu(NULL), w_gpu(NULL), vis_real_gpu(NULL), vis_imag_gpu(NULL), uv_grid_counter_gpu(NULL), uv_grid_counter_cpu(NULL),
+  u_gpu(NULL), v_gpu(NULL), w_gpu(NULL), uv_grid_counter_gpu(NULL), uv_grid_counter_cpu(NULL),
   m_in_buffer_gpu(NULL), m_out_buffer_gpu(NULL), m_AllocatedXYSize(0), m_AllocatedImageSize(0), m_out_buffer_cpu(NULL),
   m_FFTPlan(0), vis_gpu(NULL), cable_lengths_gpu(NULL), cable_lengths_cpu(NULL), test_data_real_gpu(NULL), test_data_imag_gpu(NULL),
   antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL)
@@ -43,16 +43,6 @@ void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size )
    printf("DEBUG :  CPacerImagerHip::AllocGPUMemory( %d , %d ) -> n_ant = %d\n",corr_size,image_size,n_ant);
 
    // Memory for GPU input variables: 
-   if( !vis_real_gpu )
-   {
-      gpuMalloc((void**)&vis_real_gpu, corr_size*sizeof(float));
-      gpuMemset((float*)vis_real_gpu, 0, corr_size*sizeof(float));
-   }
-   if( !vis_imag_gpu )
-   {
-      (gpuMalloc((void**)&vis_imag_gpu, corr_size*sizeof(float)));
-      (gpuMemset((float*)vis_imag_gpu, 0, corr_size*sizeof(float)));
-   }
    if( !u_gpu )
    {
       (gpuMalloc((void**)&u_gpu, corr_size*sizeof(float)));
@@ -109,19 +99,7 @@ void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size )
 
 
 void CPacerImagerHip::CleanGPUMemory()
-{
-   if( vis_real_gpu )
-   {
-      (gpuFree( vis_real_gpu)); 
-      vis_real_gpu = NULL;
-   }
-  
-   if( vis_imag_gpu )
-   {
-      (gpuFree( vis_imag_gpu)); 
-      vis_imag_gpu = NULL;
-   }
-   
+{   
    if( vis_gpu )
    {
       (gpuFree( vis_gpu)); 
@@ -388,8 +366,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   float *u_cpu = fits_vis_u.get_data();
   float *v_cpu = fits_vis_v.get_data();
   float *w_cpu = fits_vis_w.get_data();
-//  float *vis_real_cpu = fits_vis_real.get_data();
-//  float *vis_imag_cpu = fits_vis_imag.get_data();
 
   // CPU Output variables
   float *uv_grid_counter_cpu = m_uv_grid_counter->get_data();
@@ -399,12 +375,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Calculating gpuMalloc() 
   clock_t start_time2 = clock();
 
-  // Step 2: Allocate memory for GPU variables
-  // Memory for GPU input variables: 
-  // (gpuMalloc((float**)&vis_real_gpu, xySize*sizeof(float)));
-  // (gpuMalloc((float**)&vis_imag_gpu, xySize*sizeof(float)));
-  // (gpuMalloc((float**)&u_gpu, xySize*sizeof(float)));
-  // (gpuMalloc((float**)&v_gpu, xySize*sizeof(float)));
 
   // Allocate only if not-allocated 
 

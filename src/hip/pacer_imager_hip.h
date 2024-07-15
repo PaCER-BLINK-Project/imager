@@ -23,8 +23,6 @@ protected :
    float *u_gpu; 
    float *v_gpu;
    float *w_gpu;
-   float *vis_real_gpu; 
-   float *vis_imag_gpu; 
    VISIBILITY_TYPE* vis_gpu;
    float *cable_lengths_gpu;
    float *cable_lengths_cpu;
