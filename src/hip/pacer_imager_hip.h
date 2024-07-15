@@ -29,9 +29,7 @@ protected :
    float *cable_lengths_gpu;
    float *cable_lengths_cpu;
   
-   // GPU Output variables 
-   float *uv_grid_real_gpu;
-   float *uv_grid_imag_gpu;
+   // GPU Output variables
    float *uv_grid_counter_gpu; 
    float *uv_grid_counter_cpu; // temporarily counter is on CPU to be able to save and calculat Sum -> later paralllel reduction on GPU 
    
@@ -53,10 +51,6 @@ protected :
    virtual void AllocGPUMemory( int corr_size, 
                                 int image_size
                               );
-        
-   // allocate GPU memory specifically for visibilities in xcorr structure - this is only for the case where xcorr structure has it allocated on CPU (for whatever reason)
-   void AllocGPUMemoryForXCorr( Visibilities* p_xcorr );                              
-
    // Clean GPU Memory 
    virtual void CleanGPUMemory(); 
    
@@ -98,9 +92,9 @@ protected :
                 );
 
     // virtual function to NOT DO corrections in CPU but in GPU :
-    virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz );
+    virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz,  int time_step, int fine_channel);
    
-    virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz );
+    virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel);
 
 
 public :

@@ -148,7 +148,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
                                       double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
                                       int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
                                       VISIBILITY_TYPE *vis_cuda,  
-                                      float *uv_grid_counter_cuda, float *uv_grid_real_cuda, float *uv_grid_imag_cuda, double min_uv_cuda, 
+                                      float *uv_grid_counter_cuda, double min_uv_cuda, 
                                       gpufftComplex *m_in_buffer_cuda)
 {   
     // Calculating the required id 
@@ -210,8 +210,6 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
         if(pos>=0 && pos<image_size_cuda)
         {
            // Allocating in uv_grid                
-           atomicAdd(&uv_grid_real_cuda[pos],re); // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
-           atomicAdd(&uv_grid_imag_cuda[pos],im); // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
            atomicAdd(&uv_grid_counter_cuda[pos],1);
 
            // Allocating inside m_in_buffer as well 
@@ -222,10 +220,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
         int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
         if(pos2>=0 && pos2<image_size_cuda)
         {
-           atomicAdd(&uv_grid_real_cuda[pos2],re);  // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
-           atomicAdd(&uv_grid_imag_cuda[pos2],-im); // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
-           atomicAdd(&uv_grid_counter_cuda[pos2],1);
-
+          atomicAdd(&uv_grid_counter_cuda[pos2],1);
            // Allocating inside m_in_buffer as well 
            atomicAdd(&m_in_buffer_cuda[pos2].x,re);
            atomicAdd(&m_in_buffer_cuda[pos2].y,-im);

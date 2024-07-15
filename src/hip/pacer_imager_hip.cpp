@@ -22,7 +22,7 @@
 
 CPacerImagerHip::CPacerImagerHip()
 : CPacerImager(),
-  u_gpu(NULL), v_gpu(NULL), w_gpu(NULL), vis_real_gpu(NULL), vis_imag_gpu(NULL), uv_grid_real_gpu(NULL), uv_grid_imag_gpu(NULL), uv_grid_counter_gpu(NULL), uv_grid_counter_cpu(NULL),
+  u_gpu(NULL), v_gpu(NULL), w_gpu(NULL), vis_real_gpu(NULL), vis_imag_gpu(NULL), uv_grid_counter_gpu(NULL), uv_grid_counter_cpu(NULL),
   m_in_buffer_gpu(NULL), m_out_buffer_gpu(NULL), m_AllocatedXYSize(0), m_AllocatedImageSize(0), m_out_buffer_cpu(NULL),
   m_FFTPlan(0), vis_gpu(NULL), cable_lengths_gpu(NULL), cable_lengths_cpu(NULL), test_data_real_gpu(NULL), test_data_imag_gpu(NULL),
   antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL)
@@ -33,26 +33,6 @@ CPacerImagerHip::CPacerImagerHip()
 CPacerImagerHip::~CPacerImagerHip()
 {
    CleanGPUMemory();
-}
-
-void CPacerImagerHip::AllocGPUMemoryForXCorr( Visibilities* p_xcorr )
-{
-   if( p_xcorr ){
-      if( p_xcorr->on_gpu() ){
-         PRINTF_INFO("INFO : data already on GPU -> no need to create another buffer and copy\n");
-      }else{
-         // only allocate local memory buffer if xcorr structure keeps it on CPU 
-         // otherwise (data is on GPU already) do not create another copy 
-         if( !vis_gpu ){
-            // int vis_size_bytes = sizeof(std::complex<VISIBILITY_TYPE>) * p_xcorr->size();
-            int vis_size_bytes = sizeof(std::complex<VISIBILITY_TYPE>) * p_xcorr->matrix_size(); // 2024-04-07 : only allocate memory for a single correlation matrix in this version
-            (gpuMalloc((void**)&vis_gpu, vis_size_bytes));
-            (gpuMemset((VISIBILITY_TYPE*)vis_gpu, 0, vis_size_bytes));
-         }
-      }
-   }else{
-      printf("INFO : p_xcorr = NULL -> no need for vis_gpu allocation\n");
-   }
 }
 
 void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size ) 
@@ -89,20 +69,7 @@ void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size )
       (gpuMemset((float*)w_gpu, 0, corr_size*sizeof(float)));
    }
 
-   // gridded visibilities :   
-   if( !uv_grid_real_gpu )
-   {
-      // Memory for GPU output variables:  
-      (gpuMalloc((void**)&uv_grid_real_gpu, image_size*sizeof(float)));
-      (gpuMemset((float*)uv_grid_real_gpu, 0, image_size*sizeof(float)));      
-   }
-   
-   if( !uv_grid_imag_gpu )
-   {
-      (gpuMalloc((void**)&uv_grid_imag_gpu, image_size*sizeof(float)));
-      (gpuMemset((float*)uv_grid_imag_gpu, 0, image_size*sizeof(float)));
-   }
-   
+   // gridded visibilities :      
    if( !uv_grid_counter_gpu )
    {
       (gpuMalloc((void**)&uv_grid_counter_gpu, image_size*sizeof(float)));
@@ -177,18 +144,6 @@ void CPacerImagerHip::CleanGPUMemory()
    {
       (gpuFree( w_gpu)); 
       w_gpu = NULL;
-   }
-
-   if( uv_grid_real_gpu )
-   {
-      (gpuFree( uv_grid_real_gpu)); 
-      uv_grid_real_gpu = NULL;
-   }
-
-   if( uv_grid_imag_gpu )
-   {
-      (gpuFree( uv_grid_imag_gpu)); 
-      uv_grid_imag_gpu = NULL;
    }
 
    if( uv_grid_counter_gpu )
@@ -437,8 +392,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 //  float *vis_imag_cpu = fits_vis_imag.get_data();
 
   // CPU Output variables
-  float *uv_grid_real_cpu = m_uv_grid_real->get_data();
-  float *uv_grid_imag_cpu = m_uv_grid_imag->get_data();
   float *uv_grid_counter_cpu = m_uv_grid_counter->get_data();
 
   // GPU Variables: (Corresponding GPU Variables) declared in class 
@@ -495,29 +448,13 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
      ConvertXCorr2Fits( xcorr, tmp_real, tmp_imag, time_step, fine_channel, "gridding_imaging_gpu_precorr" );
   }
   
-  if( xcorr.on_gpu() ){
+  if( ! xcorr.on_gpu() ) xcorr.to_gpu();
      // xcorr.data() is on GPU -> setting the pointed
      
      // WARNING : this code does not use time/frequency:
      // vis_local_gpu = (VISIBILITY_TYPE*)xcorr.data();         
      // NEW CODE - 2024-04-07 :
-     vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-  }else{
-     // data in xcorr is in CPU 
-     // this is only allocated when data in xcorr structure is on CPU then to run GPU imager (which it is) we need to copy from CPU to GPU :a
-     if( !vis_gpu ){
-        // if not already allocated -> allocate required GPU memory
-        AllocGPUMemoryForXCorr( &xcorr );
-     }
-     // set the pointer and copy data from Host (in xcorr) to device:
-     vis_local_gpu = vis_gpu;    
-     VISIBILITY_TYPE* corr_matrix_ptr = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-//     (gpuMemcpy((VISIBILITY_TYPE*)vis_local_gpu, (VISIBILITY_TYPE*)xcorr.data(), sizeof(std::complex<VISIBILITY_TYPE>) * xcorr.size(), gpuMemcpyHostToDevice));
-     (gpuMemcpy((VISIBILITY_TYPE*)vis_local_gpu, (VISIBILITY_TYPE*)corr_matrix_ptr, sizeof(std::complex<VISIBILITY_TYPE>) * xcorr.matrix_size(), gpuMemcpyHostToDevice));
-
-     // TODO: frequency / time is not acconted for here
-     // printf("ERROR in CODE : frequency / time is not accounted in this version of the code (hybrid - imagerGPU and blinkpipelineCPU)\n");     
-  }
+   vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
   
   int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
   if( m_ImagerParameters.m_bApplyGeomCorr ){ // turned off for testing
@@ -605,7 +542,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Start of kernel call 
   clock_t start_time4 = clock();
 
-  gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, center_x, center_y, is_odd_x, is_odd_y, vis_local_gpu, uv_grid_counter_gpu, uv_grid_real_gpu, uv_grid_imag_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
+  gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, center_x, center_y, is_odd_x, is_odd_y, vis_local_gpu, uv_grid_counter_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
 
   // End of kernel call 
@@ -651,9 +588,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Start of gpuMemcpy() 
   clock_t start_time5 = clock();
 
-  (gpuMemcpy((float*)uv_grid_counter_cpu, (float*)uv_grid_counter_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  (gpuMemcpy((float*)uv_grid_imag_cpu, (float*)uv_grid_imag_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
+  (gpuMemcpy((float*)uv_grid_counter_cpu, (float*)uv_grid_counter_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost));
   PRINTF_DEBUG("\nDEBUG : GPU gridding (0,0) = %.20f [just after hipMemcpy] vs. xcorr = %.8f /   %.8f\n",m_uv_grid_real->getXY(0,0),xcorr.data()[0].real(),xcorr.data()[0].imag());
 
   // CPU Variable 
@@ -666,14 +601,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   double duration_sec5 = double(end_time5-start_time5)/CLOCKS_PER_SEC;
   double duration_ms5 = duration_sec5*1000;
   printf("\n ** CLOCK gpuMemcpy() GPU to CPU took : %.6f [seconds], %.3f [ms]\n",duration_sec5,duration_ms5);
-  PRINTF_DEBUG("\n GRIDDING CHECK: Step 5 GPU to CPU copied"); 
-
-  // Uniform weighting (Not implemented here)
-  if( strcmp(weighting, "U" ) == 0 )
-  {
-     m_uv_grid_real->Divide( *m_uv_grid_counter );
-     m_uv_grid_imag->Divide( *m_uv_grid_counter );
-  } 
+  PRINTF_DEBUG("\n GRIDDING CHECK: Step 5 GPU to CPU copied");
 
   // float pointers to 1D Arrays 
   float* out_data_real = out_image_real.get_data();
@@ -818,14 +746,13 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
 }
 
-bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz )
+bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz,  int time_step, int fine_channel)
 {
    printf("DEBUG: CPacerImagerHip::ApplyGeometricCorrections is a void function just NOT TO DO THIS IN CPU, but using kernel : apply_geometric_corrections (called in gridding_imaging)\n");
    return false;
 }
 
-bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz )
-{
+bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel){
    printf("DEBUG: CPacerImagerHip::ApplyCableCorrections is a void function just NOT TO DO THIS IN CPU, but using kernel : apply_cable_corrections (called in gridding_imaging)\n");
    return false;
 }

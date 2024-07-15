@@ -26,7 +26,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
                                       double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
                                       int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
                                       VISIBILITY_TYPE *vis_cuda,  
-                                      float *uv_grid_counter_cuda, float *uv_grid_real_cuda, float *uv_grid_imag_cuda, double min_uv_cuda, 
+                                      float *uv_grid_counter_cuda, double min_uv_cuda, 
                                       gpufftComplex *m_in_buffer_cuda);
 
 //----------------------------------- Phase corrections : cable, geometric, apply calibration ----------------------------------- 
