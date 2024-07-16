@@ -36,6 +36,8 @@
 
    astroio follow the installation instructions at https://github.com/PaCER-BLINK-Project/astroio
 
+   libpal follow the installation instructions at https://github.com/Starlink/pal
+
 # installation:
 
    On super computer :
