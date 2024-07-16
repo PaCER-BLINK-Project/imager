@@ -12,13 +12,6 @@
 #include <mystring.h>
 #include <mydate.h>
 
-/*void __cuda_check_error(cudaError_t err, const char *file, int line)
-{
-	if(err != cudaSuccess){
-        fprintf(stderr, "CUDA error (%s:%d): %s\n", file, line, cudaGetErrorString(err));
-        exit(1);
-    }
-}*/
 
 
 CPacerImagerHip::CPacerImagerHip()
