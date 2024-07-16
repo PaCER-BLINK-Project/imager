@@ -16,6 +16,7 @@ protected :
 
    void* m_out_buffer_gpu; // output of cu/hip FFT - GPU memory (Device)
    void* m_out_buffer_cpu; // output of cu/fip FFT - Host memory (Host)
+   void* m_out_data; // temporary CPU buffer to apply normalisation. TODO : apply normalisation in a GPU kernal
 
 
    // Additional GPU Input variables 
@@ -95,6 +96,12 @@ protected :
     virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel);
 
 
+    virtual void SaveTestFitsFilesAndShowStat( int n_pixels, 
+                                               const char* weighting,
+                                               const char* szBaseOutFitsName, 
+                                               bool bSaveIntermediate, 
+                                               bool bSaveImaginary 
+                                             );
 public :
    //-----------------------------------------------------------------------------------------------------------------------------
    // IsGPU() - returns true if CPacerImagerHip object and false here:

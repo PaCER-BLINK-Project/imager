@@ -437,7 +437,7 @@ bool CPacerImager::SaveSkyImage( const char* outFitsName, CBgFits* pFits, double
        pixscale = m_PixscaleAtZenith;       
    }
 
-   PRINTF_DEBUG("DEBUG : m_PixscaleAtZenith = %.6f [deg] -> pixscale = %.6f [deg] , FoV = %.4f [deg], ImageSize = %d x %d\n",m_PixscaleAtZenith,pixscale,m_ImagerParameters.m_ImageFOV_degrees,pFits->GetXSize(),pFits->GetYSize());
+   PRINTF_DEBUG("DEBUG : m_PixscaleAtZenith = %.6f [deg] -> pixscale = %.6f [deg] , FoV = %.4f [deg], ImageSize = %ld x %ld\n",m_PixscaleAtZenith,pixscale,m_ImagerParameters.m_ImageFOV_degrees,pFits->GetXSize(),pFits->GetYSize());
    // azh2radec 1581220006 mwa 0 90
    // (RA,DEC) = ( 312.07545047 , -26.70331900 )
    // 20.80503003133333333333

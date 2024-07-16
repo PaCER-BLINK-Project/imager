@@ -4,6 +4,7 @@
 #include "../pacer_imager_defs.h"
 
 #define NTHREADS 1024
+#define MAX_SHARED_MEMORY_BYTES 48000
 
 // implemeneted in pacer_imager_hip.cu
 // void __cuda_check_error(gpuError_t err, const char *file, int line);

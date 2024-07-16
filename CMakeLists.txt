@@ -53,7 +53,7 @@ add_library(imaging SHARED ${sources} ${gpu_sources})
 set_target_properties(imaging PROPERTIES
     VERSION ${PROJECT_VERSION}
     SOVERSION 1
-    PUBLIC_HEADER "${headers}") 
+    PUBLIC_HEADER "${headers}")
 
 configure_file(pacerimagerlib.pc.in pacerimagerlib.pc @ONLY)
 
