@@ -1,6 +1,8 @@
 #ifndef _PACER_IMAGER_H__
 #define _PACER_IMAGER_H__
 
+#define COTTER_COMPATIBLE true
+
 #include "pacer_imager_parameters.h"
 #include "observation_metadata.h"
 #include "pacer_imager_defs.h"
@@ -14,6 +16,7 @@ using namespace std;
 
 // AstroIO for Visibilities class :
 #include <astroio.hpp>
+#include <memory_buffer.hpp>
 // #define VISIBILITY_TYPE double // visibility type currently double but may be float 
 // forward declaration of class  Visibilities, the header file is included in pacer_imager.cpp
 // class  Visibilities;
@@ -159,7 +162,7 @@ public :
    //-----------------------------------------------------------------------------------------------------------------------------
    // Initialisation of data structures in the object, which are required for imaging 
    //-----------------------------------------------------------------------------------------------------------------------------   
-   void Initialise(); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
+   void Initialise(double frequency_hz); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
  
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------
@@ -189,18 +192,12 @@ public :
    // calculates UVW and also checks if it is required at all 
    // U,V,W are calculated in meters (not wavelengths) -> have to be divided later by wavelength
    //-----------------------------------------------------------------------------------------------------------------------------
-   bool CalculateUVW( bool bForce=false, bool bInitialise=true );
+   bool CalculateUVW(double frequency_hz, bool bForce=false, bool bInitialise=true);
    
    //-----------------------------------------------------------------------------------------------------------------------------
    // Re-calculate parameters based on new UVW :
    //-----------------------------------------------------------------------------------------------------------------------------
-   bool UpdateParameters();
-   
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // Reads UVW from FITS files with files names basename + szPostfix + U/V/W.fits
-   // or calculates using antenna positions
-   //-----------------------------------------------------------------------------------------------------------------------------
-   bool ReadOrCalcUVW( const char* basename, const char* szPostfix );
+   bool UpdateParameters(double frequency_hz);
    
    //-----------------------------------------------------------------------------------------------------------------------------
    // Set external buffers for output images (Real/Imag) 
@@ -214,30 +211,6 @@ public :
    void dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_imag_param, CBgFits& uv_grid_counter, 
                      bool bSaveIntermediate=false, const char* szBaseOutFitsName=NULL, bool bSaveImaginary=true, bool bFFTUnShift=true );
 
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // read input data correlation matrix and UVW from FITS files (this is the first type of input )
-   // TODO : add other input formats (e.g. binary data)
-   //-----------------------------------------------------------------------------------------------------------------------------
-   bool read_corr_matrix( const char* basename, CBgFits& fits_vis_real, CBgFits& fits_vis_imag, const char* szPostfix );
-
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // INPUT  : 
-   //          fits_vis_real, fits_vis_imag : visibilities (REAL and IMAG 2D arrays as FITS class) 
-   //          fits_vis_u, fits_vis_v, fits_vis_w : UVW (real values baselines in units of wavelength - see TMS)
-   //          delta_u, delta_v : size of the UV cell 
-   //          frequency_mhz : frequency in MHz
-   //
-   // OUTPUT : 
-   //          - uv_grid_real, uv_grid_imag : visibilities on UV grid (real and imag arrays)
-   //          - uv_grid_counter : visibility counter and 
-   //-----------------------------------------------------------------------------------------------------------------------------
-   void gridding( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                  CBgFits& uv_grid_real, CBgFits& uv_grid_imag, CBgFits& uv_grid_counter, double delta_u, double delta_v, 
-                  double frequency_mhz,
-                  int    n_pixels,
-                  double min_uv=-1000,    // minimum UV 
-                  const char* weighting="" // weighting : U for uniform (others not implemented)
-                );
    
    //-----------------------------------------------------------------------------------------------------------------------------
    // 
@@ -262,21 +235,12 @@ public :
                   int time_step, 
                   int fine_channel,
                   CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                  CBgFits& uv_grid_real, CBgFits& uv_grid_imag, CBgFits& uv_grid_counter, double delta_u, double delta_v, 
-                  double frequency_mhz,
+                  MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<int>& grids_counters_buffer, double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="" // weighting : U for uniform (others not implemented)
                 );
 
-   void gridding_fast( void* visibilities_param,  // cast to fftw_complex
-                  CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                  void* gridded_visibilities_param, CBgFits& uv_grid_counter, double delta_u, double delta_v, 
-                  double frequency_mhz,
-                  int    n_pixels,
-                  double min_uv=-1000,    // minimum UV 
-                  const char* weighting="" // weighting : U for uniform (others not implemented)
-                );
    
    // same as above but using AstroIO Visibility as input
    // TODO : at some point this one should stay and the other one should be a wrapper using ConvertFits2XCorr and calling this one:
@@ -285,7 +249,6 @@ public :
                   int fine_channel,
                   CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,                   
                   double delta_u, double delta_v,
-                  double frequency_mhz,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="", // weighting : U for uniform (others not implemented)
@@ -304,8 +267,7 @@ public :
    bool run_imager( Visibilities& xcorr, 
                     int time_step, 
                     int fine_channel,
-                    CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, 
-                    double frequency_mhz,
+                    CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                     int    n_pixels,
                     double FOV_degrees,
                     double min_uv=-1000,        // minimum UV 
@@ -326,7 +288,6 @@ public :
    bool run_imager( Visibilities& xcorr, 
                     int time_step, 
                     int fine_channel,
-                    double frequency_mhz, 
                     int n_pixels,
                     double FOV_degrees,
                     double min_uv=-1000,      // minimum UV
@@ -341,25 +302,16 @@ public :
    //-----------------------------------------------------------------------------------------------------------------------------
    // Apply phase corrections : geometrical correction, cable correction etc   
    //-----------------------------------------------------------------------------------------------------------------------------
-   virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz, int time_step, int fine_channel );
+   virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w);
    
-   virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel );
+   virtual bool ApplyCableCorrections( Visibilities& xcorr);
 
    //-----------------------------------------------------------------------------------------------------------------------------
    // Function saving output FITS files: 
    //-----------------------------------------------------------------------------------------------------------------------------
    bool SaveSkyImage( const char* outFitsName, CBgFits* pFits, double unixtime=0.00 );
-   
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // test functions - just to test certain other (sometimes non-public functions)
-   //-----------------------------------------------------------------------------------------------------------------------------
-   void test();
-   
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // IsGPU() - returns true if CPacerImagerHip object and false here:
-   //-----------------------------------------------------------------------------------------------------------------------------
-   virtual inline bool IsGPU(){ return false; }
-                  
+
+   double get_frequency_hz(const Visibilities& xcorr, int fine_channel, bool cotter_compatible);           
 };
 
 #endif 

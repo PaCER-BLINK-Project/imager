@@ -22,10 +22,6 @@ public :
    static bool   m_bApplyGeomCorr;
    static bool   m_bApplyCableCorr;
    
-   // frequency and bandwidth 
-   double m_fCenterFrequencyMHz;
-   double m_fBandwidthMHz;
-   
    // UV range :
    double m_fMinUV;
    

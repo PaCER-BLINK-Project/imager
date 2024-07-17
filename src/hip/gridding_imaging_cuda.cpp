@@ -291,7 +291,7 @@ __global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE 
 
 }
 
-__global__ void apply_geometric_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *w_cuda, double frequency_hz, double speed_of_light )
+__global__ void apply_geometric_corrections(int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *w_cuda, double frequency_hz, double speed_of_light)
 {
     // Calculating the required id 
     int i = blockDim.x * blockIdx.x + threadIdx.x;

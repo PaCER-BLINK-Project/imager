@@ -19,6 +19,7 @@
 
 // AstroIO for Visibilities class :
 #include <astroio.hpp>
+#include <memory_buffer.hpp>
 
 // TEST OPTIONS to compare with MIRIAD image
 // see memos : PAWSEY/PaCER/logbook/20220305_pacer_imager_validation.odt, MIRIAD natural weighting (sup=0) etc:
@@ -262,7 +263,7 @@ int CPacerImager::ReadAntennaPositions( bool bConvertToXYZ )
 
 
 
-void CPacerImager::Initialise()
+void CPacerImager::Initialise(double frequency_hz)
 {
   if( !m_bInitialised )
   {
@@ -291,7 +292,7 @@ void CPacerImager::Initialise()
           // WARNING : bool CPacerImager::CalculateUVW() - could be used, but it also calls this function itself which may cause infinite recursise call
           // m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW( m_U, m_V, m_W, (CPacerImager::m_SaveFilesLevel>=SAVE_FILES_DEBUG), m_ImagerParameters.m_szOutputDirectory.c_str(), m_bIncludeAutos );
           // UpdateParameters();
-          CalculateUVW( true, false ); // bForce=true to force call of m_MetaData.m_AntennaPositions.CalculateUVW and , bInitialise=false to avoid call to this (CPacerImager::Initialise) function in a recursive way !
+          CalculateUVW( frequency_hz, true, false ); // bForce=true to force call of m_MetaData.m_AntennaPositions.CalculateUVW and , bInitialise=false to avoid call to this (CPacerImager::Initialise) function in a recursive way !
           PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines (include Autos = %d)\n",m_Baselines,m_bIncludeAutos);
        }else
        {
@@ -719,10 +720,10 @@ void CPacerImager::dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_im
    PACER_PROFILER_END("dirty imaging took")     
 }
 
-bool CPacerImager::CalculateUVW( bool bForce /*=false*/, bool bInitialise /*=true*/ )
+bool CPacerImager::CalculateUVW(double frequency_hz, bool bForce /*=false*/, bool bInitialise /*=true*/ )
 {
    if( bInitialise ){ // is not required in one case of call from ::Initialise itself -> to avoid recursive call 
-      Initialise();
+      Initialise(frequency_hz);
    }
  
    bool bRecalculationRequired = false;
@@ -737,13 +738,13 @@ bool CPacerImager::CalculateUVW( bool bForce /*=false*/, bool bInitialise /*=tru
       m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW( m_U, m_V, m_W, (CPacerImager::m_SaveFilesLevel>=SAVE_FILES_DEBUG), m_ImagerParameters.m_szOutputDirectory.c_str(), m_bIncludeAutos );
       PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines\n",m_Baselines); 
       
-      UpdateParameters(); // update parameters after change in UVW 
+      UpdateParameters(frequency_hz); // update parameters after change in UVW 
    }
    
    return (m_Baselines>0);
 }
 
-bool CPacerImager::UpdateParameters()
+bool CPacerImager::UpdateParameters(double frequency_hz)
 {
    PRINTF_DEBUG("DEBUG : updating parameters (pixscale etc.) based on new UVW\n");
    // U :   
@@ -763,7 +764,6 @@ bool CPacerImager::UpdateParameters()
    //  v_max = +35;
 
    // recalculate PIXSCALE at zenith :
-   double frequency_hz = m_ImagerParameters.m_fCenterFrequencyMHz*1e6;
    double wavelength_m = VEL_LIGHT / frequency_hz;      
    double u_max_lambda = u_max/wavelength_m;
    double pixscale_radians = 1.00/(2.00*u_max_lambda);
@@ -773,173 +773,13 @@ bool CPacerImager::UpdateParameters()
    return true;
 }
 
-bool CPacerImager::ReadOrCalcUVW( const char* basename, const char* szPostfix )
-{
-  string fits_file_u = basename;
-  fits_file_u += "_u";
-  if( strlen( szPostfix ) ){
-     fits_file_u += szPostfix;
-  }
-  fits_file_u += ".fits";
-
-  string fits_file_v = basename;
-  fits_file_v += "_v";
-  if( strlen( szPostfix ) ){
-     fits_file_v += szPostfix;
-  }
-  fits_file_v += ".fits";
-
-  string fits_file_w = basename;
-  fits_file_w += "_w";
-  if( strlen( szPostfix ) ){
-     fits_file_w += szPostfix;
-  }
-  fits_file_w += ".fits";
-
-  if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL){  
-     printf("DEBUG : Expecting the following files to exist:\n");
-     printf("\t%s\n",fits_file_u.c_str()); 
-     printf("\t%s\n",fits_file_v.c_str()); 
-     printf("\t%s\n",fits_file_w.c_str()); 
-  }
-
-
-  int n_ant = m_MetaData.m_AntennaPositions.size();
-  bool bCalculateMetaFits = false;
-  if( n_ant>0 && (m_MetaData.HasMetaFits() || m_ImagerParameters.m_bConstantUVW ) ){
-//  if( n_ant > 0 ){
-     printf("DEBUG : can calculate UVW n_ant = %d , has_metadata = %d , constant UVW = %d\n",n_ant,m_MetaData.HasMetaFits(),m_ImagerParameters.m_bConstantUVW);
-     bCalculateMetaFits = true;
-  }else{
-     printf("DEBUG : cannot calculate UVW n_ant = %d , has_metadata = %d , constant UVW = %d\n",n_ant,m_MetaData.HasMetaFits(),m_ImagerParameters.m_bConstantUVW);
-  }
-
-  if( bCalculateMetaFits ){
-     if( !CalculateUVW() ){
-        printf("ERROR : could not calculate UVW coordinates\n");
-        return false;
-     }
-  }else{
-     PRINTF_WARNING("WARNING : antenna position file %s not specified or does not exist -> will try using UVW FITS files : %s,%s,%s\n",m_ImagerParameters.m_AntennaPositionsFile.c_str(),fits_file_u.c_str(),fits_file_v.c_str(),fits_file_w.c_str());
-
-     // U :
-     PRINTF_INFO("Reading fits file %s ...\n",fits_file_u.c_str());
-     if( m_U.ReadFits( fits_file_u.c_str(), 0, 1, 1 ) ){
-        printf("ERROR : could not read U FITS file %s\n",fits_file_u.c_str());
-        return false;
-     }else{
-        PRINTF_INFO("OK : fits file %s read ok\n",fits_file_u.c_str());
-     }
-  
-     // V : 
-     PRINTF_INFO("Reading fits file %s ...\n",fits_file_v.c_str());
-     if( m_V.ReadFits( fits_file_v.c_str(), 0, 1, 1 ) ){
-        printf("ERROR : could not read V FITS file %s\n",fits_file_v.c_str());
-        return false;
-     }else{
-        PRINTF_INFO("OK : fits file %s read ok\n",fits_file_v.c_str());
-     }
-  
-     // W : 
-     PRINTF_INFO("Reading fits file %s ...\n",fits_file_w.c_str());
-     if( m_W.ReadFits( fits_file_w.c_str(), 0, 1, 1 ) ){
-        printf("ERROR : could not read W FITS file %s\n",fits_file_w.c_str());
-        return false;
-     }else{
-        PRINTF_INFO("OK : fits file %s read ok\n",fits_file_w.c_str());
-     }
-  }
-
-  return true;
-}
-
-bool CPacerImager::read_corr_matrix( const char* basename, CBgFits& fits_vis_real, CBgFits& fits_vis_imag, 
-                                     const char* szPostfix )
-{
-  // ensures initalisation of object structures 
-  Initialise();
-  
-  // creating FITS file names for REAL, IMAG and U,V,W input FITS files :
-  string fits_file_real = basename;
-  fits_file_real += "_vis_real";
-  if( strlen( szPostfix ) ){
-     fits_file_real += szPostfix;
-  }
-  fits_file_real += ".fits";
- 
-  string fits_file_imag = basename;
-  fits_file_imag += "_vis_imag";
-  if( strlen( szPostfix ) ){
-     fits_file_imag += szPostfix;
-  }
-  fits_file_imag += ".fits";
- 
-
-  if(CPacerImager::m_ImagerDebugLevel>=IMAGER_INFO_LEVEL){
-     printf("Expecting the following files to exist:\n");
-     printf("\t%s\n",fits_file_real.c_str()); 
-     printf("\t%s\n",fits_file_imag.c_str()); 
-  }
-  
-  // REAL(VIS)
-  PRINTF_INFO("Reading fits file %s ...\n",fits_file_real.c_str());
-  if( fits_vis_real.ReadFits( fits_file_real.c_str(), 0, 1, 1 ) ){
-     // try just with _real.fits (not _vis_real.fits) :
-     printf("INFO : could not read visibility FITS file %s\n",fits_file_real.c_str());
-     fits_file_real = basename;
-     fits_file_real += "_real.fits";
-     if( fits_vis_real.ReadFits( fits_file_real.c_str(), 0, 1, 1 ) ){
-        printf("ERROR : could not read visibility FITS file %s\n",fits_file_real.c_str());
-        return false;
-     }
-  }else{
-     PRINTF_INFO("OK : fits file %s read ok\n",fits_file_real.c_str());
-  }
-
-  // IMAG(VIS)
-  PRINTF_INFO("Reading fits file %s ...\n",fits_file_imag.c_str());
-  if( fits_vis_imag.ReadFits( fits_file_imag.c_str(), 0, 1, 1 ) ){
-     // try just with _imag.fits (not _vis_imag.fits) :
-     printf("INFO : could not read visibility FITS file %s\n",fits_file_imag.c_str());      
-     fits_file_imag = basename;
-     fits_file_imag += "_imag.fits";
-     if( fits_vis_imag.ReadFits( fits_file_imag.c_str(), 0, 1, 1 ) ){  
-        printf("ERROR : could not read visibility FITS file %s\n",fits_file_imag.c_str());
-        return false;
-     }
-  }else{
-     PRINTF_INFO("OK : fits file %s read ok\n",fits_file_imag.c_str());
-  }
-  
-  // Test horizontal flip :
-/*  fits_vis_real.HorFlip();
-  fits_vis_imag.HorFlip();
-  fits_vis_real.WriteFits("re_hor_flip.fits");
-  fits_vis_imag.WriteFits("im_hor_flip.fits");*/
-  
-  // TEST Conjugate :
-  // Conjugate is equivalent to changing FFTW BACKWARD TO FORWARD 
-/*  for(int y=0;y<fits_vis_imag.GetYSize();y++){
-     for(int x=0;x<fits_vis_imag.GetXSize();x++){
-        if( x!=y ){
-           double val = fits_vis_imag.getXY(x,y);
-           fits_vis_imag.setXY(x,y,-val);
-        }
-     }
-  }*/
-
-  // reads or calculates UVW coordinates
-  bool ret = ReadOrCalcUVW( basename , szPostfix );
-  return ret;  
-}
-
 
 void CPacerImager::gridding_fast( Visibilities& xcorr, 
                int time_step, 
                int fine_channel,
                CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-               CBgFits& uv_grid_real, CBgFits& uv_grid_imag, CBgFits& uv_grid_counter, double delta_u, double delta_v, 
-               double frequency_mhz, 
+                MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<int>& grids_counters_buffer,
+                double delta_u, double delta_v,
                int n_pixels,
                double min_uv /*=-1000*/,
                const char* weighting /*="" weighting : U for uniform (others not implemented) */
@@ -1205,245 +1045,6 @@ void CPacerImager::gridding_fast( Visibilities& xcorr,
 
 }
 
-void CPacerImager::gridding_fast( void* visibilities_param, 
-                  CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                  void* gridded_visibilities_param, CBgFits& uv_grid_counter, double delta_u, double delta_v, 
-                  double frequency_mhz,
-                  int    n_pixels,
-                  double min_uv /*=-1000*/,    // minimum UV 
-                  const char* weighting /*=""*/ // weighting : U for uniform (others not implemented)
-                )
-{
-  int n_ant = fits_vis_u.GetXSize();
-  PRINTF_DEBUG("DEBUG : gridding_fast(fftw_complex) : min_uv = %.4f, n_ant = %d\n",min_uv,n_ant);
-  fftw_complex* visibilities = (fftw_complex*)visibilities_param;
-  fftw_complex* gridded_visibilities = (fftw_complex*)gridded_visibilities_param;
-
-  PACER_PROFILER_START
-  bool bStatisticsCalculated = false;
-  if( m_bPrintImageStatistics ){ // TODO : ? may require a separate flag in the future, for now just using a single Statistics switch ON/OFF flag
-     fits_vis_u.GetStat( u_mean, u_rms, u_min, u_max );
-  
-     // V : 
-     fits_vis_v.GetStat( v_mean, v_rms, v_min, v_max );
-  
-     // W : 
-     fits_vis_w.GetStat( w_mean, w_rms, w_min, w_max );
-
-     // Bacause we are also including conjugates at (-u,-v) UV point in gridding u_min = -u_max and v_min = -v_max :
-     // was -35 / +35 
-     u_min = -u_max;
-     //  u_max = +35;  
-     v_min = -v_max;
-     //  v_max = +35;
-     
-     bStatisticsCalculated = true;
-  }
-
-
-   double frequency_hz = frequency_mhz*1e6;
-   double wavelength_m = VEL_LIGHT / frequency_hz;
-   PRINTF_DEBUG("DEBUG : wavelength = %.4f [m] , frequency = %.4f [MHz]\n",wavelength_m,frequency_mhz);
-
-  if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL){  
-     // see : /home/msok/Desktop/PAWSEY/PaCER/logbook/20220909_image_sizes_verification.odt
-     // TODO : try this in the future or so
-     // it should rathr be : 1.00/(2 U_max) = Lambda/(2 MAX_baseline) :
-     double pixscale_zenith_deg = (1.00/(n_pixels*delta_u))*(180.00/M_PI); // in degrees 
-     double pixscale_radians = 1.00/(2.00*u_max);
-     double pixscale_deg_version2 = pixscale_radians*(180.00/M_PI);
-     printf("DEBUG : pixscale old = %.8f [deg] vs. NEW = %.8f [deg] , u_max = %.6f (using OLD)\n",pixscale_zenith_deg,pixscale_deg_version2,u_max);
-// 2024-03-16 - after pixscale param added     m_PixscaleAtZenith = pixscale_deg_version2; // pixscale_zenith_deg;
-     if( m_bCompareToMiriad && false ){ // 2023-12-17 temporary disabled as WCS is not correctly saved then !!! see 20231215_repeat_processing_of_small_part_of_20230709.odt
-        PRINTF_WARNING("WARNING : MIRIAD-like option -> pixscale set to %.8f\n",pixscale_zenith_deg);
-        m_PixscaleAtZenith = pixscale_zenith_deg;
-     }
-
-     if( bStatisticsCalculated ){
-        printf("DEBUG : U limits %.8f - %.8f , delta_u = %.8f -> pixscale at zenith = %.8f [deg]\n",u_min, u_max , delta_u , m_PixscaleAtZenith );
-        printf("DEBUG : V limits %.8f - %.8f , delta_v = %.8f\n", v_min, v_max , delta_v );
-        printf("DEBUG : W limits %.8f - %.8f\n", w_min, w_max );
-     }
-  }
-
-  int center_x = int( n_pixels / 2 );
-  int center_y = int( n_pixels / 2 );
-  int is_odd_x = 0 , is_odd_y = 0;
-  if( (n_pixels % 2) == 1 ){
-     is_odd_x = 1;
-  }
-  if( (n_pixels % 2) == 1 ){
-     is_odd_y = 1;
-  }
-
-
-  // simple gridding :
-  uv_grid_counter.SetValue( 0.00 );
-
-  int added=0, high_value=0;
-  for( int ant1 = 0 ; ant1 < n_ant; ant1++ ){
-     // for( int ant2 = 0 ; ant2 < n_ant; ant2++ ){
-     for( int ant2 = 0 ; ant2 <= ant1; ant2++ ){
-        if( ant1 > ant2 || (m_bIncludeAutos && ant1==ant2) ){ // was ant1 > ant2 
-           if( m_MetaData.m_AntennaPositions.size() > 0 ){
-              if( m_MetaData.m_AntennaPositions[ant1].flag > 0 || m_MetaData.m_AntennaPositions[ant2].flag > 0 ){
-                 // skip flagged antennas 
-                 // printf("Fast flagging used\n");
-                 continue;
-              }
-           }else{
-              if( m_FlaggedAntennas.size() > 0 ){
-                 // WARNING : this is much less efficient so better to have antenna positions and check flags there
-                 if( find_value( m_FlaggedAntennas, ant1 ) >=0 || find_value( m_FlaggedAntennas, ant2 ) >=0 ){
-                    continue;
-                 }
-              }
-           }                     
-
-           double re = visibilities[ant2*n_ant+ant1][0];
-           double im = visibilities[ant2*n_ant+ant1][1];
-           
-           if( ant1==ant2 ){
-              PRINTF_DEBUG("Auto-correlation debug values %.4f / %.4f\n",re,im);
-           }
-           
-           if( !isnan(re) && !isnan(im) ){
-              if ( fabs(re) < MAX_VIS && fabs(im) < MAX_VIS ){
-                 // TODO convert [m] -> wavelength 
-                 double u = -fits_vis_u.getXY(ant1,ant2) / wavelength_m;
-                 
-                 // 2022-09-24 : - removed for a test on MWA data
-                 // 2022-09-09 - for now sticking to - sign here to have back comatible test EDA2 data
-                 //  but looks like this (-) should not be here at least does not match UV coverage from WSCEAN (it is flipped then see : /home/msok/Desktop/PAWSEY/PaCER/logbook/20220826_image_simulation_part3.odt
-                 double v = -fits_vis_v.getXY(ant1,ant2) / wavelength_m; // the - sign here fixes the Y flip, but I am not sure why needed ??? check RTS : imagefromuv.c , LM_CopyFromFFT
-                                                                        // where some interesting re-shuffling happens too !
-                                                                        // - was for EDA2 data, but + is ok for MWA data - it may be consistent once I start using TMS equation 4.1 consistently for 
-                                                                        // both EDA2 and MWA  
-                 double w = -fits_vis_w.getXY(ant1,ant2) / wavelength_m;
-                 double uv_distance = sqrt(u*u + v*v);
-                 
-/* this is in WSCLEAN, but here seems to have no effect ...
-                 if (w < 0.0 ) { // && !_isComplex
-                    u = -u;
-                    v = -v;
-                    w = -w;
-                    im = -im;
-                 }
-*/ 
-                 
-                 if( ant1==ant2 ){
-                    PRINTF_DEBUG("Auto-correlation debug2 values %.4f / %.4f , uv_distance = %.8f vs. min_uv = %.8f (u = %.8f , v = %.8f , wavelength_m = %.8f [m])\n",re,im,uv_distance,min_uv,u,v,wavelength_m);
-                 }
-              
-                 if( uv_distance > min_uv ){ // check if larger than minimum UV distance 
-//                 int u_index = round( (u - u_min)/delta_u );
-//                 int v_index = round( (v - v_min)/delta_v );
-                    double u_pix = round( u/delta_u );
-                    double v_pix = round( v/delta_v );
-                    int u_index = u_pix + n_pixels/2; // was u - u_center
-                    int v_index = v_pix + n_pixels/2; // was v - v_center                                       
-                    
-                    // calculate position (x,y) on UV grid as expected by fftw (no fft_unshift required)
-                    int x_grid = 0, y_grid = 0;
-                    if( u_index < center_x ){
-                       x_grid = center_x + u_index + is_odd_x;
-                    }else{
-                       x_grid = u_index - center_x;
-                    }                    
-                    if( v_index < center_y ){
-                       y_grid = center_y + v_index + is_odd_y;
-                    }else{
-                       y_grid = v_index - center_y;
-                    }
-                    
-                    
-                 
-//                 printf("DEBUG : u_index %d vs. %d ( u = %.2f , u_min = %.2f , delta_u = %.2f , u_center =%.2f)\n",u,u_index1,u_index,u_min,delta_u,u_center);
-              
-                 // Using CELL averaging method or setXY ?
-                    int pos = y_grid*n_pixels + x_grid;
-                    gridded_visibilities[pos][0] += re;
-                    gridded_visibilities[pos][1] += im;
-                    uv_grid_counter.addXY( x_grid, y_grid , 1.00 );
-                    
-                    if( m_ImagerDebugLevel > 101 ){
-                         printf("DEBUG ADDING : PACER_gridding at (x,y) =  %.1f %.1f += %.8f + j %.8f (u,v,w) = ( %.4f , %.4f , %.4f )\n",u_pix,v_pix,re,im,u,v,w);
-//                       printf("DEBUG gridding : (u,v) = (%.8f,%.8f) -> index = (%d,%d) or (%.2f,%.2f), value = %.8f + j %.8f\n",u,v,u_index,v_index,u_pix,v_pix,re,im);
-                    }
-              
-                 // add conjugates :
-//                 u_index = round( (-u - u_min)/delta_u );
-//                 v_index = round( (-v - v_min)/delta_v );
-                    u_index = -u_pix + n_pixels/2; // was round( (-u - u_center)/delta_u ) + ...
-                    v_index = -v_pix + n_pixels/2; // was round( (-v - v_center)/delta_v ) + ...
-                    if( u_index < center_x ){
-                       x_grid = center_x + u_index + is_odd_x;
-                    }else{
-                       x_grid = u_index - center_x;
-                    }                    
-                    if( v_index < center_y ){
-                       y_grid = center_y + v_index + is_odd_y;
-                    }else{
-                       y_grid = v_index - center_y;
-                    }                                       
-                    
-                    pos = y_grid*n_pixels + x_grid;
-                    gridded_visibilities[pos][0] += re;
-                    gridded_visibilities[pos][1] += -im;
-                    uv_grid_counter.addXY( x_grid, y_grid , 1.00 );
-                    
-                    if( ant1==ant2 ){
-                       PRINTF_DEBUG("Auto-correlation added values %.4f / %.4f\n",re,im);
-                    }                    
-                    
-                    added++;
-                 }
-              }else{
-                 PRINTF_DEBUG("DEBUG : visibility value %e +j%e higher than limit %e -> skipped\n",re,im,MAX_VIS);
-                 high_value++;
-              }
-           }
-        }
-     }
-  }  
-  
-  // This division is in fact UNIFORM weighting !!!! Not CELL-avareging 
-  // normalisation to make it indeed CELL-averaging :
-  // if( strcmp(weighting, "U" ) == 0 ){
-  //   uv_grid_real.Divide( uv_grid_counter );
-  //   uv_grid_imag.Divide( uv_grid_counter );
-  // }  
-  PACER_PROFILER_END("gridding (no I/O) took")
-  PRINTF_DEBUG("DEBUG : added %d UV points to the grid, %d too high values skipped\n",added,high_value);
-  
-  if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
-     char uv_grid_re_name[1024],uv_grid_im_name[1024],uv_grid_counter_name[1024];
-     sprintf(uv_grid_re_name,"%s/uv_grid_real_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-     sprintf(uv_grid_im_name,"%s/uv_grid_imag_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-     sprintf(uv_grid_counter_name,"%s/uv_grid_counter_%dx%d.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),n_pixels,n_pixels);
-    
-/*     if( uv_grid_real.WriteFits( uv_grid_re_name ) ){
-        printf("ERROR : could not write output file %s\n",uv_grid_re_name);
-     }else{
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_re_name);
-     }
-
-     if( uv_grid_imag.WriteFits( uv_grid_im_name ) ){
-        printf("ERROR : could not write output file %s\n",uv_grid_im_name);
-     }else{
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_im_name);
-     }*/
-  
-     if( uv_grid_counter.WriteFits( uv_grid_counter_name ) ){
-        printf("ERROR : could not write output file %s\n",uv_grid_counter_name);
-     }else{
-        PRINTF_INFO("INFO : saved file %s\n",uv_grid_counter_name);
-     }
-  }
-
-
-}                
-
 
 
 void CPacerImager::gridding_imaging( Visibilities& xcorr, 
@@ -1451,7 +1052,6 @@ void CPacerImager::gridding_imaging( Visibilities& xcorr,
                                      int fine_channel,
                                      CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                                      double delta_u, double delta_v,
-                                     double frequency_mhz,
                                      int    n_pixels,
                                      double min_uv /*=-1000*/,    // minimum UV 
                                      const char* weighting /*=""*/, // weighting : U for uniform (others not implemented)
@@ -1463,142 +1063,91 @@ void CPacerImager::gridding_imaging( Visibilities& xcorr,
                                      bool bSaveIntermediate /*=false*/, bool bSaveImaginary /*=true*/
                 )
 {
-  printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
-  // allocates data structures for gridded visibilities:
-  AllocGriddedVis( n_pixels, n_pixels );
-  
-  if( do_gridding ){
-     gridding_fast( xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, *m_uv_grid_real, *m_uv_grid_imag, *m_uv_grid_counter, delta_u, delta_v, frequency_mhz, n_pixels, min_uv, weighting );
-  }
+    printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
+    // allocates data structures for gridded visibilities:
+    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
+    size_t buffer_size {n_pixels * n_pixels * n_images};
+    
+    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false, false);
+    MemoryBuffer<int> grids_counters_buffer(buffer_size, false, false);
 
-  if( do_dirty_image ){
-     // dirty image :  
-     PRINTF_INFO("PROGRESS : executing dirty image\n");
-     dirty_image( *m_uv_grid_real, *m_uv_grid_imag, *m_uv_grid_counter, 
-                  true, // do not save intermediate FITS files
-                  szBaseOutFitsName, // output filename template
-                  true,   // save imaginary image
-                  false    // do FFTunshift true when gridding() , false for gridding_fast()
+    if( do_gridding ){
+        gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids_buffer, grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
+    }
+    MemoryBuffer<std::complex<float>> images_buffer(buffer_size, false, false);
+    if( do_dirty_image ){
+    // dirty image :  
+    PRINTF_INFO("PROGRESS : executing dirty image\n");
+    dirty_image( *m_uv_grid_real, *m_uv_grid_imag, *m_uv_grid_counter, 
+                    true, // do not save intermediate FITS files
+                    szBaseOutFitsName, // output filename template
+                    true,   // save imaginary image
+                    false    // do FFTunshift true when gridding() , false for gridding_fast()
                 );             
-  }
-
-
+    }
+      
 }
 
 
-bool CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz, int time_step, int fine_channel )
-{
+bool CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w){
    int n_ant = xcorr.obsInfo.nAntennas;
-   double frequency_hz = frequency_mhz*1e6;
-   printf("DEBUG (ApplyGeometricCorrections(xcorr)) : freq = %.8f [Hz]\n",frequency_hz);
-   
-   CBgFits fits_vis_real(n_ant,n_ant);
-   CBgFits fits_vis_imag(n_ant,n_ant);   
-   
-   for(int ant1=0;ant1<n_ant;ant1++){
-      for(int ant2=0;ant2<=ant1;ant2++){ // loop over ant2
-      // for(int ant2=0;ant2<n_ant;ant2++){
-         double w = fits_vis_w.getXY(ant1,ant2); // or ant2,ant1 , was (+1)
-         double angle = +2.0*M_PI*w*frequency_hz / SPEED_OF_LIGHT; // TODO : + or - here ??? In brute force branch was -
-         
-         double sin_angle,cos_angle;
-         sincos(angle, &sin_angle, &cos_angle);
-         
-         std::complex<VISIBILITY_TYPE>* vis = xcorr.at( time_step, fine_channel, ant1, ant2 );
-         
-         double re = vis[0].real();
-         double im = vis[0].imag();
-         // double re = fits_vis_real.getXY(ant1,ant2);
-         // double im = fits_vis_imag.getXY(ant1,ant2);
-         
-         if( ant1 == 1 && ant2 == 0 ){
-            printf("CPU : (%d,%d) , angle = %.8f , w = %.8f\n",ant1,ant2,angle,w);
-         }
+   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
+      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
+         for(int ant1=0; ant1 < n_ant; ant1++){
+            for(int ant2=0; ant2 <= ant1; ant2++){
+               double w = fits_vis_w.getXY(ant1,ant2); // or ant2,ant1 , was (+1)
+               double angle = +2.0*M_PI*w* this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE) / SPEED_OF_LIGHT; // TODO : + or - here ??? In brute force branch was -
+               
+               double sin_angle, cos_angle;
+               sincos(angle, &sin_angle, &cos_angle);
+               
+               std::complex<VISIBILITY_TYPE>* vis = xcorr.at(time_step, fine_channel, ant1, ant2 );
+               
+               double re = vis[0].real();
+               double im = vis[0].imag();
 
-         double re_prim = re*cos_angle - im*sin_angle;
-         double im_prim = im*cos_angle + re*sin_angle;
-         
-         // change in xcorr :
-         std::complex<double> vis_new ( re_prim, im_prim );
-         (*vis) = vis_new;
-         
-         fits_vis_real.setXY(ant1,ant2,re_prim);
-         fits_vis_imag.setXY(ant1,ant2,-im_prim);
-         fits_vis_real.setXY(ant2,ant1,re_prim);
-         fits_vis_imag.setXY(ant2,ant1,im_prim);
-         
-         printf("\t%d-%d : w = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> %.4f + j%.4f, freq = %.8f Hz\n",ant1,ant2,w,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
+               double re_prim = re*cos_angle - im*sin_angle;
+               double im_prim = im*cos_angle + re*sin_angle;
+               
+               std::complex<double> vis_new (re_prim, im_prim);
+               *vis = vis_new;
+            }
+         }
       }
    }
-   
-   char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
-   sprintf(szOutPutFitsRE,"%s/vis_re_geom_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   sprintf(szOutPutFitsIM,"%s/vis_im_geom_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
-   fits_vis_real.WriteFits( szOutPutFitsRE );
-   fits_vis_imag.WriteFits( szOutPutFitsIM );
-
    return true;
 }
 
 
-bool CPacerImager::ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel )
-{
+
+bool CPacerImager::ApplyCableCorrections( Visibilities& xcorr){
    int n_ant = xcorr.obsInfo.nAntennas;
+   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
+      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
+         for(int ant1=0;ant1<n_ant;ant1++){
+         InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant1];
+            for(int ant2=0;ant2<=ant1;ant2++){
+               InputMapping& ant2_info = m_MetaData.m_AntennaPositions[ant2];
 
-   double frequency_hz = frequency_mhz*1e6;
-   printf("DEBUG (ApplyCableCorrections) : freq = %.8f [Hz]\n",frequency_hz);
-   
-   CBgFits fits_vis_real(n_ant,n_ant);
-   CBgFits fits_vis_imag(n_ant,n_ant);   
+               double cableDeltaLen = ant2_info.cableLenDelta - ant1_info.cableLenDelta; // was ant2 - ant1 
+               double angle = -2.0 * M_PI * cableDeltaLen * this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE)/ SPEED_OF_LIGHT;
 
-   for(int ant1=0;ant1<n_ant;ant1++){
-      InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant1];
+               double sin_angle,cos_angle;
+               sincos(angle, &sin_angle, &cos_angle);
+               
+               std::complex<VISIBILITY_TYPE>* vis = xcorr.at( time_step, fine_channel, ant1, ant2 );
+      
+               double re = vis[0].real();
+               double im = vis[0].imag(); // TODO : why do I need 1 here ???               
+               double re_prim = re*cos_angle - im*sin_angle;
+               double im_prim = im*cos_angle + re*sin_angle;
 
-      for(int ant2=0;ant2<=ant1;ant2++){ // loop over ant2 
-      // for(int ant2=0;ant2<n_ant;ant2++){
-         InputMapping& ant2_info = m_MetaData.m_AntennaPositions[ant2];
-
-         double cableDeltaLen = ant2_info.cableLenDelta - ant1_info.cableLenDelta; // was ant2 - ant1 
-         double angle = -2.0 * M_PI * cableDeltaLen * frequency_hz / SPEED_OF_LIGHT;
-
-         double sin_angle,cos_angle;
-         sincos(angle, &sin_angle, &cos_angle);
-         
-         std::complex<VISIBILITY_TYPE>* vis = xcorr.at( time_step, fine_channel, ant1, ant2 );
-  
-         double re = vis[0].real();
-         double im = vis[0].imag(); // TODO : why do I need 1 here ???
-
-//         double re = fits_vis_real.getXY(ant1,ant2);
-//         double im = fits_vis_imag.getXY(ant1,ant2);
-         
-         double re_prim = re*cos_angle - im*sin_angle;
-         double im_prim = im*cos_angle + re*sin_angle;
-         
-         if( ant2 == 0 ){
-            printf("\t%d-%d : cable = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> corrected re/im = %.8f / %.8f for %.8f [Hz]\n",ant1,ant2,cableDeltaLen,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
+               std::complex<double> vis_new ( re_prim, im_prim );
+               *vis = vis_new;
+            }
          }
-
-         
-         // change in xcorr :
-         std::complex<double> vis_new ( re_prim, im_prim );
-         (*vis) = vis_new;
-         
-//         double re_prim = re;
-//         double im_prim = im;
-         fits_vis_real.setXY(ant1,ant2,re_prim);
-         fits_vis_imag.setXY(ant1,ant2,-im_prim);         
-         fits_vis_real.setXY(ant2,ant1,re_prim);
-         fits_vis_imag.setXY(ant2,ant1,im_prim);         
       }
-   }
-   
-   char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
-   sprintf(szOutPutFitsRE,"%s/vis_re_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   sprintf(szOutPutFitsIM,"%s/vis_im_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
-   fits_vis_real.WriteFits( szOutPutFitsRE );
-   fits_vis_imag.WriteFits( szOutPutFitsIM );
-   
+   }   
    return true;
 }
 
@@ -1612,7 +1161,6 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
                  int time_step, 
                  int fine_channel,
                  CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,  // UVW
-                 double frequency_mhz,
                  int    n_pixels,
                  double FOV_degrees,
                  double min_uv,                      // =-1000, minimum UV 
@@ -1624,19 +1172,11 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
                  const char* szBaseOutFitsName       // =NULL
                   )
 {
-  // ensures initalisation of object structures 
-  Initialise();
-  
-  if( m_ImagerParameters.m_fUnixTime <= 0.0001 ){
-     m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
-     PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n",m_ImagerParameters.m_fUnixTime);
-  }
 
-  PACER_PROFILER_START
   
-  // based on RTS : UV pixel size as function FOVtoGridsize in  /home/msok/mwa_software/RTS_128t/src/gridder.c  
-  double frequency_hz = frequency_mhz*1e6;
-  double wavelength_m = VEL_LIGHT / frequency_hz;
+//   // based on RTS : UV pixel size as function FOVtoGridsize in  /home/msok/mwa_software/RTS_128t/src/gridder.c  
+//   double frequency_hz = frequency_mhz*1e6;
+//   double wavelength_m = VEL_LIGHT / frequency_hz;
   double FoV_radians = FOV_degrees*M_PI/180.;
   // WARNING: it actually cancels out to end up being 1/PI :
   // TODO simplity + 1/(2FoV) !!! should be 
@@ -1646,7 +1186,6 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
   double delta_u = 1.00/(FoV_radians); // should be 2*FoV_radians - see TMS etc 
   double delta_v = 1.00/(FoV_radians); // Rick Perley page 16 : /home/msok/Desktop/PAWSEY/PaCER/doc/Imaging_basics/ATNF2014Imaging.pdf
   
-  printf("DEBUG : frequency = %.6f [MHz] -> %.2f [Hz]\n",frequency_mhz,frequency_hz);
 
   if( true ){
      // see : Rick Perley page 16 : /home/msok/Desktop/PAWSEY/PaCER/doc/Imaging_basics/ATNF2014Imaging.pdf
@@ -1675,25 +1214,13 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
      // PRINTF_DEBUG("delta_u = %.8f , delta_v = %.8f , calculated as 2.00*u_max/n_pixels, u_max = %.8f, n_pixels = %d\n",delta_u,delta_v,u_max,n_pixels);
   }
   
-  // test forced to this value (based on pixscale in MIRIAD):
-  if( m_bCompareToMiriad ){
-     // Brute force comparison to MIRIAD assuming pixscale from the final image FITS FILE = 0.771290200761 degree 
-     if( fabs(frequency_mhz-159.375) <= 0.5 ){
-        delta_u = 0.412697967; // at ch=204
-        delta_v = 0.412697967; // at ch=204
-     }
-     if( fabs(frequency_mhz-246.09375) <= 0.5 ){
-        delta_u = .63624180895350226815; // at ch=315
-        delta_v = .63624180895350226815; // at ch=315
-     }
-  }
 
   if( do_gridding || do_dirty_image ){
      // virtual function calls gridding and imaging in GPU/HIP version it is overwritten and 
      // both gridding and imaging are performed on GPU memory :
      gridding_imaging( xcorr, time_step, fine_channel,
                        fits_vis_u, fits_vis_v, fits_vis_w, 
-                       delta_u, delta_v, frequency_mhz, n_pixels, min_uv, weighting,
+                       delta_u, delta_v, n_pixels, min_uv, weighting,
                        szBaseOutFitsName, do_gridding, do_dirty_image, in_fits_file_uv_re, in_fits_file_uv_im 
                      );
   }
@@ -1770,10 +1297,9 @@ void CPacerImager::ConvertXCorr2Fits( Visibilities& xcorr, CBgFits& vis_re, CBgF
 }
 
 
-bool CPacerImager::run_imager( Visibilities& xcorr, 
-                               int time_step, 
+bool CPacerImager::run_imager( Visibilities& xcorr,
+                               int time_step,
                                int fine_channel,
-                               double frequency_mhz, 
                                int n_pixels,
                                double FOV_degrees,
                                double min_uv /*=-1000*/,      // minimum UV
@@ -1784,15 +1310,14 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
                                bool bCornerTurnRequired /*=true*/ // changes indexing of data "corner-turn" from xGPU structure to continues (FITS image-like)
                              )
 {
-  // ensures initalisation of object structures 
-  Initialise();
-  
-  // m_ImagerParameters.m_ImageFOV_degree
-  printf("DEBUG : frequency = %.6f [MHz] vs. m_ImagerParameters.m_fCenterFrequencyMHz = %.6f [MHz] , FoV = %.4f [deg] (CPacerImager::run_imager)\n",frequency_mhz,m_ImagerParameters.m_fCenterFrequencyMHz,FOV_degrees);
-  
+  // TODO Cristian: time_step, fine_channel will be used in the to select a subset of data to be imaged.
+  // ensures initalisation of object structures
+  // TODO: this init function must be modified
+  double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
+  Initialise(initial_frequency_hz);
   int n_ant = xcorr.obsInfo.nAntennas;
   int n_pol = xcorr.obsInfo.nPolarizations;
-  m_ImagerParameters.m_fCenterFrequencyMHz = frequency_mhz; // 2024-03-24 - otherwise everything was wrong - freq = 0 !!!
+  // Why not set in constructor?
   m_ImagerParameters.m_ImageFOV_degrees = FOV_degrees;      // 2024-03-24 - reasons as above
   
   if( m_ImagerParameters.m_fUnixTime <= 0.0001 ){
@@ -1801,20 +1326,19 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
   }
   
   // calculate UVW (if required)
-  CalculateUVW();
+  CalculateUVW(initial_frequency_hz);
   
-  if( m_ImagerParameters.m_bApplyGeomCorr )
-   ApplyGeometricCorrections( xcorr, m_U, m_V, m_W, frequency_mhz, time_step, fine_channel  );
+  if( m_ImagerParameters.m_bApplyGeomCorr)
+   ApplyGeometricCorrections( xcorr, m_W);
   
   
   if( m_ImagerParameters.m_bApplyCableCorr )
-     ApplyCableCorrections( xcorr, frequency_mhz, time_step, fine_channel  );
+     ApplyCableCorrections( xcorr);
   
 
   printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n",time_step, fine_channel);fflush(stdout);  
   bool ret = run_imager( xcorr, time_step, fine_channel, 
                          m_U, m_V, m_W,
-                         frequency_mhz, 
                          n_pixels, 
                          FOV_degrees, 
                          min_uv,
@@ -1825,8 +1349,20 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
    return ret;    
 }
                              
-void CPacerImager::test()                             
-{
-   AllocGriddedVis(180,180);
+
+double CPacerImager::get_frequency_hz(const Visibilities& vis, int fine_channel, bool cotter_compatible){
+   // TODO: remove hardcoded values!!
+   double fine_ch_bw = 0.04, coarse_ch_bw=1.28;
+   double coarse_channel_central_freq_MHz = vis.obsInfo.coarseChannel * coarse_ch_bw;
+   double channel_frequency_MHz;
+   if( cotter_compatible ){
+      // see for example awk commands in experiments/image_mwa_obsid1276619416_allch.sh 
+      // frequencyMHz is assumed to be center frequency of coarse channel - 0.64 -> lower edge of the MWA coarse channel:
+      // TODO : get this information from xcorr structure or metedata, otherwise it will not work for EDA2 etc:                  
+      //        it looks to me that the required fields need to be added there first
+      channel_frequency_MHz = coarse_channel_central_freq_MHz - coarse_ch_bw/2.00 + fine_ch_bw*fine_channel; // cotter has a bug ? - does not add half of fine channel to calculate channel frequency 
+   }else{
+      channel_frequency_MHz = coarse_channel_central_freq_MHz - coarse_ch_bw/2.00 + fine_ch_bw*fine_channel + fine_ch_bw/2.00;
+   }
+   return channel_frequency_MHz * 1e6;
 }
-                             

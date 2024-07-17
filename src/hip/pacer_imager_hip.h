@@ -5,8 +5,7 @@
 
 #include "../pacer_imager.h"
 
-class CPacerImagerHip : public CPacerImager 
-{
+class CPacerImagerHip : public CPacerImager {
 protected :
    // CUDA / HIP FFT plan:
    long int m_FFTPlan; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
@@ -53,8 +52,6 @@ protected :
    // Clean GPU Memory 
    virtual void CleanGPUMemory(); 
    
-   // initialisation of specific ararys:
-   void InitCableLengts( int n_ant );
    
    // update antenna flags:
    void UpdateAntennaFlags( int n_ant );
@@ -91,9 +88,9 @@ protected :
                 );
 
     // virtual function to NOT DO corrections in CPU but in GPU :
-    virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz,  int time_step, int fine_channel);
+    virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, double frequency_mhz);
    
-    virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel);
+    virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz);
 
 
     virtual void SaveTestFitsFilesAndShowStat( int n_pixels, 

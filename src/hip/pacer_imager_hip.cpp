@@ -47,12 +47,7 @@ void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size )
       (gpuMalloc((void**)&v_gpu, corr_size*sizeof(float)));
       (gpuMemset((float*)v_gpu, 0, corr_size*sizeof(float)));
    }
-   if( !w_gpu )
-   {
-      (gpuMalloc((void**)&w_gpu, corr_size*sizeof(float)));
-      (gpuMemset((float*)w_gpu, 0, corr_size*sizeof(float)));
-   }
-
+   
    // gridded visibilities :      
    if( !uv_grid_counter_gpu )
    {
@@ -190,28 +185,6 @@ void CPacerImagerHip::CleanGPUMemory()
 //   }
 }
 
-void CPacerImagerHip::InitCableLengts( int n_ant )
-{
-   if( !cable_lengths_gpu ){
-      // allocate cpu library :
-      if( !cable_lengths_cpu ){
-         cable_lengths_cpu = new float[n_ant];
-      }
-
-      // allocate gpu memory :
-      (gpuMalloc((void**)&cable_lengths_gpu, n_ant*sizeof(float)));
-      (gpuMemset((float*)cable_lengths_gpu, 0, n_ant*sizeof(float)));
-
-      
-      for(int ant=0;ant<n_ant;ant++){
-         InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
-         cable_lengths_cpu[ant] = ant1_info.cableLenDelta;
-      }
-      
-      // copy to device:
-      (gpuMemcpy((float*)cable_lengths_gpu, (float*)cable_lengths_cpu, sizeof(float)*n_ant, gpuMemcpyHostToDevice));      
-   }
-}
 
 void CPacerImagerHip::UpdateAntennaFlags( int n_ant )
 {
@@ -493,6 +466,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Input size: u, v and w 
   int u_xSize = fits_vis_u.GetXSize();
   int u_ySize = fits_vis_u.GetYSize();
+  int xySize = u_xSize*u_ySize;
 
   int n_ant = xcorr.obsInfo.nAntennas;
   int vis_real_xSize = n_ant; 
@@ -502,7 +476,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   int uv_grid_counter_xSize = m_uv_grid_counter->GetXSize();
   int uv_grid_counter_ySize = m_uv_grid_counter->GetYSize();
 
-  int xySize = (u_xSize*u_ySize);
+  
   int image_size = (uv_grid_counter_xSize*uv_grid_counter_ySize); 
   int vis_real_size = (vis_real_xSize*vis_real_ySize);
   int vis_imag_size = (vis_real_xSize*vis_real_ySize);
@@ -564,31 +538,11 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   float *v_cpu = fits_vis_v.get_data();
   float *w_cpu = fits_vis_w.get_data();
 
-  // CPU Output variables
-  float *uv_grid_counter_cpu = m_uv_grid_counter->get_data();
-
-  // GPU Variables: (Corresponding GPU Variables) declared in class 
-
-  // Calculating gpuMalloc() 
-  clock_t start_time2 = clock();
-
-
   // Allocate only if not-allocated 
 
   // TODO : warning GPU UV grid is not initialised to ZEROs :
   AllocGPUMemory(xySize, image_size ); //  out_image_real.get_data() );
  
-  if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL){
-     printf("\n GRIDDING CHECK: Step 2 Memory allocated for GPU variables");
-     printf("\n GRIDDING CHECK: Step 2 GPU Variables initialised: AllocGPUMemory() called");
-  }
-
-  // End of gpuMalloc() 
-  clock_t end_time2 = clock();
-  double duration_sec2 = double(end_time2-start_time2)/CLOCKS_PER_SEC;
-  double duration_ms2 = duration_sec2*1000;
-  printf("\n ** CLOCK gpuMalloc() took : %.6f [seconds], %.3f [ms]\n",duration_sec2,duration_ms2);
-
   // Step 3: Copy contents from CPU to GPU [input variables]
   // gpuMemcpy(destination, source, size, HostToDevice)
 
@@ -596,100 +550,10 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   clock_t start_time3 = clock();
 
   (gpuMemcpy((float*)u_gpu, (float*)u_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
-  (gpuMemcpy((float*)v_gpu, (float*)v_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
-  (gpuMemcpy((float*)w_gpu, (float*)w_cpu, sizeof(float)*xySize,  gpuMemcpyHostToDevice)); 
+  (gpuMemcpy((float*)v_gpu, (float*)v_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice));
   // TODO : COPY xcorr strucuttre here:
   VISIBILITY_TYPE* vis_local_gpu = NULL;
- 
-  // vis_gpu=NULL -> data is already on GPU (otherwise error in code !)
-  if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL){
-     printf("\n GRIDDING CHECK: Step 2 getting GPU pointer to visibilities (CORRECTED)\n");
-  }
-  
-  if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
-     // save correlation matrix before any correcitons are done:
-     CBgFits tmp_real(n_ant,n_ant),tmp_imag(n_ant,n_ant);
-     ConvertXCorr2Fits( xcorr, tmp_real, tmp_imag, time_step, fine_channel, "gridding_imaging_gpu_precorr" );
-  }
-  
-  if( ! xcorr.on_gpu() ) xcorr.to_gpu();
-     // xcorr.data() is on GPU -> setting the pointed
-     
-     // WARNING : this code does not use time/frequency:
-     // vis_local_gpu = (VISIBILITY_TYPE*)xcorr.data();         
-     // NEW CODE - 2024-04-07 :
-   vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-  
-  int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
-  if( m_ImagerParameters.m_bApplyGeomCorr ){ // turned off for testing
-     // Apply geometric correction here :
-     apply_geometric_corrections<<<nBlocks,NTHREADS>>>( xySize, n_ant, vis_local_gpu, w_gpu, frequency_hz, SPEED_OF_LIGHT );
-     printf("DEBUG : after call of apply_geometric_corrections kernel\n");
-     
-     if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){ // TODO : remove in realese version:
-        // Gives the error in the kernel! 
-        (gpuGetLastError());
-        (gpuDeviceSynchronize());
-     
-        // __global__ void vis2corrmatrix( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *vis_corrmatrix_re_cuda, float* vis_corrmatrix_im_cuda );
-        vis2corrmatrix<<<nBlocks,NTHREADS>>>( xySize, n_ant, vis_local_gpu, test_data_real_gpu, test_data_imag_gpu );
 
-
-        CBgFits tmp_real(n_ant,n_ant),tmp_imag(n_ant,n_ant);
-        (gpuMemcpy((float*)tmp_real.get_data(), (float*)test_data_real_gpu, sizeof(float)*xySize, gpuMemcpyDeviceToHost));
-        (gpuMemcpy((float*)tmp_imag.get_data(), (float*)test_data_imag_gpu, sizeof(float)*xySize, gpuMemcpyDeviceToHost));
-        
-        char outfilename[1024];
-        sprintf(outfilename,"%s/vis_re_geom_corr_gpu.fits", m_ImagerParameters.m_szOutputDirectory.c_str());
-        tmp_real.WriteFits(outfilename);
-        sprintf(outfilename,"%s/vis_im_geom_corr_gpu.fits", m_ImagerParameters.m_szOutputDirectory.c_str());
-        tmp_imag.WriteFits(outfilename);
-     }
-  }
-
-  if( m_ImagerParameters.m_bApplyCableCorr ){ // turned off for testing 
-     // init cable length buffer for cuda :
-     InitCableLengts( n_ant );
-  
-     // Apply cable correction here :     
-     apply_cable_corrections<<<nBlocks,NTHREADS>>>( xySize, n_ant, vis_local_gpu, cable_lengths_gpu, frequency_hz, SPEED_OF_LIGHT );
-     printf("DEBUG : after call of apply_cable_corrections kernel\n");
-
-     if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){ // TODO : remove in realese version:
-        // Gives the error in the kernel! 
-        (gpuGetLastError());
-        (gpuDeviceSynchronize());
-     
-        // __global__ void vis2corrmatrix( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *vis_corrmatrix_re_cuda, float* vis_corrmatrix_im_cuda );
-        vis2corrmatrix<<<nBlocks,NTHREADS>>>( xySize, n_ant, vis_local_gpu, test_data_real_gpu, test_data_imag_gpu );
-
-
-        // WARNING : strange code with extra memcpy as otherwise it crashes on hipMemcpy ???!!!
-/*        printf("DEBUG : values %d x %d = %d vs. %d\n",n_ant,n_ant,(n_ant*n_ant),xySize);
-        CBgFits tmp_real(n_ant,n_ant),tmp_imag(n_ant,n_ant);
-        // CBgFits* p_tmp_real= new CBgFits(n_ant,n_ant);
-        float* test_ptr = new float[n_ant*n_ant];
-        //(hipMemcpy(test_ptr, (float*)test_data_real_gpu, sizeof(float)*n_ant*n_ant, hipMemcpyDeviceToHost));
-        (hipMemcpy((float*)test_ptr, (float*)test_data_real_gpu, sizeof(float)*n_ant*n_ant, hipMemcpyDeviceToHost));
-        memcpy(tmp_real.get_data(),test_ptr,sizeof(float)*n_ant*n_ant);
-        //(hipMemcpy((float*)p_tmp_real->get_data(), (float*)test_data_real_gpu, sizeof(float)*xySize, hipMemcpyDeviceToHost));
-        (hipMemcpy((float*)test_ptr, (float*)test_data_imag_gpu, sizeof(float)*n_ant*n_ant, hipMemcpyDeviceToHost));
-        memcpy(tmp_imag.get_data(),test_ptr,sizeof(float)*n_ant*n_ant);
-        printf("DEBUG : crashed ???\n");
-        delete [] test_ptr;
-*/        
-        CBgFits tmp_real(n_ant,n_ant),tmp_imag(n_ant,n_ant);
-        (gpuMemcpy((float*)tmp_real.get_data(), (float*)test_data_real_gpu, sizeof(float)*n_ant*n_ant, gpuMemcpyDeviceToHost));
-        (gpuMemcpy((float*)tmp_imag.get_data(), (float*)test_data_imag_gpu, sizeof(float)*n_ant*n_ant, gpuMemcpyDeviceToHost));
-         char outfilename[1024];
-        sprintf(outfilename,"%s/vis_re_cable_corr_gpu.fits", m_ImagerParameters.m_szOutputDirectory.c_str());
-        tmp_real.WriteFits(outfilename);
-        sprintf(outfilename,"%s/vis_im_cable_corr_gpu.fits", m_ImagerParameters.m_szOutputDirectory.c_str());
-        tmp_imag.WriteFits(outfilename);
-        printf("DEBUG : saved vis_re_cable_corr_gpu.fits and vis_im_cable_corr_gpu.fits (CPacerImagerHip::gridding_imaging)\n");
-     }
-
-  }
   
   // update antenna flags before gridding which uses these flags or weights:
   UpdateAntennaFlags( n_ant );
@@ -699,18 +563,12 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   double duration_ms3 = duration_sec3*1000;
   printf("\n ** CLOCK gpuMemcpy() CPU to GPU took : %.6f [seconds], %.3f [ms]\n",duration_sec3,duration_ms3);
 
-  if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL){
-     printf("\n GRIDDING CHECK: Step 3 CPU to GPU copied"); 
-
-     printf("\n GRIDDING CHECK: NTHREADS = %d", NTHREADS);
-     printf("\n GRIDDING CHECK: nBlocks = %d", nBlocks);
-  }
 
   // Step 4: Call to GPU kernel
   
   // Start of kernel call 
   clock_t start_time4 = clock();
-
+int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
   gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, center_x, center_y, is_odd_x, is_odd_y, vis_local_gpu, uv_grid_counter_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
   
@@ -787,13 +645,55 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   SaveTestFitsFilesAndShowStat( n_pixels, weighting, szBaseOutFitsName, bSaveIntermediate, bSaveImaginary );
 }
 
-bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz,  int time_step, int fine_channel)
-{
-   printf("DEBUG: CPacerImagerHip::ApplyGeometricCorrections is a void function just NOT TO DO THIS IN CPU, but using kernel : apply_geometric_corrections (called in gridding_imaging)\n");
-   return false;
+
+bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, double frequency_mhz){
+   if(!xcorr.on_gpu()) xcorr.to_gpu();
+   int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
+   double frequency_hz = frequency_mhz*1e6;
+   if(!w_gpu){
+      gpuMalloc((void**)&w_gpu, xySize*sizeof(float));
+   }
+   gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
+   int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
+   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
+      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
+         // TODO: if ( frequency == freq_channel || freq_channel < 0 ){
+         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
+         apply_geometric_corrections<<<nBlocks,NTHREADS>>>(xySize, xcorr.obsInfo.nAntennas, vis_local_gpu, w_gpu, frequency_hz, SPEED_OF_LIGHT);
+         gpuCheckLastError();
+      }
+   }
+   printf("DEBUG : after call of apply_geometric_corrections kernel\n");
+   return true;
 }
 
-bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel){
-   printf("DEBUG: CPacerImagerHip::ApplyCableCorrections is a void function just NOT TO DO THIS IN CPU, but using kernel : apply_cable_corrections (called in gridding_imaging)\n");
-   return false;
+
+bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz){
+   if(!xcorr.on_gpu()) xcorr.to_gpu();
+
+   if(!cable_lengths_cpu){
+      cable_lengths_cpu = new float[xcorr.obsInfo.nAntennas];
+      for(int ant=0; ant< xcorr.obsInfo.nAntennas; ant++){
+         InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
+         cable_lengths_cpu[ant] = ant1_info.cableLenDelta;
+      }
+   }
+   if(!cable_lengths_gpu){
+      gpuMalloc(&cable_lengths_gpu, xcorr.obsInfo.nAntennas*sizeof(float));
+      gpuMemcpy(cable_lengths_gpu, cable_lengths_cpu, sizeof(float)*xcorr.obsInfo.nAntennas, gpuMemcpyHostToDevice);      
+   }
+   int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
+   double frequency_hz = frequency_mhz*1e6;
+   int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
+
+   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
+      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
+         // TODO: if ( frequency == freq_channel || freq_channel < 0 ){
+         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
+         apply_cable_corrections<<<nBlocks,NTHREADS>>>(xySize, xcorr.obsInfo.nAntennas, vis_local_gpu, cable_lengths_gpu, frequency_hz, SPEED_OF_LIGHT);
+         gpuCheckLastError();
+      }
+   }
+   printf("DEBUG : after call of apply_cable_corrections kernel\n");
+   return true;
 }
