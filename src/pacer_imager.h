@@ -149,26 +149,6 @@ protected :
    // TEMPORARY FOR TESTING - TO BE REMOVED LATER:
    void ConvertXCorr2Fits( Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, int time_step, int fine_channel, const char* szBaseFitsName );
    
-   // TODO : required to convert from FITS to xcorr Visibility structure and avoid duplication of code 
-   // WARNING : currently only converts single timestep and frequency channel :
-   // It also allocated memory inside, which needs to be released later !
-   // Visibilities* ConvertFits2XCorr( CBgFits& vis_re, CBgFits& vis_im );
-
-   // Internal functions which are not exposed to the public usage :
-   // run_imager with all the parameters, but the one exposed to the public has much fewer parameters and the rest are taken from the m_ImagerParameters object.
-   Images run_imager( const char* basename, const char* szPostfix,
-                    double frequency_mhz,
-                    int    n_pixels,
-                    double FOV_degrees,
-                    double min_uv=-1000,        // minimum UV 
-                    bool   do_gridding=true,    // excute gridding  (?)
-                    bool   do_dirty_image=true, // form dirty image (?)
-                    const char* weighting="",   // weighting : U for uniform (others not implemented)
-                    const char* in_fits_file_uv_re="", // gridded visibilities can be provided externally
-                    const char* in_fits_file_uv_im="", // gridded visibilities can be provided externally                    
-                    const char* szBaseOutFitsName=NULL
-                  );
-
 
 public :
    // TODO: decide if this should be static or member variables
