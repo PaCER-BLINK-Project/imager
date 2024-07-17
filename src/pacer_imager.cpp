@@ -986,7 +986,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
     }
 }
 
-void CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
+Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
                                     CBgFits &fits_vis_v, CBgFits &fits_vis_w, double delta_u, double delta_v,
                                     int n_pixels, double min_uv /*=-1000*/, // minimum UV
                                     const char *weighting /*=""*/,          // weighting : U for uniform (others not
@@ -1020,6 +1020,7 @@ void CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine
         PRINTF_INFO("PROGRESS : executing dirty image\n");
         dirty_image(grids_buffer, grids_counters_buffer,  n_pixels * n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer);
     }
+    return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
 bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_vis_w)
@@ -1101,7 +1102,7 @@ bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
 // fits_vis_w ...) it uses AstroIO class Visibility Reads FITS files and
 // executes overloaded function run_imager ( as above )
 //-----------------------------------------------------------------------------------------------------------------------------
-bool CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
+Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
                               CBgFits &fits_vis_v, CBgFits &fits_vis_w, // UVW
                               int n_pixels, double FOV_degrees,
                               double min_uv,         // =-1000, minimum UV
@@ -1179,24 +1180,10 @@ bool CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_chann
     {
         // virtual function calls gridding and imaging in GPU/HIP version it is
         // overwritten and both gridding and imaging are performed on GPU memory :
-        gridding_imaging(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, delta_u, delta_v, n_pixels,
+        return gridding_imaging(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, delta_u, delta_v, n_pixels,
                          min_uv, weighting, szBaseOutFitsName, do_gridding, do_dirty_image, in_fits_file_uv_re,
                          in_fits_file_uv_im);
     }
-
-    // increse image counter:
-    m_SkyImageCounter++;
-    if (m_SkyImageCounter >= INT_MAX)
-    {
-        PRINTF_WARNING("WARNING : image counter reached maximum value for int = %d -> reset "
-                       "to zero\n",
-                       INT_MAX);
-        m_SkyImageCounter = 0;
-    }
-
-    PACER_PROFILER_END("full imaging (gridding + dirty image) took")
-
-    return true;
 }
 
 void CPacerImager::ConvertXCorr2Fits(Visibilities &xcorr, CBgFits &vis_re, CBgFits &vis_im, int time_step,
@@ -1260,7 +1247,7 @@ void CPacerImager::ConvertXCorr2Fits(Visibilities &xcorr, CBgFits &vis_re, CBgFi
     printf("DEBUG : saved %s and %s\n", szReFits, szImFits);
 }
 
-bool CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, int n_pixels, double FOV_degrees,
+Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, int n_pixels, double FOV_degrees,
                               double min_uv /*=-1000*/,      // minimum UV
                               bool do_gridding /*=true*/,    // excute gridding  (?)
                               bool do_dirty_image /*=true*/, // form dirty image (?)
@@ -1299,10 +1286,9 @@ bool CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_chann
 
     printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
     fflush(stdout);
-    bool ret = run_imager(xcorr, time_step, fine_channel, m_U, m_V, m_W, n_pixels, FOV_degrees, min_uv, do_gridding,
+    return run_imager(xcorr, time_step, fine_channel, m_U, m_V, m_W, n_pixels, FOV_degrees, min_uv, do_gridding,
                           do_dirty_image, weighting, "", "", szBaseOutFitsName);
 
-    return ret;
 }
 
 double CPacerImager::get_frequency_hz(const Visibilities &vis, int fine_channel, bool cotter_compatible)

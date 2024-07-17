@@ -28,10 +28,10 @@ class Images : public MemoryBuffer<std::complex<float>> {
     unsigned int nIntegrationSteps;
     unsigned int nAveragedChannels;
     unsigned int nFrequencies;
-    size_t side_size;
+    unsigned int side_size;
 
    Images(MemoryBuffer<std::complex<float>>&& data, const ObservationInfo& obsInfo, unsigned int nIntegrationSteps,
-            unsigned int nAveragedChannels, size_t side_size) : MemoryBuffer {std::move(data)} {
+            unsigned int nAveragedChannels, unsigned int side_size) : MemoryBuffer {std::move(data)} {
         this->obsInfo = obsInfo;
         this->nIntegrationSteps = nIntegrationSteps;
         this->nAveragedChannels = nAveragedChannels;
@@ -156,7 +156,7 @@ protected :
 
    // Internal functions which are not exposed to the public usage :
    // run_imager with all the parameters, but the one exposed to the public has much fewer parameters and the rest are taken from the m_ImagerParameters object.
-   bool run_imager( const char* basename, const char* szPostfix,
+   Images run_imager( const char* basename, const char* szPostfix,
                     double frequency_mhz,
                     int    n_pixels,
                     double FOV_degrees,
@@ -335,7 +335,7 @@ public :
    
    // same as above but using AstroIO Visibility as input
    // TODO : at some point this one should stay and the other one should be a wrapper using ConvertFits2XCorr and calling this one:
-   virtual void gridding_imaging( Visibilities& xcorr, 
+   virtual Images gridding_imaging( Visibilities& xcorr, 
                   int time_step, 
                   int fine_channel,
                   CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,                   
@@ -355,7 +355,7 @@ public :
 
 
    // same as above, but uses Visibility from the AstroIO library :
-   bool run_imager( Visibilities& xcorr, 
+   Images run_imager( Visibilities& xcorr, 
                     int time_step, 
                     int fine_channel,
                     CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
@@ -376,7 +376,7 @@ public :
    //-----------------------------------------------------------------------------------------------------------------------------
 
    // overloaded function using astroio class Visibilities as an input:
-   bool run_imager( Visibilities& xcorr, 
+   Images run_imager( Visibilities& xcorr, 
                     int time_step, 
                     int fine_channel,
                     int n_pixels,
