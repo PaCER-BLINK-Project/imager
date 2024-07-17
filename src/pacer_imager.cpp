@@ -604,7 +604,7 @@ bool CPacerImager::SaveSkyImage(const char *outFitsName, CBgFits *pFits, double 
 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
-void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<int>& grids_counters_buffer,
+void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer)
 {
 
@@ -619,7 +619,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
             std::complex<float>* current_grid = grids_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
             std::complex<float>* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
             
-            int* current_counter = grids_counters_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            float* current_counter = grids_counters_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
 
             // Transform to frequency space.
             // https://www.fftw.org/fftw3_doc/Complex-Multi_002dDimensional-DFTs.html
@@ -648,7 +648,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
 
             //   double fnorm = 1.00/sqrt(size); //normalisation see :
             //   /home/msok/Desktop/PAWSEY/PaCER/logbook/20220119_testing_new_versions_dirty_image_polishing.odt
-            size_t counter_sum {0ull};
+            double counter_sum {0.0};
             for(size_t i {0}; i < grid_size; i++) counter_sum += current_counter[i];
             
             double fnorm = 1.00 / counter_sum; // see RTS :
@@ -737,7 +737,7 @@ bool CPacerImager::UpdateParameters(double frequency_hz)
 void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
                                  CBgFits &fits_vis_v, CBgFits &fits_vis_w,
                                  MemoryBuffer<std::complex<float>> &grids_buffer,
-                                 MemoryBuffer<int> &grids_counters_buffer, double delta_u, double delta_v, int n_pixels,
+                                 MemoryBuffer<float> &grids_counters_buffer, double delta_u, double delta_v, int n_pixels,
                                  double min_uv /*=-1000*/,
                                  const char *weighting /*="" weighting : U for uniform (others not implemented) */
 )
@@ -770,7 +770,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
         {
             std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.obsInfo.nFrequencies * grid_size + fine_channel * grid_size;
-            int* current_counter = grids_counters_buffer.data() + time_step * xcorr.obsInfo.nFrequencies * grid_size + fine_channel * grid_size;
+            float* current_counter = grids_counters_buffer.data() + time_step * xcorr.obsInfo.nFrequencies * grid_size + fine_channel * grid_size;
             // calculate using CASA formula from image_tile_auto.py :
             // synthesized_beam=(lambda_m/max_baseline)*(180.00/math.pi)*60.00 # in
             // arcmin lower=synthesized_beam/5.00 higher=synthesized_beam/3.00
@@ -1010,7 +1010,8 @@ void CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine
     size_t buffer_size{n_pixels * n_pixels * n_images};
 
     MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false, false);
-    MemoryBuffer<int> grids_counters_buffer(buffer_size, false, false);
+    // Should be long long int, but keeping float now for compatibility reasons
+    MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
 
     if (do_gridding)
     {
