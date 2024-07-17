@@ -994,11 +994,13 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
     }
     memset(grids_buffer.data(), 0, grids_buffer.size() * sizeof(std::complex<float>));
     memset(grids_counters_buffer.data(), 0, grids_buffer.size() * sizeof(int));
-
+    int grid_size = n_pixels * n_pixels;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
         {
+            std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.obsInfo.nFrequencies * grid_size + fine_channel * grid_size;
+            int* current_counter = grids_counters_buffer.data() + time_step * xcorr.obsInfo.nFrequencies * grid_size + fine_channel * grid_size;
             // calculate using CASA formula from image_tile_auto.py :
             // synthesized_beam=(lambda_m/max_baseline)*(180.00/math.pi)*60.00 # in
             // arcmin lower=synthesized_beam/5.00 higher=synthesized_beam/3.00
@@ -1152,9 +1154,9 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                     //                 =%.2f)\n",u,u_index1,u_index,u_min,delta_u,u_center);
 
                                     // Using CELL averaging method or setXY ?
-                                    uv_grid_real.addXY(x_grid, y_grid, re);
-                                    uv_grid_imag.addXY(x_grid, y_grid, im);
-                                    uv_grid_counter.addXY(x_grid, y_grid, 1.00);
+                                    current_grid[y_grid * n_pixels + x_grid].real(current_grid[y_grid * n_pixels + x_grid].real() + re);
+                                    current_grid[y_grid * n_pixels + x_grid].imag(current_grid[y_grid * n_pixels + x_grid].imag() + im);
+                                    current_counter[y_grid * n_pixels + x_grid] += 1;
 
                                     if (m_ImagerDebugLevel > 101)
                                     {
@@ -1188,17 +1190,11 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                     {
                                         y_grid = v_index - center_y;
                                     }
-
-                                    uv_grid_real.addXY(x_grid, y_grid, re);
-                                    uv_grid_imag.addXY(x_grid, y_grid, -im);
-                                    uv_grid_counter.addXY(x_grid, y_grid, 1.00);
-
-                                    if (ant1 == ant2)
-                                    {
-                                        PRINTF_DEBUG("Auto-correlation added values %.4f / %.4f\n", re, im);
-                                    }
-
-                                    added++;
+                                    
+                                    // TODO Cristian: why conjugate?
+                                    current_grid[y_grid * n_pixels + x_grid].real(current_grid[y_grid * n_pixels + x_grid].real() + re);
+                                    current_grid[y_grid * n_pixels + x_grid].imag(current_grid[y_grid * n_pixels + x_grid].imag() - im);
+                                    current_counter[y_grid * n_pixels + x_grid] += 1;
                                 }
                             }
                             else
@@ -1206,60 +1202,21 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                 PRINTF_DEBUG("DEBUG : visibility value %e +j%e higher than limit %e -> "
                                              "skipped\n",
                                              re, im, MAX_VIS);
-                                high_value++;
                             }
                         }
                     }
                 }
             }
-        }
-    }
+             // This division is in fact UNIFORM weighting !!!! Not CELL-avareging
+            // normalisation to make it indeed CELL-averaging :
+            if (strcmp(weighting, "U") == 0)
+            {
+                for (size_t i {0}; i < n_pixels * n_pixels; i++){
+                    current_grid[i].real(current_grid[i].real() / current_counter[i]);
+                    current_grid[i].imag(current_grid[i].imag() / current_counter[i]);
 
-    // This division is in fact UNIFORM weighting !!!! Not CELL-avareging
-    // normalisation to make it indeed CELL-averaging :
-    if (strcmp(weighting, "U") == 0)
-    {
-        uv_grid_real.Divide(uv_grid_counter);
-        uv_grid_imag.Divide(uv_grid_counter);
-    }
-    PACER_PROFILER_END("gridding (no I/O) took")
-    PRINTF_DEBUG("DEBUG : added %d UV points to the grid, %d too high values skipped\n", added, high_value);
-
-    if (CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG)
-    {
-        char uv_grid_re_name[1024], uv_grid_im_name[1024], uv_grid_counter_name[1024];
-        sprintf(uv_grid_re_name, "%s/uv_grid_real_%dx%d.fits", m_ImagerParameters.m_szOutputDirectory.c_str(), n_pixels,
-                n_pixels);
-        sprintf(uv_grid_im_name, "%s/uv_grid_imag_%dx%d.fits", m_ImagerParameters.m_szOutputDirectory.c_str(), n_pixels,
-                n_pixels);
-        sprintf(uv_grid_counter_name, "%s/uv_grid_counter_%dx%d.fits", m_ImagerParameters.m_szOutputDirectory.c_str(),
-                n_pixels, n_pixels);
-
-        if (uv_grid_real.WriteFits(uv_grid_re_name))
-        {
-            printf("ERROR : could not write output file %s\n", uv_grid_re_name);
-        }
-        else
-        {
-            PRINTF_INFO("INFO : saved file %s\n", uv_grid_re_name);
-        }
-
-        if (uv_grid_imag.WriteFits(uv_grid_im_name))
-        {
-            printf("ERROR : could not write output file %s\n", uv_grid_im_name);
-        }
-        else
-        {
-            PRINTF_INFO("INFO : saved file %s\n", uv_grid_im_name);
-        }
-
-        if (uv_grid_counter.WriteFits(uv_grid_counter_name))
-        {
-            printf("ERROR : could not write output file %s\n", uv_grid_counter_name);
-        }
-        else
-        {
-            PRINTF_INFO("INFO : saved file %s\n", uv_grid_counter_name);
+                }
+            }
         }
     }
 }
