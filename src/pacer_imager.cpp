@@ -35,35 +35,35 @@ namespace {
         // hdu.add_keyword("INTTIME", integrationTime, "Integration time (s)");
         // hdu.add_keyword("COARSE_CHAN", obsInfo.coarseChannel, "Receiver Coarse Channel Number (only used in offline mode)");
         fitsImage.add_HDU(hdu);
+        std::cerr << "Filename is " << filename << std::endl;
         fitsImage.to_file(filename);
     }
 }
 
 void Images::to_fits_files(const std::string& directory_path, bool save_as_complex, bool save_imaginary) {
     if(on_gpu()) to_cpu();
+    std::cerr << "Directory path is " << directory_path << std::endl;
     MemoryBuffer<float> img_real(this->image_size(), false, false);
     MemoryBuffer<float> img_imag(this->image_size(), false, false);
     for(size_t interval {0}; interval < this->integration_intervals(); interval++){
         for(size_t fine_channel {0}; fine_channel < this->nFrequencies; fine_channel++){
-            std::stringstream filename;
-            filename << directory_path << "/" << "start_time_" << obsInfo.startTime << \
+            std::stringstream full_directory;
+            full_directory << directory_path << "/" << "start_time_" << obsInfo.startTime << \
                 "/" << "int_" << interval << "/coarse_" << obsInfo.coarseChannel << "/fine_ch" << fine_channel;
-            blink::create_directory(filename.str().c_str());
+            std::string full_directory_str = full_directory.str();
+            std::cerr << "Full directory is " << full_directory_str << std::endl;
+            blink::imager::create_directory(full_directory_str);
             if(save_as_complex){
-                filename << "/image.fits";
+                std::string filename {full_directory_str + "/image.fits"};
                 std::complex<float>* p_data = this->at(interval, fine_channel);
-                ::save_fits_file(filename.str(), reinterpret_cast<float*>(p_data), this->side_size, this->side_size *2);
+                ::save_fits_file(filename, reinterpret_cast<float*>(p_data), this->side_size, this->side_size *2);
             }else{
                 for(size_t i {0}; i < this->image_size(); i++){
                     img_real[i] = this->data()[i].real();
                     img_imag[i] = this->data()[i].imag();
                 }
-                std::stringstream filename_real {filename.str()};
-                filename_real << "/image_real.fits";
-                ::save_fits_file(filename_real.str(), img_real.data(), this->side_size, this->side_size);
-                std::stringstream filename_imag {filename.str()};
-                filename_imag << "/image_imag.fits";
-                ::save_fits_file(filename_imag.str(), img_imag.data(), this->side_size, this->side_size);
+                ::save_fits_file(full_directory_str + "/image_real.fits", img_real.data(), this->side_size, this->side_size);
+                ::save_fits_file(full_directory_str + "/image_imag.fits", img_imag.data(), this->side_size, this->side_size);
             }
         }
     }
@@ -1226,6 +1226,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // TODO Cristian: time_step, fine_channel will be used in the to select a
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
+    if(xcorr.on_gpu()) xcorr.to_cpu();
     double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
     Initialise(initial_frequency_hz);
     int n_ant = xcorr.obsInfo.nAntennas;

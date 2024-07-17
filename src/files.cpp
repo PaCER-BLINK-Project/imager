@@ -2,25 +2,38 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <string>
+#include <string.h>
 
 namespace blink {
 
-    bool dir_exists(const std::string& path){
-        DIR* dir = opendir(path.c_str());
-        if (dir) {
-            closedir(dir);
-            return true;
-        } else {
-            return false;
-        }
-    }
+    namespace imager {
 
+        void create_directory(const std::string& path){
+            char tmp[1024];
+            char *p = NULL;
+            size_t len;
 
-    bool create_directory(const std::string& path){
-        if(!dir_exists(path.c_str())){
-            if(mkdir(path.c_str(), 0775) != 0) return false;
-            return true;
+            snprintf(tmp, sizeof(tmp),"%s", path.c_str());
+            len = strlen(tmp);
+            if (tmp[len - 1] == '/')
+                tmp[len - 1] = 0;
+            for (p = tmp + 1; *p; p++)
+                if (*p == '/') {
+                    *p = 0;
+                    mkdir(tmp, S_IRWXU);
+                    *p = '/';
+                }
+            mkdir(tmp, S_IRWXU);
         }
-        return false;
+
+        bool dir_exists(const std::string& path){
+            DIR* dir = opendir(path.c_str());
+            if (dir) {
+                closedir(dir);
+                return true;
+            } else {
+                return false;
+            }
+        }
     }
 }

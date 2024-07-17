@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace blink {
+namespace blink::imager {
     /**
      * @brief Checks whether a path corresponds to an existing directory.
      */
@@ -16,7 +16,7 @@ namespace blink {
      *
      * If a directory already exists, nothing is done.
      */
-    bool create_directory(const std::string& path);
+    void create_directory(const std::string& path);
 
 }
 #endif
