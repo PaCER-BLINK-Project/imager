@@ -1018,7 +1018,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     {
         // dirty image :
         PRINTF_INFO("PROGRESS : executing dirty image\n");
-        dirty_image(grids_buffer, grids_counters_buffer,  n_pixels * n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer);
+        dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer);
     }
     return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
