@@ -208,8 +208,8 @@ public :
    // 1st version producing a dirty image (tested on both MWA and SKA-Low).
    // TODO : Test cases can be found in PaCER documentation 
    //-----------------------------------------------------------------------------------------------------------------------------
-   void dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_imag_param, CBgFits& uv_grid_counter, 
-                     bool bSaveIntermediate=false, const char* szBaseOutFitsName=NULL, bool bSaveImaginary=true, bool bFFTUnShift=true );
+   void dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<int>& grids_counters_buffer,
+     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer);
 
    
    //-----------------------------------------------------------------------------------------------------------------------------

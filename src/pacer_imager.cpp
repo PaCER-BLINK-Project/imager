@@ -604,300 +604,70 @@ bool CPacerImager::SaveSkyImage(const char *outFitsName, CBgFits *pFits, double 
 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
-void CPacerImager::dirty_image(CBgFits &uv_grid_real_param, CBgFits &uv_grid_imag_param, CBgFits &uv_grid_counter,
-                               bool bSaveIntermediate /*=false*/, const char *szBaseOutFitsName /*=NULL*/,
-                               bool bSaveImaginary /*=true*/, bool bFFTUnShift /*=true*/)
+void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<int>& grids_counters_buffer,
+    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer)
 {
-    PACER_PROFILER_START
 
-    //   CBgFits uv_grid_real( uv_grid_real_param.GetXSize(),
-    //   uv_grid_real_param.GetYSize() ), uv_grid_imag(
-    //   uv_grid_imag_param.GetXSize(), uv_grid_imag_param.GetYSize() );
+    int width = grid_side;
+    int height = grid_side;
+    int grid_size = grid_side * grid_side;
 
-    // 2022-12-29 : temporary leaving the code commented out. If using old
-    // gridding (::gridding( ... )) functions is required there needs to be
-    // fft_unshift call
-    //              this cannont be done "inplace" so there will be a need for a
-    //              temporary buffer to make it. member variables
-    //              m_uv_grid_real_tmp , m_uv_grid_imag_tmp can be added of local
-    //              temporary variable created and used
-    //   if( bFFTUnShift ){
-    //      fft_unshift( uv_grid_real_param, uv_grid_real );
-    //      fft_unshift( uv_grid_imag_param, uv_grid_imag );
-    //   }else{
-    // TODO : this is totally suboptimal because it copies !!!
-    // [0,0] = %.8f and [1,0] = %.8f\n", uv_grid_real_param.getXY(0,0),
-    // uv_grid_real_param.getXY(1,0) );
-    //      uv_grid_real = uv_grid_real_param;
-    //      uv_grid_imag = uv_grid_imag_param;
-    //      printf("DEBUG : assigning UV grid using parameter FITS file , [0,0] =
-    //      %.8f and [1,0] = %.8f\n", uv_grid_real.getXY(0,0),
-    //      uv_grid_real.getXY(1,0) );
-    //   }
-    //
-    // 2022-12-29 :
-    // using a temporary reference to avoid copy , see above comments in case old
-    // gridding(...) function + fft_unshift has to be used
-    CBgFits &uv_grid_real = uv_grid_real_param;
-    CBgFits &uv_grid_imag = uv_grid_imag_param;
-
-    if (CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG)
+    for (int time_step = 0; time_step < n_integration_intervals; time_step++)
     {
-        printf("DEBUG : saving UV grid after unshift is required\n");
-        char szOutPutFitsRE[1024], szOutPutFitsIM[1024];
-        sprintf(szOutPutFitsRE, "%s/uv_grid_real_unshift.fits", m_ImagerParameters.m_szOutputDirectory.c_str());
-        sprintf(szOutPutFitsIM, "%s/uv_grid_imag_unshift.fits", m_ImagerParameters.m_szOutputDirectory.c_str());
-        uv_grid_real.WriteFits(szOutPutFitsRE);
-        uv_grid_imag.WriteFits(szOutPutFitsIM);
-    }
-
-    int width = uv_grid_real.GetXSize();
-    int height = uv_grid_real.GetYSize();
-    int size = width * height;
-
-    // Allocate input and output buffers
-    /*   if( !m_in_buffer || m_in_size != size ){
-           // WARNING : cannot be in constructor where size is not yet known :
-           if( m_in_buffer && m_in_size != size && m_in_size > 0 ){
-              // if image size changes we can use this code
-              PRINTF_INFO("INFO : freeing m_in_buffer memory buffer");
-              fftw_free( (fftw_complex*)m_in_buffer );
-           }
-
-           PRINTF_INFO("INFO : allocating m_in_buffer buffer of size %d * %d
-       bytes\n",size,int(sizeof(fftw_complex))); m_in_buffer = (fftw_complex*)
-       fftw_malloc(sizeof(fftw_complex) * size); m_in_size = size;
-       }
-       if( !m_out_buffer || m_out_size != size ){
-           // WARNING : cannot be in constructor where size is not yet known :
-           if( m_out_buffer && m_out_size != size && m_out_size > 0 ){
-              // if image size changes we can use this code
-              PRINTF_INFO("INFO : freeing m_out_buffer memory buffer");
-              fftw_free( m_out_buffer );
-           }
-
-           PRINTF_INFO("INFO : allocating m_out_buffer buffer of size %d * %d
-       bytes\n",size,int(sizeof(fftw_complex))); m_out_buffer = (fftw_complex*)
-       fftw_malloc(sizeof(fftw_complex) * size); m_out_size = size;
-       }*/
-    // 2022-12-29 later : moved here to allocate m_pSkyImageRealTmp and
-    // m_pSkyImageImagTmp
-    //              it now allocates both temporary (Tmp) buffers and output
-    //              images m_pSkyImageReal and m_pSkyImageImag and also to
-    //              allocate m_in_buffer and m_out_buffer which are input and
-    //              output buffers respectively for FFTW
-    AllocOutPutImages(uv_grid_real.GetXSize(), uv_grid_real.GetYSize());
-
-    //
-    float *real_data = uv_grid_real.get_data();
-    float *imag_data = uv_grid_imag.get_data();
-
-    // Copy in image data as real values for the transform.
-    for (int i = 0; i < size; i++)
-    {
-        double re = real_data[i];
-        double im = imag_data[i];
-
-        ((fftw_complex *)m_in_buffer)[i][0] = re;
-        ((fftw_complex *)m_in_buffer)[i][1] = im;
-    }
-
-    // should be the same and it is the same !
-    /*   for(int y=0;y<height;y++){
-          for(int x=0;x<width;x++){
-             double re = uv_grid_real.getXY(x,y);
-             double im = uv_grid_imag.getXY(x,y);
-
-             int pos = y*width + x;
-             in_buffer[pos][0]   = re;
-             in_buffer[pos][1]   = im;
-          }
-       }*/
-
-    // Transform to frequency space.
-    // https://www.fftw.org/fftw3_doc/Complex-Multi_002dDimensional-DFTs.html
-    // WARNING : did not work OK:  ant2-ant1 in CalculateUVW in
-    // antenna_positions.cpp and this works OK with FFT_BACKWARD :
-    //           Correct orientation is with V -> -V and FFTW_FORWARD - not clear
-    //           why it is like this , see ::gridding (  double v =
-    //           -fits_vis_v.getXY(ant1,ant2) / wavelength_m; )
-    // ???? Is there any good reaons for this - see also gridder.c and
-    // imagefromuv.c , LM_CopyFromFFT in RTS, especially the latter does some
-    // totally crazy re-shuffling from FFT output to image ...
-    fftw_plan pFwd = fftw_plan_dft_2d(width, height, (fftw_complex *)m_in_buffer, (fftw_complex *)m_out_buffer,
-                                      FFTW_FORWARD, FFTW_ESTIMATE); // was FFTW_FORWARD or FFTW_BACKWARD ???
-                                                                    //   printf("WARNING : fftw BACKWARD\n");
-
-    // neither agrees with MIRIAD :
-    // fftw_plan pFwd = fftw_plan_dft_2d( width, height, in_buffer, out_buffer,
-    // FFTW_BACKWARD, FFTW_ESTIMATE);
-    fftw_execute(pFwd);
-    fftw_destroy_plan(pFwd);
-
-    //   CBgFits out_image_real( uv_grid_real_param.GetXSize(),
-    //   uv_grid_real_param.GetYSize() ), out_image_imag(
-    //   uv_grid_imag_param.GetXSize(), uv_grid_imag_param.GetYSize() );
-    // 2022-12-29 : moved here to allocate m_pSkyImageRealTmp and
-    // m_pSkyImageImagTmp :
-    //              it now allocates both temporary (Tmp) buffers and output
-    //              images m_pSkyImageReal and m_pSkyImageImag
-    // AllocOutPutImages( uv_grid_real_param.GetXSize(),
-    // uv_grid_real_param.GetYSize() );
-    m_pSkyImageRealTmp->SetValue(0.00);
-    m_pSkyImageImagTmp->SetValue(0.00);
-
-    // copy resulting data from out_buffer to out_image_real :
-    // WARNING : this is image in l,m = cos(alpha), cos(beta) coordinates and
-    // still needs to go to SKY COORDINATES !!!
-    float *out_data_real = m_pSkyImageRealTmp->get_data();
-    float *out_data_imag = m_pSkyImageImagTmp->get_data();
-    //   double fnorm = 1.00/sqrt(size); //normalisation see :
-    //   /home/msok/Desktop/PAWSEY/PaCER/logbook/20220119_testing_new_versions_dirty_image_polishing.odt
-    double counter_sum = uv_grid_counter.Sum();
-    double fnorm = 1.00 / counter_sum; // see RTS :
-                                       // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
-                                       // SumVisibilityWeights and gridKernel.c:650 also
-                                       // read TMS (Thomson, Moran, Swenson) about this
-    PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", size, width, height, fnorm,
-                 counter_sum);
-    for (int i = 0; i < size; i++)
-    {
-        //      out_data[i] = out_buffer[i][0]*out_buffer[i][0] +
-        //      out_buffer[i][1]*out_buffer[i][1]; // amplitude ?
-        out_data_real[i] = ((fftw_complex *)m_out_buffer)[i][0] * fnorm; // real
-        out_data_imag[i] = ((fftw_complex *)m_out_buffer)[i][1] * fnorm; // imag
-    }
-
-    char outDirtyImageReal[1024], outDirtyImageImag[1024];
-
-    if (bSaveIntermediate)
-    { // I will keep this if - assuming it's always TRUE,
-      // but there is still control using , if
-      // bSaveIntermediate=false it has priority over
-      // m_SaveFilesLevel
-        if (CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG)
+        for (int fine_channel = 0; fine_channel < n_frequencies; fine_channel++)
         {
-            sprintf(outDirtyImageReal, "%s/dirty_test_real_%dx%d.fits", m_ImagerParameters.m_szOutputDirectory.c_str(),
-                    width, height);
-            sprintf(outDirtyImageImag, "%s/dirty_test_imag_%dx%d.fits", m_ImagerParameters.m_szOutputDirectory.c_str(),
-                    width, height);
+            std::complex<float>* current_grid = grids_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            
+            int* current_counter = grids_counters_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
 
-            m_pSkyImageRealTmp->WriteFits(outDirtyImageReal);
-            m_pSkyImageImagTmp->WriteFits(outDirtyImageImag);
+            // Transform to frequency space.
+            // https://www.fftw.org/fftw3_doc/Complex-Multi_002dDimensional-DFTs.html
+            // WARNING : did not work OK:  ant2-ant1 in CalculateUVW in
+            // antenna_positions.cpp and this works OK with FFT_BACKWARD :
+            //           Correct orientation is with V -> -V and FFTW_FORWARD - not clear
+            //           why it is like this , see ::gridding (  double v =
+            //           -fits_vis_v.getXY(ant1,ant2) / wavelength_m; )
+            // ???? Is there any good reaons for this - see also gridder.c and
+            // imagefromuv.c , LM_CopyFromFFT in RTS, especially the latter does some
+            // totally crazy re-shuffling from FFT output to image ...
+            fftw_complex *m_in_buffer {reinterpret_cast<fftw_complex*>(current_grid)};
+            fftw_complex *m_out_buffer {reinterpret_cast<fftw_complex*>(current_image)};
+            
+            fftw_plan pFwd = fftw_plan_dft_2d(width, height, m_in_buffer, m_out_buffer,
+                                            FFTW_FORWARD, FFTW_ESTIMATE); // was FFTW_FORWARD or FFTW_BACKWARD ???
+                                                                            //   printf("WARNING : fftw BACKWARD\n");
+
+            // neither agrees with MIRIAD :
+            // fftw_plan pFwd = fftw_plan_dft_2d( width, height, in_buffer, out_buffer,
+            // FFTW_BACKWARD, FFTW_ESTIMATE);
+            fftw_execute(pFwd);
+            fftw_destroy_plan(pFwd);
+            // WARNING : this is image in l,m = cos(alpha), cos(beta) coordinates and
+            // still needs to go to SKY COORDINATES !!!
+
+            //   double fnorm = 1.00/sqrt(size); //normalisation see :
+            //   /home/msok/Desktop/PAWSEY/PaCER/logbook/20220119_testing_new_versions_dirty_image_polishing.odt
+            size_t counter_sum {0ull};
+            for(size_t i {0}; i < grid_size; i++) counter_sum += current_counter[i];
+            
+            double fnorm = 1.00 / counter_sum; // see RTS :
+                                            // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
+                                            // SumVisibilityWeights and gridKernel.c:650 also
+                                            // read TMS (Thomson, Moran, Swenson) about this
+            PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm,
+                        counter_sum);
+            for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
+            
+            fft_shift(*m_pSkyImageRealTmp, *m_pSkyImageReal);
+            fft_shift(*m_pSkyImageImagTmp, *m_pSkyImageImag);
         }
-    }
-
-    // 2022-04-02 : test change to use member variable for final image (have to be
-    // careful with threads and to not use this class as global variable):
-    // calculate and save FFT-shifted image :
-    // CBgFits out_image_real2( out_image_real.GetXSize(),
-    // out_image_real.GetYSize() ), out_image_imag2( out_image_real.GetXSize(),
-    // out_image_real.GetYSize() ); AllocOutPutImages(
-    // m_pSkyImageRealTmp->GetXSize(), m_pSkyImageRealTmp->GetYSize() );
-
-    if (!m_pSkyImageReal || !m_pSkyImageImag)
-    {
-        printf("ERROR in code : internal image buffers not allocated -> cannot "
-               "continue\n");
-        return;
-    }
-    if (!m_pSkyImageRealTmp || !m_pSkyImageImagTmp)
-    {
-        printf("ERROR in code : internal temporary image buffers m_pSkyImageRealTmp "
-               "and/or m_pSkyImageImagTmp not allocated -> cannot continue\n");
-        return;
-    }
-
-    fft_shift(*m_pSkyImageRealTmp, *m_pSkyImageReal);
-    fft_shift(*m_pSkyImageImagTmp, *m_pSkyImageImag);
-
-    int rest = 1; // just so that by default it is !=0 -> image not saved
-    if (CPacerImager::m_SaveControlImageEveryNth > 0)
-    {
-        rest = (m_SkyImageCounter % CPacerImager::m_SaveControlImageEveryNth);
-        if (rest == 0)
-        {
-            PRINTF_INFO("INFO : saving %d-th control sky image\n", m_SkyImageCounter);
-        }
-    }
-
-    if (CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL || rest == 0)
-    {
-        if (szBaseOutFitsName && strlen(szBaseOutFitsName))
-        {
-            sprintf(outDirtyImageReal, "%s/%s_real.fits", m_ImagerParameters.m_szOutputDirectory.c_str(),
-                    szBaseOutFitsName);
-        }
-        else
-        {
-            // sprintf(outDirtyImageReal,"dirty_test_real_fftshift_%dx%d.fits",width,height);
-            // const char* get_filename(  time_t ut_time , char* out_buffer, int
-            // usec=0, const char* full_dir_path="./", const char*
-            // prefix="dirty_image_", const char* postfix="", const char*
-            // formater="%.2u%.2u%.2uT%.2u%.2u%.2u" );
-            get_filename(m_ImagerParameters.m_fUnixTime, outDirtyImageReal,
-                         m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_",
-                         "_real"); // uxtime=0 -> it will be taken as current system time
-        }
-        SaveSkyImage(outDirtyImageReal, m_pSkyImageReal, m_ImagerParameters.m_fUnixTime);
-        PRINTF_DEBUG("Saved read file to %s\n", outDirtyImageReal);
-
-        if (bSaveImaginary)
-        {
-            if (szBaseOutFitsName && strlen(szBaseOutFitsName))
-            {
-                sprintf(outDirtyImageImag, "%s/%s_imag.fits", m_ImagerParameters.m_szOutputDirectory.c_str(),
-                        szBaseOutFitsName);
-            }
-            else
-            {
-                // sprintf(outDirtyImageImag,"dirty_test_imag_fftshift_%dx%d.fits",width,height);
-                get_filename(m_ImagerParameters.m_fUnixTime, outDirtyImageImag,
-                             m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_imag");
-            }
-
-            m_pSkyImageImag->SetFileName(outDirtyImageImag);
-            m_pSkyImageImag->WriteFits(outDirtyImageImag);
-            PRINTF_DEBUG("Saved imaginary file to %s\n", outDirtyImageImag);
-        }
-    }
-
-    // free memory :
-    // fftw_free( in_buffer );
-    // fftw_free( out_buffer );
-
-    if (CPacerImager::m_bPrintImageStatistics)
-    {
-        double mean, rms, minval, maxval, median, iqr, rmsiqr;
-        int cnt;
-        int radius = int(sqrt(m_pSkyImageReal->GetXSize() * m_pSkyImageReal->GetXSize() +
-                              m_pSkyImageReal->GetYSize() * m_pSkyImageReal->GetYSize())) +
-                     10;
-        // m_SkyImageReal.GetStat( mean, rms, minval, maxval );
-        m_pSkyImageReal->GetStatRadiusAll(mean, rms, minval, maxval, median, iqr, rmsiqr, cnt, radius, true);
-        printf("STAT : full image %s statistics in radius = %d around the center "
-               "using %d pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = "
-               "%.6f, median = %.6f, rms_iqr = %.6f\n",
-               outDirtyImageReal, radius, cnt, mean, rms, minval, maxval, median, rmsiqr);
-
-        // TODO : this will be parameterised to specified requested windown in the
-        // image to get RMS value from:
-        double mean_window, rms_window, minval_window, maxval_window, median_window, iqr_window, rmsiqr_window;
-        radius = 10; // TODO : make it use parameter and also position in the image
-        m_pSkyImageReal->GetStatRadiusAll(mean_window, rms_window, minval_window, maxval_window, median_window,
-                                          iqr_window, rmsiqr_window, cnt, radius, true);
-        printf("STAT : statistics of %s in radius = %d around the center using %d "
-               "pixels : mean = %.6f , rms = %.6f, minval = %.6f, maxval = %.6f, "
-               "median = %.6f, rms_iqr = %.6f\n",
-               outDirtyImageReal, radius, cnt, mean_window, rms_window, minval_window, maxval_window, median_window,
-               rmsiqr_window);
     }
 
     // TODO : re-grid to SKY COORDINATES !!!
     // convert cos(alpha) to alpha - see notes !!!
     // how to do it ???
 
-    PACER_PROFILER_END("dirty imaging took")
 }
 
 bool CPacerImager::CalculateUVW(double frequency_hz, bool bForce /*=false*/, bool bInitialise /*=true*/)
@@ -1252,12 +1022,7 @@ void CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine
     {
         // dirty image :
         PRINTF_INFO("PROGRESS : executing dirty image\n");
-        dirty_image(*m_uv_grid_real, *m_uv_grid_imag, *m_uv_grid_counter,
-                    true,              // do not save intermediate FITS files
-                    szBaseOutFitsName, // output filename template
-                    true,              // save imaginary image
-                    false              // do FFTunshift true when gridding() , false for gridding_fast()
-        );
+        dirty_image(grids_buffer, grids_counters_buffer,  n_pixels * n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer);
     }
 }
 
