@@ -131,7 +131,7 @@ protected :
 
 protected :
    // FFT shift to convert from DC in bin 0 of the FFTW output array to DC in the center bin :
-   void fft_shift(std::complex<float>* image, size_t image_side);
+   void fft_shift(std::complex<double>* image, size_t image_side);
 
    // check if image size is as required and re-alloc if not:
    // Return : 
@@ -279,8 +279,8 @@ public :
    // 1st version producing a dirty image (tested on both MWA and SKA-Low).
    // TODO : Test cases can be found in PaCER documentation 
    //-----------------------------------------------------------------------------------------------------------------------------
-   void dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
-     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer);
+   void dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
+     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<double>>& images_buffer);
 
    
    //-----------------------------------------------------------------------------------------------------------------------------
@@ -306,7 +306,7 @@ public :
                   int time_step, 
                   int fine_channel,
                   CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                  MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer, double delta_u, double delta_v,
+                  MemoryBuffer<std::complex<double>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer, double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="" // weighting : U for uniform (others not implemented)
