@@ -395,14 +395,10 @@ bool CPacerImager::CheckSize(CBgFits &image, int sizeX, int sizeY)
 // See
 // https://www.gaussianwaves.com/2015/11/interpreting-fft-results-complex-dft-frequency-bins-and-fftshift/
 // for explanations why it is needed
-void CPacerImager::fft_shift(CBgFits &dirty_image, CBgFits &out_image)
+void CPacerImager::fft_shift(std::complex<float>* image, size_t image_side)
 {
-    int xSize = dirty_image.GetXSize();
-    int ySize = dirty_image.GetYSize();
-
-    // TODO : create member object m_tmp_image to avoid allocation every time this
-    // function is called
-    CBgFits tmp_image(xSize, ySize);
+    int xSize = image_side;
+    int ySize = image_side;
 
     int center_freq_x = int(xSize / 2);
     int center_freq_y = int(ySize / 2);
@@ -416,11 +412,16 @@ void CPacerImager::fft_shift(CBgFits &dirty_image, CBgFits &out_image)
     // TODO : optimise similar to gridder.c in RTS or check imagefromuv.c ,
     // LM_CopyFromFFT which is totally different and may have to do with image
     // orientation, but also is faster !!! X (horizontal FFT shift) :
+
+    // TODO: cristian there is a bug in the indexing, but keep it there
+    // for reproducibility.
+    // Also, it can be done in place, but now using a tmp buffer for
+    // reproducibility
+    MemoryBuffer<std::complex<float>> tmp_buffer (image_side * image_side, false, false);
     for (int y = 0; y < ySize; y++)
     {
-        float *tmp_data = tmp_image.get_line(y);
-        float *image_data = dirty_image.get_line(y);
-
+        std::complex<float> *image_data = image + y * image_side;
+        std::complex<float> *tmp_data = tmp_buffer.data()  + y * image_side;
         // TODO / WARNING : lools like here for x=center_freq_x and images size = 2N
         // -> center_freq_x = N -> center_freq_x+x can by N+N=2N which is outside
         // image !!!
@@ -438,67 +439,15 @@ void CPacerImager::fft_shift(CBgFits &dirty_image, CBgFits &out_image)
     {
         for (int y = 0; y <= center_freq_y; y++)
         { // check <= -> <
-            out_image.setXY(x, center_freq_y + y, tmp_image.getXY(x, y));
+            image[(center_freq_y + y) * image_side + x] = tmp_buffer[x + y * image_side];
         }
         for (int y = (center_freq_y + is_odd); y < ySize; y++)
         {
-            out_image.setXY(x, y - (center_freq_y + is_odd), tmp_image.getXY(x, y));
+            image[x + (y - (center_freq_y + is_odd)) * image_side] = tmp_buffer[x + y * image_side];
         }
     }
 }
 
-// UV data are with DC in the center -> have to be FFTshfted to form input to
-// FFT function : See
-// https://www.gaussianwaves.com/2015/11/interpreting-fft-results-complex-dft-frequency-bins-and-fftshift/
-// for explanations why it is needed
-void CPacerImager::fft_unshift(CBgFits &dirty_image, CBgFits &out_image)
-{
-    int xSize = dirty_image.GetXSize();
-    int ySize = dirty_image.GetYSize();
-
-    // TODO : create member object m_tmp_image to avoid allocation every time this
-    // function is called
-    CBgFits tmp_image(xSize, ySize);
-
-    int center_freq_x = int(xSize / 2);
-    int center_freq_y = int(ySize / 2);
-
-    int is_odd = 0;
-    if ((xSize % 2) == 1 && (ySize % 2) == 1)
-    {
-        is_odd = 1;
-    }
-
-    // TODO : optimise similar to gridder.c in RTS or check imagefromuv.c ,
-    // LM_CopyFromFFT which is totally different and may have to do with image
-    // orientation, but also is faster !!! X (horizontal FFT shift) :
-    for (int y = 0; y < ySize; y++)
-    {
-        float *tmp_data = tmp_image.get_line(y);
-        float *image_data = dirty_image.get_line(y);
-
-        for (int x = 0; x < center_freq_x; x++)
-        { // check <= -> <
-            tmp_data[center_freq_x + x + is_odd] = image_data[x];
-        }
-        for (int x = center_freq_x; x < xSize; x++)
-        {
-            tmp_data[x - center_freq_x] = image_data[x];
-        }
-    }
-
-    for (int x = 0; x < xSize; x++)
-    {
-        for (int y = 0; y < center_freq_y; y++)
-        { // check <= -> <
-            out_image.setXY(x, center_freq_y + y + is_odd, tmp_image.getXY(x, y));
-        }
-        for (int y = center_freq_y; y < ySize; y++)
-        {
-            out_image.setXY(x, y - center_freq_y, tmp_image.getXY(x, y));
-        }
-    }
-}
 
 bool CPacerImager::SaveSkyImage(const char *outFitsName, CBgFits *pFits, double unixtime /*=0.00*/)
 {
@@ -659,8 +608,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
                         counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
             
-            fft_shift(*m_pSkyImageRealTmp, *m_pSkyImageReal);
-            fft_shift(*m_pSkyImageImagTmp, *m_pSkyImageImag);
+            fft_shift(current_image, grid_side);
         }
     }
 
