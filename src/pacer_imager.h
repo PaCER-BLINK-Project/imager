@@ -21,6 +21,100 @@ using namespace std;
 // forward declaration of class  Visibilities, the header file is included in pacer_imager.cpp
 // class  Visibilities;
 
+
+class Images : public MemoryBuffer<std::complex<float>> {
+    public:
+    ObservationInfo obsInfo;
+    unsigned int nIntegrationSteps;
+    unsigned int nAveragedChannels;
+    unsigned int nFrequencies;
+    size_t side_size;
+
+   Images(MemoryBuffer<std::complex<float>>&& data, const ObservationInfo& obsInfo, unsigned int nIntegrationSteps,
+            unsigned int nAveragedChannels, size_t side_size) : MemoryBuffer {std::move(data)} {
+        this->obsInfo = obsInfo;
+        this->nIntegrationSteps = nIntegrationSteps;
+        this->nAveragedChannels = nAveragedChannels;
+        this->nFrequencies = obsInfo.nFrequencies / nAveragedChannels;
+        this->side_size = side_size;
+    }
+
+    Images(const Images& other) : MemoryBuffer {other} {
+        obsInfo = other.obsInfo;
+        nIntegrationSteps = other.nIntegrationSteps;
+        nFrequencies = other.nFrequencies;
+        nAveragedChannels = other.nAveragedChannels;
+        side_size = other.side_size;
+    }
+
+    Images(Images&& other) : MemoryBuffer {std::move(other)} {
+        obsInfo = other.obsInfo;
+        nIntegrationSteps = other.nIntegrationSteps;
+        nFrequencies = other.nFrequencies;
+        nAveragedChannels = other.nAveragedChannels;
+        side_size = other.side_size;
+    }
+
+    Images& operator=(Images& other){
+        if(this == &other) return *this;
+        MemoryBuffer::operator=(other);
+        obsInfo = other.obsInfo;
+        nIntegrationSteps = other.nIntegrationSteps;
+        nFrequencies = other.nFrequencies;
+        nAveragedChannels = other.nAveragedChannels;
+        side_size = other.side_size;
+        return *this;
+    }
+
+    Images& operator=(Images&& other){
+        if(this == &other) return *this;
+        obsInfo = other.obsInfo;
+        nIntegrationSteps = other.nIntegrationSteps;
+        nFrequencies = other.nFrequencies;
+        nAveragedChannels = other.nAveragedChannels;
+        side_size = other.side_size;
+        MemoryBuffer::operator=(std::move(other));
+        return *this;
+    }
+
+
+    std::complex<float> *at(unsigned int interval, unsigned int frequency){
+        const size_t nValuesInTimeInterval {image_size() * nFrequencies};
+        std::complex<float> *pData = this->data() + nValuesInTimeInterval * interval + image_size() * frequency;
+        return pData;
+    }
+
+    /**
+     * Number of time intervals integrated over by the correlator.
+     */
+    size_t integration_intervals() const {
+        return (obsInfo.nTimesteps + nIntegrationSteps - 1) / nIntegrationSteps;
+    }
+    
+    // Number of pixels in a single image.
+    size_t image_size() const {
+       return side_size * side_size;
+    }
+
+    // Number of images `data` array.
+    size_t size() const {
+        return this->integration_intervals() * nFrequencies;
+    }
+    
+    /**
+     * @brief Save visibilities to a FITS file on disk.
+     * 
+     * @param filename name of the output file.
+     */
+    void to_fits_file(const std::string& filename, bool save_as_complex = false, bool save_imaginary = false) const;
+
+
+   void to_fits_files(const std::string& directory_path, bool save_as_complex = false, bool save_imaginary = false) const;
+};
+
+
+
+
 class CPacerImager
 {
 // simple functions required for some internal calculations : date/time/filename etc :
