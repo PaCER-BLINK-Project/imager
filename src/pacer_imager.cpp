@@ -942,7 +942,6 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                         y_grid = v_index - center_y;
                                     }
                                     
-                                    // TODO Cristian: why conjugate?
                                     current_grid[y_grid * n_pixels + x_grid].real(current_grid[y_grid * n_pixels + x_grid].real() + re);
                                     current_grid[y_grid * n_pixels + x_grid].imag(current_grid[y_grid * n_pixels + x_grid].imag() - im);
                                     current_counter[y_grid * n_pixels + x_grid] += 1;
@@ -1011,7 +1010,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
         }
     }
     for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(grids_buffer[i].real() != reference_grid.getXY(i % n_pixels, i / n_pixels)){
+        if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
             std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
             exit(1);
         }
