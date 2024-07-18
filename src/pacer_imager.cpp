@@ -960,6 +960,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
 {
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
+    if(xcorr.on_gpu()) xcorr.to_cpu();
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
@@ -989,6 +990,12 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
 
 bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_vis_w)
 {
+    if(xcorr.on_gpu()){
+        std::cout << "xcorr is on GPU!!! Moving to cpu.." << std::endl;
+        xcorr.to_cpu();
+    }else{
+        std::cout << "xcorr is on CPU.." << std::endl;
+    }
     int n_ant = xcorr.obsInfo.nAntennas;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
@@ -1226,7 +1233,6 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // TODO Cristian: time_step, fine_channel will be used in the to select a
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
-    if(xcorr.on_gpu()) xcorr.to_cpu();
     double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
     Initialise(initial_frequency_hz);
     int n_ant = xcorr.obsInfo.nAntennas;
