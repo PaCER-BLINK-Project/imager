@@ -38,6 +38,33 @@ namespace {
         std::cerr << "Filename is " << filename << std::endl;
         fitsImage.to_file(filename);
     }
+
+    void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
+        auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
+        size_t fine_channel {0}, int_time {0};
+        size_t n_nans {0};
+        size_t total {0};
+        for(size_t a1 {0}; a1 < xcorr.obsInfo.nAntennas; a1++){
+            for(size_t a2 {0}; a2 < a1; a2++){
+                std::complex<float> *p1 = xcorr.at(int_time, fine_channel, a1, a2);
+                std::complex<float> *p2 = vis2.at(int_time, fine_channel, a1, a2);
+                for(size_t p {0}; p < 4; p++){
+                    total++;
+                    if(isnan(p1->real()) && isnan(p2->real()) && isnan(p2->imag()) && isnan(p1->imag())){
+                        n_nans++;
+                        continue;
+                    }
+                    if(*p1 != *p2){
+                        std::cerr << "xcorr differs from " << filename << "!!!!" << std::endl;
+                        std::cerr << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
+                        exit(1);
+                    }
+                }
+            }
+        }
+        std::cout << "OKK comparison with " << filename << std::endl;
+        std::cout << "Percentage NaNs: " << (static_cast<double>(n_nans) / total * 100.0) << std::endl;
+    }
 }
 
 void Images::to_fits_files(const std::string& directory_path, bool save_as_complex, bool save_imaginary) {
@@ -723,8 +750,8 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
     {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
         {
-            std::complex<double>* current_grid = grids_buffer.data() + time_step * xcorr.obsInfo.nFrequencies * grid_size + fine_channel * grid_size;
-            float* current_counter = grids_counters_buffer.data() + time_step * xcorr.obsInfo.nFrequencies * grid_size + fine_channel * grid_size;
+            std::complex<double>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
+            float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
             // calculate using CASA formula from image_tile_auto.py :
             // synthesized_beam=(lambda_m/max_baseline)*(180.00/math.pi)*60.00 # in
             // arcmin lower=synthesized_beam/5.00 higher=synthesized_beam/3.00
@@ -961,6 +988,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
     if(xcorr.on_gpu()) xcorr.to_cpu();
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/03_after_geo_corrections.fits");
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
@@ -971,6 +999,24 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
         gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids_buffer,
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     }
+
+    CBgFits reference_grid, reference_grid_counter;
+    reference_grid.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
+    reference_grid_counter.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
+
+    for(size_t i {0}; i < n_pixels * n_pixels; i++){
+        if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
+            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
+            break;
+        }
+    }
+    for(size_t i {0}; i < n_pixels * n_pixels; i++){
+        if(grids_buffer[i].real() != reference_grid.getXY(i % n_pixels, i / n_pixels)){
+            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
+            exit(1);
+        }
+    }
+    std::cout << "OK!!! GRIDS are fine!" << std::endl;
     // TODO: Cristian investigate use of single precision fftw
         // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
     // we cannot free this memory as it is corrupted
@@ -996,6 +1042,7 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
     }else{
         std::cout << "xcorr is on CPU.." << std::endl;
     }
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_before_geo_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
@@ -1027,11 +1074,13 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
             }
         }
     }
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_after_geo_corrections.fits");
     return true;
 }
 
 bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
 {
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_before_cable_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
@@ -1064,6 +1113,8 @@ bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
             }
         }
     }
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_after_cable_corrections.fits");
+    
     return true;
 }
 
@@ -1245,7 +1296,9 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
         PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
     }
-
+    xcorr.to_cpu();
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
+    
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);
 
