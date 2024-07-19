@@ -670,6 +670,9 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
   (gpuMemcpy((float*)w_gpu, (float*)w_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice));
   (gpuMemcpy((float*)vis_real_gpu, (float*)vis_real_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
   (gpuMemcpy((float*)vis_imag_gpu, (float*)vis_imag_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
+  (gpuMemset((float*)uv_grid_counter_gpu, 0, image_size*sizeof(float))); // UV grid has to be set to zero
+  (gpuMemset((float*)uv_grid_real_gpu, 0, image_size*sizeof(float)));    // UV grid has to be set to zero
+  (gpuMemset((float*)uv_grid_imag_gpu, 0, image_size*sizeof(float)));    // UV grid has to be set to zero
   PACER_PROFILER_SHOW("GPU Memory copy host to device took")
   
   int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
@@ -903,7 +906,11 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
   (gpuMemcpy((float*)u_gpu, (float*)u_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
   (gpuMemcpy((float*)v_gpu, (float*)v_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
-  (gpuMemcpy((float*)w_gpu, (float*)w_cpu, sizeof(float)*xySize,  gpuMemcpyHostToDevice)); 
+  (gpuMemcpy((float*)w_gpu, (float*)w_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
+  (gpuMemset((float*)uv_grid_counter_gpu, 0, image_size*sizeof(float))); // UV grid has to be set to zero
+  (gpuMemset((float*)uv_grid_real_gpu, 0, image_size*sizeof(float)));    // UV grid has to be set to zero
+  (gpuMemset((float*)uv_grid_imag_gpu, 0, image_size*sizeof(float)));    // UV grid has to be set to zero
+
   // TODO : COPY xcorr strucuttre here:
   VISIBILITY_TYPE* vis_local_gpu = NULL;
  
