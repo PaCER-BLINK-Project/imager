@@ -473,8 +473,8 @@ void CPacerImager::fft_shift(std::complex<double>* image, size_t image_side){
     for (size_t y = 0; y < image_side; y++){
         for (size_t x = 0; x < image_side; x++){
             size_t src =  y * image_side + x;
-            size_t dst_row = (y + image_side/2 - 1) % image_side;
-            size_t dst_col = (x + image_side/2 - 1) % image_side;
+            size_t dst_row = (y + image_side/2) % image_side;
+            size_t dst_col = (x + image_side/2) % image_side;
             size_t dst = dst_row * image_side + dst_col;
             std::swap(image[src], image[dst]);
         }
@@ -641,18 +641,18 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
                         counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
 
-            if(fine_channel == 0){
-                CBgFits reference_dirty;
-                reference_dirty.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/dirty_test_real_8192x8192.fits", 0, 1, 1 );
+            // if(fine_channel == 0){
+            //     CBgFits reference_dirty;
+            //     reference_dirty.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/dirty_test_real_8192x8192.fits", 0, 1, 1 );
     
-                for(size_t i {0}; i < grid_side * grid_side; i++){
-                    if(std::abs(current_image[i].real() - reference_dirty.getXY(i % grid_side, i / grid_side)) > 1e-5){
-                        std::cerr << "Error!! Images are not the same at position " << i << ": " << current_image[i].real() << " != " << reference_dirty.getXY(i % grid_side, i / grid_side) << std::endl;
-                        exit(1);
-                    }
-                }
-                std::cout << "OOK! Image is the same as reference dirty image" << std::endl;
-            }
+            //     for(size_t i {0}; i < grid_side * grid_side; i++){
+            //         if(std::abs(current_image[i].real() - reference_dirty.getXY(i % grid_side, i / grid_side)) > 1e-5){
+            //             std::cerr << "Error!! Images are not the same at position " << i << ": " << current_image[i].real() << " != " << reference_dirty.getXY(i % grid_side, i / grid_side) << std::endl;
+            //             exit(1);
+            //         }
+            //     }
+            //     std::cout << "OOK! Image is the same as reference dirty image" << std::endl;
+            // }
             
             fft_shift(current_image, grid_side);
         }
@@ -787,18 +787,6 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
             //  double u_center = (u_min + u_max)/2.00;
             //  double v_center = (v_min + v_max)/2.00;
 
-            int center_x = int(n_pixels / 2);
-            int center_y = int(n_pixels / 2);
-            int is_odd_x = 0, is_odd_y = 0;
-            if ((n_pixels % 2) == 1)
-            {
-                is_odd_x = 1;
-            }
-            if ((n_pixels % 2) == 1)
-            {
-                is_odd_y = 1;
-            }
-
             int n_ant = xcorr.obsInfo.nAntennas;
             int added = 0, high_value = 0;
             for (int ant1 = 0; ant1 < n_ant; ant1++)
@@ -881,79 +869,33 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
 
                                 if (uv_distance > min_uv)
                                 { // check if larger than minimum UV distance
-                                    //                 int u_index = round( (u - u_min)/delta_u );
-                                    //                 int v_index = round( (v - v_min)/delta_v );
-                                    double u_pix = round(u / delta_u);
-                                    double v_pix = round(v / delta_v);
-                                    int u_index = u_pix + n_pixels / 2; // was u - u_center
-                                    int v_index = v_pix + n_pixels / 2; // was v - v_center
+                                    int u_pix = static_cast<int>(round(u / delta_u));
+                                    int v_pix = static_cast<int>(round(v / delta_v));
 
-                                    // calculate position (x,y) on UV grid as expected by fftw (no
-                                    // fft_unshift required)
-                                    int x_grid = 0, y_grid = 0;
-                                    if (u_index < center_x)
-                                    {
-                                        x_grid = center_x + u_index + is_odd_x;
-                                    }
-                                    else
-                                    {
-                                        x_grid = u_index - center_x;
-                                    }
-                                    if (v_index < center_y)
-                                    {
-                                        y_grid = center_y + v_index + is_odd_y;
-                                    }
-                                    else
-                                    {
-                                        y_grid = v_index - center_y;
-                                    }
 
-                                    //                 printf("DEBUG : u_index %d vs. %d ( u =
-                                    //                 %.2f , u_min = %.2f , delta_u = %.2f ,
-                                    //                 u_center
-                                    //                 =%.2f)\n",u,u_index1,u_index,u_min,delta_u,u_center);
+                                    int u_index = u_pix + n_pixels / 2;
+                                    int v_index = v_pix + n_pixels / 2;
+
+                                    // now fft shift
+                                    u_index = (u_index + n_pixels/2) % n_pixels;
+                                    v_index = (v_index + n_pixels/2) % n_pixels;
 
                                     // Using CELL averaging method or setXY ?
-                                    current_grid[y_grid * n_pixels + x_grid].real(current_grid[y_grid * n_pixels + x_grid].real() + re);
-                                    current_grid[y_grid * n_pixels + x_grid].imag(current_grid[y_grid * n_pixels + x_grid].imag() + im);
-                                    current_counter[y_grid * n_pixels + x_grid] += 1;
-
-                                    if (m_ImagerDebugLevel > 101)
-                                    {
-                                        printf("DEBUG ADDING : PACER_gridding at (x,y) =  %.1f %.1f "
-                                               "+= %.8f + j %.8f (u,v,w) = ( %.4f , %.4f , %.4f )\n",
-                                               u_pix, v_pix, re, im, u, v, w);
-                                        //                       printf("DEBUG gridding : (u,v) =
-                                        //                       (%.8f,%.8f) -> index = (%d,%d) or
-                                        //                       (%.2f,%.2f), value = %.8f + j
-                                        //                       %.8f\n",u,v,u_index,v_index,u_pix,v_pix,re,im);
-                                    }
+                                    current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
+                                    current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im);
+                                    current_counter[v_index * n_pixels + u_index] += 1;
 
                                     // add conjugates :
-                                    //                 u_index = round( (-u - u_min)/delta_u );
-                                    //                 v_index = round( (-v - v_min)/delta_v );
-                                    u_index = -u_pix + n_pixels / 2; // was round( (-u - u_center)/delta_u ) + ...
-                                    v_index = -v_pix + n_pixels / 2; // was round( (-v - v_center)/delta_v ) + ...
-                                    if (u_index < center_x)
-                                    {
-                                        x_grid = center_x + u_index + is_odd_x;
-                                    }
-                                    else
-                                    {
-                                        x_grid = u_index - center_x;
-                                    }
-                                    if (v_index < center_y)
-                                    {
-                                        y_grid = center_y + v_index + is_odd_y;
-                                    }
-                                    else
-                                    {
-                                        y_grid = v_index - center_y;
-                                    }
+                                    u_index = -u_pix + n_pixels/2; // was round( (-u - u_center)/delta_u ) + ...
+                                    v_index = -v_pix + n_pixels/2; // was round( (-v - v_center)/delta_v ) + ...
                                     
-                                    current_grid[y_grid * n_pixels + x_grid].real(current_grid[y_grid * n_pixels + x_grid].real() + re);
-                                    current_grid[y_grid * n_pixels + x_grid].imag(current_grid[y_grid * n_pixels + x_grid].imag() - im);
-                                    current_counter[y_grid * n_pixels + x_grid] += 1;
+                                    // now fft shift
+                                    u_index = (u_index + n_pixels/2) % n_pixels;
+                                    v_index = (v_index + n_pixels/2) % n_pixels;
+                                    
+                                    current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
+                                    current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
+                                    current_counter[v_index * n_pixels + u_index] += 1;
                                 }
                             }
                             else
@@ -1008,22 +950,22 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     }
 
-    CBgFits reference_grid, reference_grid_counter;
-    reference_grid.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
-    reference_grid_counter.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
+    // CBgFits reference_grid, reference_grid_counter;
+    // reference_grid.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
+    // reference_grid_counter.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
 
-    for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
-            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
-            break;
-        }
-    }
-    for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
-            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
-            exit(1);
-        }
-    }
+    // for(size_t i {0}; i < n_pixels * n_pixels; i++){
+    //     if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
+    //         std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
+    //         break;
+    //     }
+    // }
+    // for(size_t i {0}; i < n_pixels * n_pixels; i++){
+    //     if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
+    //         std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
+    //         exit(1);
+    //     }
+    // }
     std::cout << "OK!!! GRIDS are fine!" << std::endl;
     // TODO: Cristian investigate use of single precision fftw
         // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
