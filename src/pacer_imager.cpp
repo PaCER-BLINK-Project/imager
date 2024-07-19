@@ -35,7 +35,6 @@ namespace {
         // hdu.add_keyword("INTTIME", integrationTime, "Integration time (s)");
         // hdu.add_keyword("COARSE_CHAN", obsInfo.coarseChannel, "Receiver Coarse Channel Number (only used in offline mode)");
         fitsImage.add_HDU(hdu);
-        std::cerr << "Filename is " << filename << std::endl;
         fitsImage.to_file(filename);
     }
 
@@ -69,16 +68,15 @@ namespace {
 
 void Images::to_fits_files(const std::string& directory_path, bool save_as_complex, bool save_imaginary) {
     if(on_gpu()) to_cpu();
-    std::cerr << "Directory path is " << directory_path << std::endl;
     MemoryBuffer<float> img_real(this->image_size(), false, false);
     MemoryBuffer<float> img_imag(this->image_size(), false, false);
     for(size_t interval {0}; interval < this->integration_intervals(); interval++){
         for(size_t fine_channel {0}; fine_channel < this->nFrequencies; fine_channel++){
+            std::complex<float> *current_data {this->data() + this->image_size() * this->nFrequencies * interval + fine_channel * this->image_size()}; 
             std::stringstream full_directory;
             full_directory << directory_path << "/" << "start_time_" << obsInfo.startTime << \
                 "/" << "int_" << interval << "/coarse_" << obsInfo.coarseChannel << "/fine_ch" << fine_channel;
             std::string full_directory_str = full_directory.str();
-            std::cerr << "Full directory is " << full_directory_str << std::endl;
             blink::imager::create_directory(full_directory_str);
             if(save_as_complex){
                 std::string filename {full_directory_str + "/image.fits"};
@@ -86,8 +84,8 @@ void Images::to_fits_files(const std::string& directory_path, bool save_as_compl
                 ::save_fits_file(filename, reinterpret_cast<float*>(p_data), this->side_size, this->side_size *2);
             }else{
                 for(size_t i {0}; i < this->image_size(); i++){
-                    img_real[i] = this->data()[i].real();
-                    img_imag[i] = this->data()[i].imag();
+                    img_real[i] = current_data[i].real();
+                    img_imag[i] = current_data[i].imag();
                 }
                 ::save_fits_file(full_directory_str + "/image_real.fits", img_real.data(), this->side_size, this->side_size);
                 ::save_fits_file(full_directory_str + "/image_imag.fits", img_imag.data(), this->side_size, this->side_size);
@@ -613,10 +611,10 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
             // ???? Is there any good reaons for this - see also gridder.c and
             // imagefromuv.c , LM_CopyFromFFT in RTS, especially the latter does some
             // totally crazy re-shuffling from FFT output to image ...
-            fftw_complex *m_in_buffer {reinterpret_cast<fftw_complex*>(current_grid)};
-            fftw_complex *m_out_buffer {reinterpret_cast<fftw_complex*>(current_image)};
+            fftw_complex *fft_in_buffer {reinterpret_cast<fftw_complex*>(current_grid)};
+            fftw_complex *fft_out_buffer {reinterpret_cast<fftw_complex*>(current_image)};
             
-            fftw_plan pFwd = fftw_plan_dft_2d(width, height, m_in_buffer, m_out_buffer,
+            fftw_plan pFwd = fftw_plan_dft_2d(width, height, fft_in_buffer, fft_out_buffer,
                                             FFTW_FORWARD, FFTW_ESTIMATE); // was FFTW_FORWARD or FFTW_BACKWARD ???
                                                                             //   printf("WARNING : fftw BACKWARD\n");
 
