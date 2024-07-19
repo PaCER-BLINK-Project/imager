@@ -470,11 +470,13 @@ bool CPacerImager::CheckSize(CBgFits &image, int sizeX, int sizeY)
 // Cristian: see https://stackoverflow.com/questions/41779293/fft-and-fftshift-of-matlab-in-fftw-library-c
 // for implementation.
 void CPacerImager::fft_shift(std::complex<double>* image, size_t image_side){
-    for (int y = 0; y < image_side; y++){
-        std::complex<double> *image_data = image + y * image_side;
-        for (int x = 0; x < image_side; x++){
-            int dst = (x + image_side/2 - 1) % image_side;
-            std::swap(image_data[x], image_data[dst]);
+    for (size_t y = 0; y < image_side; y++){
+        for (size_t x = 0; x < image_side; x++){
+            size_t src =  y * image_side + x;
+            size_t dst_row = (y + image_side/2 - 1) % image_side;
+            size_t dst_col = (x + image_side/2 - 1) % image_side;
+            size_t dst = dst_row * image_side + dst_col;
+            std::swap(image[src], image[dst]);
         }
     }
 }
@@ -638,6 +640,19 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
             PRINTF_DEBUG("DEBUG : size = %lu (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm,
                         counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
+
+            if(fine_channel == 0){
+                CBgFits reference_dirty;
+                reference_dirty.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/dirty_test_real_8192x8192.fits", 0, 1, 1 );
+    
+                for(size_t i {0}; i < grid_side * grid_side; i++){
+                    if(std::abs(current_image[i].real() - reference_dirty.getXY(i % grid_side, i / grid_side)) > 1e-5){
+                        std::cerr << "Error!! Images are not the same at position " << i << ": " << current_image[i].real() << " != " << reference_dirty.getXY(i % grid_side, i / grid_side) << std::endl;
+                        exit(1);
+                    }
+                }
+                std::cout << "OOK! Image is the same as reference dirty image" << std::endl;
+            }
             
             fft_shift(current_image, grid_side);
         }
@@ -771,10 +786,6 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
             // is it ok to chose the UV plane center based on this:
             //  double u_center = (u_min + u_max)/2.00;
             //  double v_center = (v_min + v_max)/2.00;
-
-            // Limits of UVW :
-            // double GetStat( double& mean, double& rms, double& minval, double&
-            // maxval,
 
             int center_x = int(n_pixels / 2);
             int center_y = int(n_pixels / 2);
