@@ -587,12 +587,29 @@ bool CPacerImager::SaveSkyImage(const char *outFitsName, CBgFits *pFits, double 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
 void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
-    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<double>>& images_buffer)
-{
+    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<double>>& images_buffer) {
 
+    // TODO CRISTIAN: add check for overflows!
     int width = grid_side;
     int height = grid_side;
-    size_t grid_size = grid_side * grid_side;
+    int grid_size = grid_side * grid_side;
+    int n_images = n_frequencies * n_integration_intervals;
+    const int n[2] {height, width};
+
+    auto tstart = std::chrono::steady_clock::now();
+    #define MANY_DFT 1
+
+    #ifdef MANY_DFT
+    /* CRISTIAN
+        According to my experiments there is no performance advantage in using this version. So probably the other
+        version is better because we can parallelise it.
+    */
+    fftw_plan pFwd = fftw_plan_many_dft(2, n, n_images, reinterpret_cast<fftw_complex*>(grids_buffer.data()), NULL,
+        1, grid_size, reinterpret_cast<fftw_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftw_execute(pFwd);
+    fftw_destroy_plan(pFwd);
+    #endif
+
 
     for (size_t time_step = 0; time_step < n_integration_intervals; time_step++)
     {
@@ -613,18 +630,17 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
             // ???? Is there any good reaons for this - see also gridder.c and
             // imagefromuv.c , LM_CopyFromFFT in RTS, especially the latter does some
             // totally crazy re-shuffling from FFT output to image ...
+            #ifndef MANY_DFT
             fftw_complex *fft_in_buffer {reinterpret_cast<fftw_complex*>(current_grid)};
             fftw_complex *fft_out_buffer {reinterpret_cast<fftw_complex*>(current_image)};
             
             fftw_plan pFwd = fftw_plan_dft_2d(width, height, fft_in_buffer, fft_out_buffer,
-                                            FFTW_FORWARD, FFTW_ESTIMATE); // was FFTW_FORWARD or FFTW_BACKWARD ???
+                                            FFTW_BACKWARD, FFTW_ESTIMATE); // was FFTW_FORWARD or FFTW_BACKWARD ???
                                                                             //   printf("WARNING : fftw BACKWARD\n");
 
-            // neither agrees with MIRIAD :
-            // fftw_plan pFwd = fftw_plan_dft_2d( width, height, in_buffer, out_buffer,
-            // FFTW_BACKWARD, FFTW_ESTIMATE);
             fftw_execute(pFwd);
             fftw_destroy_plan(pFwd);
+            #endif
             // WARNING : this is image in l,m = cos(alpha), cos(beta) coordinates and
             // still needs to go to SKY COORDINATES !!!
 
@@ -641,23 +657,14 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
                         counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
 
-            // if(fine_channel == 0){
-            //     CBgFits reference_dirty;
-            //     reference_dirty.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/dirty_test_real_8192x8192.fits", 0, 1, 1 );
-    
-            //     for(size_t i {0}; i < grid_side * grid_side; i++){
-            //         if(std::abs(current_image[i].real() - reference_dirty.getXY(i % grid_side, i / grid_side)) > 1e-5){
-            //             std::cerr << "Error!! Images are not the same at position " << i << ": " << current_image[i].real() << " != " << reference_dirty.getXY(i % grid_side, i / grid_side) << std::endl;
-            //             exit(1);
-            //         }
-            //     }
-            //     std::cout << "OOK! Image is the same as reference dirty image" << std::endl;
-            // }
-            
-            fft_shift(current_image, grid_side);
+            // TODO: CRISTIAN: is this needed?
+            //fft_shift(current_image, grid_side);
         }
     }
 
+    auto tstop = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::seconds>(tstop - tstart).count();
+    std::cout << "Imaging took " << duration << "s" << std::endl;
     // TODO : re-grid to SKY COORDINATES !!!
     // convert cos(alpha) to alpha - see notes !!!
     // how to do it ???
