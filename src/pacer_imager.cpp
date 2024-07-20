@@ -64,6 +64,25 @@ namespace {
         std::cout << "OKK comparison with " << filename << std::endl;
         std::cout << "Percentage NaNs: " << (static_cast<double>(n_nans) / total * 100.0) << std::endl;
     }
+
+
+    int calc_fft_shift_marcin(int pos, int side){
+        int half = side / 2;
+        int is_odd = side % 2;             
+        if( pos < half ){
+            return half + pos + is_odd;
+        }else{
+            return pos - half;
+        }                    
+    }
+
+    int calc_fft_shift_cristian(int pos, int side){
+        return (pos + side/2) % side;
+    }
+
+    int calc_fft_shift(int pos, int side){
+        return calc_fft_shift_marcin(pos, side);
+    }
 }
 
 void Images::to_fits_files(const std::string& directory_path, bool save_as_complex, bool save_imaginary) {
@@ -470,15 +489,57 @@ bool CPacerImager::CheckSize(CBgFits &image, int sizeX, int sizeY)
 // Cristian: see https://stackoverflow.com/questions/41779293/fft-and-fftshift-of-matlab-in-fftw-library-c
 // for implementation.
 void CPacerImager::fft_shift(std::complex<double>* image, size_t image_side){
+    /*
     for (size_t y = 0; y < image_side; y++){
         for (size_t x = 0; x < image_side; x++){
             size_t src =  y * image_side + x;
-            size_t dst_row = (y + image_side/2) % image_side;
-            size_t dst_col = (x + image_side/2) % image_side;
+            size_t dst_row = ::calc_fft_shift(y, image_side);
+            size_t dst_col = ::calc_fft_shift(x, image_side);
             size_t dst = dst_row * image_side + dst_col;
             std::swap(image[src], image[dst]);
         }
-    }
+    }*/
+
+   int xSize = image_side;
+   int ySize = image_side;
+   
+     // TODO : create member object m_tmp_image to avoid allocation every time this function is called 
+   CBgFits tmp_image( xSize * 2, ySize );
+
+   int center_freq_x = int( xSize/2 );
+   int center_freq_y = int( ySize/2 );
+   
+   int is_odd = 0;
+   if ( (xSize%2) == 1 && (ySize%2) == 1 ){
+      is_odd = 1;
+   }
+
+   // TODO : optimise similar to gridder.c in RTS or check imagefromuv.c , LM_CopyFromFFT which is totally different and may have to do with image orientation, but also is faster !!!
+   // X (horizontal FFT shift) :
+   for(int y=0;y<ySize;y++){ 
+      // TODO / WARNING : lools like here for x=center_freq_x and images size = 2N -> center_freq_x = N -> center_freq_x+x can by N+N=2N which is outside image !!!
+    float* tmp_data = tmp_image.get_line(y);
+      std::complex<double>* image_data = image + y * xSize;
+      for(int x=0;x< center_freq_x;x++){ // check <= -> <
+         tmp_data[(center_freq_x+x) * 2] = image_data[x].real();
+         tmp_data[(center_freq_x+x) * 2 + 1] =  image_data[x].imag();
+      }
+      for(int x=(center_freq_x+is_odd);x<xSize;x++){
+         tmp_data[(x-(center_freq_x+is_odd)) * 2] = image_data[x].real();
+         tmp_data[(x-(center_freq_x+is_odd)) * 2 + 1] = image_data[x].imag();
+      }      
+   }
+
+   for(int x=0;x<xSize;x++){ 
+      for(int y=0;y< center_freq_y;y++){ // check <= -> <
+         image[x + (center_freq_y+y)*xSize].real(tmp_image.getXY(2 * x,y));
+         image[x + (center_freq_y+y)*xSize].imag(tmp_image.getXY(2 * x + 1,y));
+      }
+      for(int y=(center_freq_y+is_odd);y<ySize;y++){
+         image[ x + xSize*(y-(center_freq_y+is_odd))].real(tmp_image.getXY(x*2,y));
+         image[ x + xSize*(y-(center_freq_y+is_odd))].imag(tmp_image.getXY(x*2 + 1,y));
+      }      
+   }
 }
 
 
@@ -658,7 +719,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
 
             // TODO: CRISTIAN: is this needed?
-            //fft_shift(current_image, grid_side);
+            fft_shift(current_image, grid_side);
         }
     }
 
@@ -884,8 +945,8 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                     int v_index = v_pix + n_pixels / 2;
 
                                     // now fft shift
-                                    u_index = (u_index + n_pixels/2) % n_pixels;
-                                    v_index = (v_index + n_pixels/2) % n_pixels;
+                                    u_index = ::calc_fft_shift(u_index, n_pixels);
+                                    v_index = ::calc_fft_shift(v_index ,n_pixels);
 
                                     // Using CELL averaging method or setXY ?
                                     current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
@@ -897,8 +958,8 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                     v_index = -v_pix + n_pixels/2; // was round( (-v - v_center)/delta_v ) + ...
                                     
                                     // now fft shift
-                                    u_index = (u_index + n_pixels/2) % n_pixels;
-                                    v_index = (v_index + n_pixels/2) % n_pixels;
+                                    u_index = calc_fft_shift(u_index, n_pixels);
+                                    v_index = calc_fft_shift(v_index ,n_pixels);
                                     
                                     current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
                                     current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
