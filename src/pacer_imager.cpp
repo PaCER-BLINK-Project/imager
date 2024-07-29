@@ -719,7 +719,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
 
             // TODO: CRISTIAN: is this needed?
-            fft_shift(current_image, grid_side);
+            // fft_shift(current_image, grid_side);
         }
     }
 
@@ -898,7 +898,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                             if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
                             {
                                 // TODO convert [m] -> wavelength
-                                double u = -fits_vis_u.getXY(ant1, ant2) / wavelength_m;
+                                double u = fits_vis_u.getXY(ant1, ant2) / wavelength_m;
 
                                 // 2022-09-24 : - removed for a test on MWA data
                                 // 2022-09-09 - for now sticking to - sign here to have back
@@ -906,7 +906,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                 //  but looks like this (-) should not be here at least does not
                                 //  match UV coverage from WSCEAN (it is flipped then see :
                                 //  /home/msok/Desktop/PAWSEY/PaCER/logbook/20220826_image_simulation_part3.odt
-                                double v = -fits_vis_v.getXY(ant1, ant2) /
+                                double v = fits_vis_v.getXY(ant1, ant2) /
                                            wavelength_m; // the - sign here fixes the Y flip, but I am
                                                          // not sure why needed ??? check RTS :
                                                          // imagefromuv.c , LM_CopyFromFFT where some
@@ -915,7 +915,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                                          // data - it may be consistent once I start
                                                          // using TMS equation 4.1 consistently for
                                                          // both EDA2 and MWA
-                                double w = -fits_vis_w.getXY(ant1, ant2) / wavelength_m;
+                                double w = fits_vis_w.getXY(ant1, ant2) / wavelength_m;
                                 double uv_distance = sqrt(u * u + v * v);
 
                                 /* this is in WSCLEAN, but here seems to have no effect ...
@@ -1006,7 +1006,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/03_after_geo_corrections.fits");
+    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/03_after_geo_corrections.fits");
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
@@ -1060,7 +1060,7 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
     }else{
         std::cout << "xcorr is on CPU.." << std::endl;
     }
-    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_before_geo_corrections.fits");
+    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_before_geo_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
@@ -1071,7 +1071,7 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
                 for (int ant2 = 0; ant2 <= ant1; ant2++)
                 {
                     double w = fits_vis_w.getXY(ant1, ant2); // or ant2,ant1 , was (+1)
-                    double angle = +2.0 * M_PI * w * this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE) /
+                    double angle = - 2.0 * M_PI * w * this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE) /
                                    SPEED_OF_LIGHT; // TODO : + or - here ??? In brute force branch
                                                    // was -
 
@@ -1092,13 +1092,13 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
             }
         }
     }
-    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_after_geo_corrections.fits");
+    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_after_geo_corrections.fits");
     return true;
 }
 
 bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
 {
-    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_before_cable_corrections.fits");
+    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_before_cable_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
@@ -1131,7 +1131,7 @@ bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
             }
         }
     }
-    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_after_cable_corrections.fits");
+    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_after_cable_corrections.fits");
     
     return true;
 }
@@ -1315,7 +1315,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
     }
     xcorr.to_cpu();
-    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
+    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
     
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);

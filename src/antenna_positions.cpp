@@ -67,7 +67,7 @@ int CAntennaPositions::CalculateUVW( CBgFits& fits_vis_u, CBgFits& fits_vis_v, C
          start_j = i;
       }
       
-      for(int j=start_j;j<n_ant;j++){
+      for(int j=0;j<=start_j;j++){
          InputMapping& ant2 = (*this)[j];         
          
          double u = 0.00, v = 0.00, w = 0.00;
@@ -98,14 +98,14 @@ int CAntennaPositions::CalculateUVW( CBgFits& fits_vis_u, CBgFits& fits_vis_v, C
          }
          
          // j,i (instead of i,j) to be consistent with CASA UVW array:
-         fits_vis_u.setXY( j, i, u );
-         fits_vis_v.setXY( j, i, v );
-         fits_vis_w.setXY( j, i, w );
+         fits_vis_u.setXY( i, j, u );
+         fits_vis_v.setXY( i, j, v );
+         fits_vis_w.setXY( i, j, w );
          
          // fill the other half of the array with -UVW values:
-         fits_vis_u.setXY( i, j, -u );
-         fits_vis_v.setXY( i, j, -v );
-         fits_vis_w.setXY( i, j, -w );
+         fits_vis_u.setXY( j, i, -u );
+         fits_vis_v.setXY( j, i, -v );
+         fits_vis_w.setXY( j, i, -w );
          
          n_baselines++;
       }
