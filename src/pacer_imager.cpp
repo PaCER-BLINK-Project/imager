@@ -796,6 +796,11 @@ bool CPacerImager::UpdateParameters(double frequency_hz)
     return true;
 }
 
+inline int wrap_index(int i, int side){
+    if(i >= 0) return i % side;
+    else return (side + i);
+}
+
 void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
                                  CBgFits &fits_vis_v, CBgFits &fits_vis_w,
                                  MemoryBuffer<std::complex<double>> &grids_buffer,
@@ -941,12 +946,15 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                     int v_pix = static_cast<int>(round(v / delta_v));
 
 
-                                    int u_index = u_pix + n_pixels / 2;
-                                    int v_index = v_pix + n_pixels / 2;
+                                    int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
+                                    int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
+                                    if(u_index < 0) printf("MODULO ERROR: u_index = %d , u_pix = %d , %d \n", u_index, u_pix, n_pixels);
+                                    if(v_index < 0) printf("MODULO ERROR: v_index = %d , v_pix = %d , %d \n", v_index, v_pix, n_pixels);
+
 
                                     // now fft shift
-                                    u_index = ::calc_fft_shift(u_index, n_pixels);
-                                    v_index = ::calc_fft_shift(v_index ,n_pixels);
+                                    //u_index = ::calc_fft_shift(u_index, n_pixels);
+                                    //v_index = ::calc_fft_shift(v_index ,n_pixels);
 
                                     // Using CELL averaging method or setXY ?
                                     current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
@@ -954,12 +962,11 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                     current_counter[v_index * n_pixels + u_index] += 1;
 
                                     // add conjugates :
-                                    u_index = -u_pix + n_pixels/2; // was round( (-u - u_center)/delta_u ) + ...
-                                    v_index = -v_pix + n_pixels/2; // was round( (-v - v_center)/delta_v ) + ...
-                                    
+                                    u_index = wrap_index(-u_pix, n_pixels);
+                                    v_index = wrap_index(-v_pix, n_pixels);
                                     // now fft shift
-                                    u_index = calc_fft_shift(u_index, n_pixels);
-                                    v_index = calc_fft_shift(v_index ,n_pixels);
+                                    //u_index = calc_fft_shift(u_index, n_pixels);
+                                    //v_index = calc_fft_shift(v_index ,n_pixels);
                                     
                                     current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
                                     current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
@@ -1215,6 +1222,9 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         // as 2.00*u_max/n_pixels, u_max = %.8f, n_pixels =
         // %d\n",delta_u,delta_v,u_max,n_pixels);
     }
+    // TODO: cristian's hardcoded values, same as wsclean pixsize parameters
+    delta_u = 0.08;
+    delta_v = 0.08;
 
     if (do_gridding || do_dirty_image)
     {
