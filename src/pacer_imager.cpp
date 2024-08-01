@@ -666,7 +666,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
         version is better because we can parallelise it.
     */
     fftw_plan pFwd = fftw_plan_many_dft(2, n, n_images, reinterpret_cast<fftw_complex*>(grids_buffer.data()), NULL,
-        1, grid_size, reinterpret_cast<fftw_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_BACKWARD, FFTW_ESTIMATE);
+        1, grid_size, reinterpret_cast<fftw_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_FORWARD, FFTW_ESTIMATE);
     fftw_execute(pFwd);
     fftw_destroy_plan(pFwd);
     #endif
@@ -719,7 +719,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
 
             // TODO: CRISTIAN: is this needed?
-            // fft_shift(current_image, grid_side);
+            fft_shift(current_image, grid_side);
         }
     }
 
