@@ -1113,13 +1113,13 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   SaveTestFitsFilesAndShowStat( n_pixels, weighting, szBaseOutFitsName, bSaveIntermediate, bSaveImaginary );
 }
 
-bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz )
+bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, double frequency_mhz, int time_step, int fine_channel )
 {
    printf("DEBUG: CPacerImagerHip::ApplyGeometricCorrections is a void function just NOT TO DO THIS IN CPU, but using kernel : apply_geometric_corrections (called in gridding_imaging)\n");
    return false;
 }
 
-bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz )
+bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz, int time_step, int fine_channel )
 {
    printf("DEBUG: CPacerImagerHip::ApplyCableCorrections is a void function just NOT TO DO THIS IN CPU, but using kernel : apply_cable_corrections (called in gridding_imaging)\n");
    return false;
