@@ -860,6 +860,16 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
             //  double u_center = (u_min + u_max)/2.00;
             //  double v_center = (v_min + v_max)/2.00;
 
+            int center_x = int( n_pixels / 2 );
+            int center_y = int( n_pixels / 2 );
+            int is_odd_x = 0 , is_odd_y = 0;
+            if( (n_pixels % 2) == 1 ){
+                is_odd_x = 1;
+            }
+            if( (n_pixels % 2) == 1 ){
+                is_odd_y = 1;
+            }
+
             int n_ant = xcorr.obsInfo.nAntennas;
             int added = 0, high_value = 0;
             for (int ant1 = 0; ant1 < n_ant; ant1++)
@@ -942,32 +952,65 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
 
                                 if (uv_distance > min_uv)
                                 { // check if larger than minimum UV distance
-                                    int u_pix = static_cast<int>(round(u / delta_u));
-                                    int v_pix = static_cast<int>(round(v / delta_v));
+
+                                    double u_pix = round( u/delta_u );
+                                    double v_pix = round( v/delta_v );
+                                    int u_index = u_pix + n_pixels/2; // was u - u_center
+                                    int v_index = v_pix + n_pixels/2; // was v - v_center                                       
+                                    
+                                    // calculate position (x,y) on UV grid as expected by fftw (no fft_unshift required)
+                                    int x_grid = 0, y_grid = 0;
+                                    if( u_index < center_x ){
+                                    x_grid = center_x + u_index + is_odd_x;
+                                    }else{
+                                    x_grid = u_index - center_x;
+                                    }                    
+                                    if( v_index < center_y ){
+                                    y_grid = center_y + v_index + is_odd_y;
+                                    }else{
+                                    y_grid = v_index - center_y;
+                                    }
+
+                                    // int u_pix = static_cast<int>(round(u / delta_u));
+                                    // int v_pix = static_cast<int>(round(v / delta_v));
 
 
-                                    int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
-                                    int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
-                                    if(u_index < 0) printf("MODULO ERROR: u_index = %d , u_pix = %d , %d \n", u_index, u_pix, n_pixels);
-                                    if(v_index < 0) printf("MODULO ERROR: v_index = %d , v_pix = %d , %d \n", v_index, v_pix, n_pixels);
+                                    // int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
+                                    // int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
+                                    // if(u_index < 0) printf("MODULO ERROR: u_index = %d , u_pix = %d , %d \n", u_index, u_pix, n_pixels);
+                                    // if(v_index < 0) printf("MODULO ERROR: v_index = %d , v_pix = %d , %d \n", v_index, v_pix, n_pixels);
 
 
                                     // now fft shift
                                     //u_index = ::calc_fft_shift(u_index, n_pixels);
                                     //v_index = ::calc_fft_shift(v_index ,n_pixels);
-
+                                    v_index = y_grid;
+                                    u_index = x_grid;
                                     // Using CELL averaging method or setXY ?
                                     current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
                                     current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im);
                                     current_counter[v_index * n_pixels + u_index] += 1;
 
                                     // add conjugates :
-                                    u_index = wrap_index(-u_pix, n_pixels);
-                                    v_index = wrap_index(-v_pix, n_pixels);
+                                    //u_index = wrap_index(-u_pix, n_pixels);
+                                    //v_index = wrap_index(-v_pix, n_pixels);
                                     // now fft shift
                                     //u_index = calc_fft_shift(u_index, n_pixels);
                                     //v_index = calc_fft_shift(v_index ,n_pixels);
-                                    
+                                     u_index = -u_pix + n_pixels/2; // was round( (-u - u_center)/delta_u ) + ...
+                                    v_index = -v_pix + n_pixels/2; // was round( (-v - v_center)/delta_v ) + ...
+                                    if( u_index < center_x ){
+                                    x_grid = center_x + u_index + is_odd_x;
+                                    }else{
+                                    x_grid = u_index - center_x;
+                                    }                    
+                                    if( v_index < center_y ){
+                                    y_grid = center_y + v_index + is_odd_y;
+                                    }else{
+                                    y_grid = v_index - center_y;
+                                    }                                       
+                                    v_index = y_grid;
+                                    u_index = x_grid;
                                     current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
                                     current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
                                     current_counter[v_index * n_pixels + u_index] += 1;
@@ -1013,7 +1056,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/03_after_geo_corrections.fits");
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/03_after_geo_corrections.fits");
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
@@ -1025,22 +1068,22 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     }
 
-    // CBgFits reference_grid, reference_grid_counter;
-    // reference_grid.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
-    // reference_grid_counter.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
+    CBgFits reference_grid, reference_grid_counter;
+    reference_grid.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
+    reference_grid_counter.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
 
-    // for(size_t i {0}; i < n_pixels * n_pixels; i++){
-    //     if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
-    //         std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
-    //         break;
-    //     }
-    // }
-    // for(size_t i {0}; i < n_pixels * n_pixels; i++){
-    //     if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
-    //         std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
-    //         exit(1);
-    //     }
-    // }
+    for(size_t i {0}; i < n_pixels * n_pixels; i++){
+        if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
+            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
+            break;
+        }
+    }
+    for(size_t i {0}; i < n_pixels * n_pixels; i++){
+        if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-2){
+            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
+            exit(1);
+        }
+    }
     std::cout << "OK!!! GRIDS are fine!" << std::endl;
     // TODO: Cristian investigate use of single precision fftw
         // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
@@ -1067,7 +1110,7 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
     }else{
         std::cout << "xcorr is on CPU.." << std::endl;
     }
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_before_geo_corrections.fits");
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_before_geo_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
@@ -1099,13 +1142,13 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
             }
         }
     }
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_after_geo_corrections.fits");
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_after_geo_corrections.fits");
     return true;
 }
 
 bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
 {
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_before_cable_corrections.fits");
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_before_cable_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
@@ -1138,7 +1181,7 @@ bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
             }
         }
     }
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_after_cable_corrections.fits");
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_after_cable_corrections.fits");
     
     return true;
 }
@@ -1222,9 +1265,6 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         // as 2.00*u_max/n_pixels, u_max = %.8f, n_pixels =
         // %d\n",delta_u,delta_v,u_max,n_pixels);
     }
-    // TODO: cristian's hardcoded values, same as wsclean pixsize parameters
-    delta_u = 0.08;
-    delta_v = 0.08;
 
     if (do_gridding || do_dirty_image)
     {
@@ -1325,7 +1365,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
     }
     xcorr.to_cpu();
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
+    ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
     
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);
