@@ -719,7 +719,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
 
             // TODO: CRISTIAN: is this needed?
-            // fft_shift(current_image, grid_side);
+            fft_shift(current_image, grid_side);
         }
     }
 
@@ -1222,9 +1222,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         // as 2.00*u_max/n_pixels, u_max = %.8f, n_pixels =
         // %d\n",delta_u,delta_v,u_max,n_pixels);
     }
-    // TODO: cristian's hardcoded values, same as wsclean pixsize parameters
-    delta_u = 0.08;
-    delta_v = 0.08;
+
 
     if (do_gridding || do_dirty_image)
     {
