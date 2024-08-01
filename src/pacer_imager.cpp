@@ -394,7 +394,7 @@ void CPacerImager::fft_shift( CBgFits& dirty_image, CBgFits& out_image )
       float* image_data = dirty_image.get_line(y);
       
       // TODO / WARNING : lools like here for x=center_freq_x and images size = 2N -> center_freq_x = N -> center_freq_x+x can by N+N=2N which is outside image !!!
-      for(int x=0;x<=center_freq_x;x++){ // check <= -> <
+      for(int x=0;x<center_freq_x;x++){ // 2024-08-01 changed <= to < to fix the bug (small buffer overflow)
          tmp_data[center_freq_x+x] = image_data[x];
       }
       for(int x=(center_freq_x+is_odd);x<xSize;x++){
