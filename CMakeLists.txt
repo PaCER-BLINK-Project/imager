@@ -108,14 +108,11 @@ else()
    set(GPU_LIBS "")
 endif()
 
-target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${GPU_LIBS}  -lpthread -ldl)
+target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${GPU_LIBS} ${BLINK_ASTROIO}  -lpthread -ldl)
 
-# temporary changed back to NOT LINKING imaging library due to 
-# see Issue #3 ( program crashes at the end when linking using imaging library )
-# Very likely due to some global variable which behaves differently when linking share library.
-# add_executable(pacer_dirty_imager apps/pacer_imager_main.cpp) 
-# add_executable(pacer_imager_test apps/pacer_imager_test.cpp)
-# add_executable(test_calsol apps/test_calsol/main.cpp)
-# target_link_libraries(pacer_dirty_imager imaging)
-# target_link_libraries(pacer_imager_test imaging)
-# target_link_libraries(test_calsol imaging)
+# Tests
+
+# TESTS
+add_executable(imager_test tests/imager_test.cpp)
+target_link_libraries(imager_test imaging)
+add_test(NAME imager_test COMMAND imager_test)

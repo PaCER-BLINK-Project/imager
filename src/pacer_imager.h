@@ -22,6 +22,10 @@ using namespace std;
 // class  Visibilities;
 
 
+// FFT shift to convert from DC in bin 0 of the FFTW output array to DC in the center bin :
+void fft_shift(std::complex<double>* image, size_t image_x_side, size_t image_y_side);
+
+
 class Images : public MemoryBuffer<std::complex<float>> {
     public:
     ObservationInfo obsInfo;
@@ -130,8 +134,6 @@ protected :
  
 
 protected :
-   // FFT shift to convert from DC in bin 0 of the FFTW output array to DC in the center bin :
-   void fft_shift(std::complex<double>* image, size_t image_side);
 
    // check if image size is as required and re-alloc if not:
    // Return : 
