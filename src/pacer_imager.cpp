@@ -25,7 +25,7 @@
 #include "files.hpp"
 
 #include <fstream>
-
+#include <omp.h>
 
 void memdump(char *ptr, size_t nbytes, std::string filename){
     std::ofstream outfile;
@@ -213,16 +213,7 @@ CPacerImager::CPacerImager()
 
 CPacerImager::~CPacerImager()
 {
-    CleanLocalAllocations();
 
-    if (m_in_buffer)
-    {
-        fftw_free((fftw_complex *)m_in_buffer);
-    }
-    if (m_out_buffer)
-    {
-        fftw_free((fftw_complex *)m_out_buffer);
-    }
 }
 
 void CPacerImager::CleanLocalAllocations()
@@ -321,37 +312,6 @@ bool CPacerImager::AllocOutPutImages(int sizeX, int sizeY)
     else
     {
         CheckSize(*m_pSkyImageImagTmp, sizeX, sizeY);
-    }
-
-    // Allocate input and output buffers for FFTW :
-    int size = sizeX * sizeY;
-    if (!m_in_buffer || m_in_size != size)
-    {
-        // WARNING : cannot be in constructor where size is not yet known :
-        if (m_in_buffer && m_in_size != size && m_in_size > 0)
-        {
-            // if image size changes we can use this code
-            PRINTF_INFO("INFO : freeing m_in_buffer memory buffer");
-            fftw_free((fftw_complex *)m_in_buffer);
-        }
-
-        PRINTF_INFO("INFO : allocating m_in_buffer buffer of size %d * %d bytes\n", size, int(sizeof(fftw_complex)));
-        m_in_buffer = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
-        m_in_size = size;
-    }
-    if (!m_out_buffer || m_out_size != size)
-    {
-        // WARNING : cannot be in constructor where size is not yet known :
-        if (m_out_buffer && m_out_size != size && m_out_size > 0)
-        {
-            // if image size changes we can use this code
-            PRINTF_INFO("INFO : freeing m_out_buffer memory buffer");
-            fftw_free(m_out_buffer);
-        }
-
-        PRINTF_INFO("INFO : allocating m_out_buffer buffer of size %d * %d bytes\n", size, int(sizeof(fftw_complex)));
-        m_out_buffer = (fftw_complex *)fftw_malloc(sizeof(fftw_complex) * size);
-        m_out_size = size;
     }
 
     return bRet;
@@ -499,7 +459,7 @@ bool CPacerImager::CheckSize(CBgFits &image, int sizeX, int sizeY)
     return false;
 }
 
-void fft_shift(std::complex<double>* image, size_t image_x_side, size_t image_y_side){
+void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side){
     
     for (size_t y = 0; y < image_y_side; y++){
         for (size_t x = 0; x < image_x_side/2; x++){
@@ -625,8 +585,8 @@ bool CPacerImager::SaveSkyImage(const char *outFitsName, CBgFits *pFits, double 
 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
-void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
-    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<double>>& images_buffer) {
+void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
+    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer) {
 
     // TODO CRISTIAN: add check for overflows!
     int width = grid_side;
@@ -636,50 +596,25 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<double>>& grids_buffer,
     const int n[2] {height, width};
 
     auto tstart = std::chrono::steady_clock::now();
-    #define MANY_DFT 1
-
-    #ifdef MANY_DFT
-    /* CRISTIAN
-        According to my experiments there is no performance advantage in using this version. So probably the other
-        version is better because we can parallelise it.
-    */
-    fftw_plan pFwd = fftw_plan_many_dft(2, n, n_images, reinterpret_cast<fftw_complex*>(grids_buffer.data()), NULL,
-        1, grid_size, reinterpret_cast<fftw_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_BACKWARD, FFTW_ESTIMATE);
-    fftw_execute(pFwd);
-    fftw_destroy_plan(pFwd);
-    #endif
-
+    fftwf_init_threads();
+    std::cout << "dirty_image: n threads used = " << omp_get_max_threads() << std::endl;
+    fftwf_plan_with_nthreads(omp_get_max_threads());
+    fftwf_plan pFwd = fftwf_plan_many_dft(2, n, n_images, reinterpret_cast<fftwf_complex*>(grids_buffer.data()), NULL,
+        1, grid_size, reinterpret_cast<fftwf_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftwf_execute(pFwd);
+    fftwf_destroy_plan(pFwd);
+    fftwf_cleanup_threads();
+    
     #pragma omp parallel for collapse(2) schedule(static)
     for (size_t time_step = 0; time_step < n_integration_intervals; time_step++)
     {
         for (size_t fine_channel = 0; fine_channel < n_frequencies; fine_channel++)
         {
-            std::complex<double>* current_grid = grids_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
-            std::complex<double>* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_grid = grids_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
             
             float* current_counter = grids_counters_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
-
-            // Transform to frequency space.
-            // https://www.fftw.org/fftw3_doc/Complex-Multi_002dDimensional-DFTs.html
-            // WARNING : did not work OK:  ant2-ant1 in CalculateUVW in
-            // antenna_positions.cpp and this works OK with FFT_BACKWARD :
-            //           Correct orientation is with V -> -V and FFTW_FORWARD - not clear
-            //           why it is like this , see ::gridding (  double v =
-            //           -fits_vis_v.getXY(ant1,ant2) / wavelength_m; )
-            // ???? Is there any good reaons for this - see also gridder.c and
-            // imagefromuv.c , LM_CopyFromFFT in RTS, especially the latter does some
-            // totally crazy re-shuffling from FFT output to image ...
-            #ifndef MANY_DFT
-            fftw_complex *fft_in_buffer {reinterpret_cast<fftw_complex*>(current_grid)};
-            fftw_complex *fft_out_buffer {reinterpret_cast<fftw_complex*>(current_image)};
-            
-            fftw_plan pFwd = fftw_plan_dft_2d(width, height, fft_in_buffer, fft_out_buffer,
-                                            FFTW_BACKWARD, FFTW_ESTIMATE); // was FFTW_FORWARD or FFTW_BACKWARD ???
-                                                                            //   printf("WARNING : fftw BACKWARD\n");
-
-            fftw_execute(pFwd);
-            fftw_destroy_plan(pFwd);
-            #endif
+           
             // WARNING : this is image in l,m = cos(alpha), cos(beta) coordinates and
             // still needs to go to SKY COORDINATES !!!
 
@@ -785,7 +720,7 @@ inline int wrap_index(int i, int side){
 
 void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
                                  CBgFits &fits_vis_v, CBgFits &fits_vis_w,
-                                 MemoryBuffer<std::complex<double>> &grids_buffer,
+                                 MemoryBuffer<std::complex<float>> &grids_buffer,
                                  MemoryBuffer<float> &grids_counters_buffer, double delta_u, double delta_v, int n_pixels,
                                  double min_uv /*=-1000*/,
                                  const char *weighting /*="" weighting : U for uniform (others not implemented) */
@@ -811,14 +746,15 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
 
         bStatisticsCalculated = true;
     }
-    memset(grids_buffer.data(), 0, grids_buffer.size() * sizeof(std::complex<double>));
+    memset(grids_buffer.data(), 0, grids_buffer.size() * sizeof(std::complex<float>));
     memset(grids_counters_buffer.data(), 0, grids_counters_buffer.size() * sizeof(float));
     int grid_size = n_pixels * n_pixels;
+    #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
         {
-            std::complex<double>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
             float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
             // calculate using CASA formula from image_tile_auto.py :
             // synthesized_beam=(lambda_m/max_baseline)*(180.00/math.pi)*60.00 # in
@@ -999,7 +935,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
-    MemoryBuffer<std::complex<double>> grids_buffer(buffer_size, false, false);
+    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false, false);
     // Should be long long int, but keeping float now for compatibility reasons
     if (do_gridding)
     {
@@ -1024,20 +960,20 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     //     }
     // }
     std::cout << "OK!!! GRIDS are fine!" << std::endl;
-    // TODO: Cristian investigate use of single precision fftw
-        // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
-    // we cannot free this memory as it is corrupted
-    MemoryBuffer<std::complex<double>> images_buffer_double(buffer_size, false, false);
+    // // TODO: Cristian investigate use of single precision fftw
+    //     // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
+    // // we cannot free this memory as it is corrupted
+    // MemoryBuffer<std::complex<double>> images_buffer_double(buffer_size, false, false);
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
     if (do_dirty_image)
     {
         // dirty image :
         PRINTF_INFO("PROGRESS : executing dirty image\n");
-        dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_double);
+        dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
     }
-    float *dest {reinterpret_cast<float*>(images_buffer_float.data())};
-    double *src {reinterpret_cast<double*>(images_buffer_double.data())};
-    for(size_t i {0}; i < buffer_size * 2; i++) dest[i] = static_cast<float>(src[i]);
+    // float *dest {reinterpret_cast<float*>(images_buffer_float.data())};
+    // double *src {reinterpret_cast<double*>(images_buffer_double.data())};
+    // for(size_t i {0}; i < buffer_size * 2; i++) dest[i] = static_cast<float>(src[i]);
     return {std::move(images_buffer_float), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
@@ -1051,6 +987,7 @@ bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_
     }
     //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_before_geo_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
+    #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
@@ -1089,6 +1026,7 @@ bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
 {
     //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_before_cable_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
+    #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)

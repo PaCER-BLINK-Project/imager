@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD 14)
 
 option(USE_HIP "Enable the GPU acceleration for AMD GPUs." OFF)
 option(USE_CUDA "Enable the GPU acceleration for NVIDIA GPUs." OFF)
+option(USE_OPENMP "Compile with OpenMP enabled." ON)
 
 if(USE_CUDA)
     message("DEBUG : USE_CUDA=ON")
@@ -27,7 +28,6 @@ if(USE_CUDA)
     endif()
 elseif(USE_HIP)
    message("DEBUG : USE_HIP=ON")
-   set(CMAKE_CXX_COMPILER hipcc)
 endif()
 
 
@@ -83,7 +83,7 @@ install(FILES ${gpu_headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include/hip")
 find_package(PkgConfig REQUIRED)
 find_library(CFITSIO_LIB cfitsio HINTS ENV LD_LIBRARY_PATH REQUIRED)
 
-find_library(FFTW3_LIB fftw3 HINTS ENV LD_LIBRARY_PATH REQUIRED)
+find_library(FFTW3_LIB fftw3f HINTS ENV LD_LIBRARY_PATH REQUIRED)
 
 find_library(LIBNOVA_LIB nova ENV LD_LIBRARY_PATH REQUIRED)
 
@@ -110,7 +110,10 @@ endif()
 
 target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${GPU_LIBS} ${BLINK_ASTROIO}  -lpthread -ldl)
 
-# Tests
+if(USE_OPENMP)
+    find_package(OpenMP REQUIRED)
+    target_link_libraries(imaging OpenMP::OpenMP_CXX fftw3f_omp) 
+endif()
 
 # TESTS
 add_executable(imager_test tests/imager_test.cpp)
