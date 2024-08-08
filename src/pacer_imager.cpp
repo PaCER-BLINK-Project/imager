@@ -202,10 +202,9 @@ void CPacerImager::SetFlaggedAntennas(vector<int> &flagged_antennas)
 }
 
 CPacerImager::CPacerImager()
-    : m_bInitialised(false), m_Baselines(0), m_pSkyImageReal(NULL), m_pSkyImageImag(NULL), m_pSkyImageRealTmp(NULL),
-      m_pSkyImageImagTmp(NULL), m_bLocalAllocation(false), m_SkyImageCounter(0), m_in_buffer(NULL), m_out_buffer(NULL),
-      m_in_size(-1), m_out_size(-1), m_bIncludeAutos(false), m_uv_grid_counter(NULL), m_uv_grid_real(NULL),
-      m_uv_grid_imag(NULL), m_nAntennas(0), u_mean(0.00), u_rms(0.00), u_min(0.00), u_max(0.00), v_mean(0.00),
+    : m_bInitialised(false), m_Baselines(0), m_SkyImageCounter(0),
+     m_bIncludeAutos(false),
+      m_nAntennas(0), u_mean(0.00), u_rms(0.00), u_min(0.00), u_max(0.00), v_mean(0.00),
       v_rms(0.00), v_min(0.00), v_max(0.00), w_mean(0.00), w_rms(0.00), w_min(0.00), w_max(0.00)
 {
     m_PixscaleAtZenith = 0.70312500; // deg for ch=204 (159.375 MHz) EDA2
@@ -216,147 +215,7 @@ CPacerImager::~CPacerImager()
 
 }
 
-void CPacerImager::CleanLocalAllocations()
-{
-    if (m_bLocalAllocation)
-    { // only remove when locally allocated, as it can
-      // also be passed from outside using
-      // SetOutputImagesExternal()
-        if (m_pSkyImageReal)
-        {
-            delete m_pSkyImageReal;
-            m_pSkyImageReal = NULL;
-        }
-        if (m_pSkyImageImag)
-        {
-            delete m_pSkyImageImag;
-            m_pSkyImageImag = NULL;
-        }
 
-        m_bLocalAllocation = false;
-    }
-
-    // gridded visibilites are always local allocations (cannot be passed from
-    // external function)
-    if (m_uv_grid_counter)
-    {
-        delete m_uv_grid_counter;
-        m_uv_grid_counter = NULL;
-    }
-    if (m_uv_grid_real)
-    {
-        delete m_uv_grid_real;
-        m_uv_grid_real = NULL;
-    }
-    if (m_uv_grid_imag)
-    {
-        delete m_uv_grid_imag;
-        m_uv_grid_imag = NULL;
-    }
-
-    // these are always only allocated locally :
-    if (m_pSkyImageRealTmp)
-    {
-        delete m_pSkyImageRealTmp;
-        m_pSkyImageRealTmp = NULL;
-    }
-    if (m_pSkyImageImagTmp)
-    {
-        delete m_pSkyImageImagTmp;
-        m_pSkyImageImagTmp = NULL;
-    }
-}
-
-bool CPacerImager::AllocOutPutImages(int sizeX, int sizeY)
-{
-    bool bRet = false;
-    if (!m_pSkyImageReal)
-    {
-        m_pSkyImageReal = new CBgFits(sizeX, sizeY);
-        m_bLocalAllocation = true;
-        bRet = true;
-    }
-    else
-    {
-        CheckSize(*m_pSkyImageReal, sizeX, sizeY);
-    }
-
-    if (!m_pSkyImageImag)
-    {
-        m_pSkyImageImag = new CBgFits(sizeX, sizeY);
-        m_bLocalAllocation = true;
-        bRet = true;
-    }
-    else
-    {
-        CheckSize(*m_pSkyImageImag, sizeX, sizeY);
-    }
-
-    // temporary buffers, always allocated locally, but flag m_bLocalAllocation is
-    // only for output images which can go out of to external calling routines:
-    if (!m_pSkyImageRealTmp)
-    {
-        m_pSkyImageRealTmp = new CBgFits(sizeX, sizeY);
-        bRet = true;
-    }
-    else
-    {
-        CheckSize(*m_pSkyImageRealTmp, sizeX, sizeY);
-    }
-
-    if (!m_pSkyImageImagTmp)
-    {
-        m_pSkyImageImagTmp = new CBgFits(sizeX, sizeY);
-        bRet = true;
-    }
-    else
-    {
-        CheckSize(*m_pSkyImageImagTmp, sizeX, sizeY);
-    }
-
-    return bRet;
-}
-
-bool CPacerImager::AllocGriddedVis(int sizeX, int sizeY)
-{
-    if (!m_uv_grid_counter)
-    {
-        m_uv_grid_counter = new CBgFits(sizeX, sizeY);
-    }
-    else
-    {
-        CheckSize(*m_uv_grid_counter, sizeX, sizeY);
-    }
-
-    if (!m_uv_grid_real)
-    {
-        m_uv_grid_real = new CBgFits(sizeX, sizeY);
-    }
-    else
-    {
-        CheckSize(*m_uv_grid_real, sizeX, sizeY);
-    }
-
-    if (!m_uv_grid_imag)
-    {
-        m_uv_grid_imag = new CBgFits(sizeX, sizeY);
-    }
-    else
-    {
-        CheckSize(*m_uv_grid_imag, sizeX, sizeY);
-    }
-
-    return true;
-}
-
-void CPacerImager::SetOutputImagesExternal(CBgFits *pSkyImageRealExt, CBgFits *pSkyImageImagExt)
-{
-    CleanLocalAllocations();
-
-    m_pSkyImageReal = pSkyImageRealExt;
-    m_pSkyImageImag = pSkyImageImagExt;
-    m_bLocalAllocation = false;
-}
 
 int CPacerImager::ReadAntennaPositions(bool bConvertToXYZ)
 {
@@ -445,19 +304,7 @@ void CPacerImager::Initialise(double frequency_hz)
     }
 }
 
-bool CPacerImager::CheckSize(CBgFits &image, int sizeX, int sizeY)
-{
-    if (image.GetXSize() != sizeX || image.GetYSize() != sizeY)
-    {
-        image.Realloc(sizeX, sizeY);
-        PRINTF_INFO("DEBUG : change of image size to (%d,%d) was required\n", sizeX, sizeY);
 
-        return true;
-    }
-
-    // if image size was ok and nothing was required
-    return false;
-}
 
 void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side){
     
@@ -480,108 +327,6 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 }
 
 
-
-bool CPacerImager::SaveSkyImage(const char *outFitsName, CBgFits *pFits, double unixtime /*=0.00*/)
-{
-    if (!pFits)
-    {
-        PRINTF_ERROR("ERROR in code SaveSkyImage, pFits pointer not set\n");
-        return false;
-    }
-
-    PRINTF_INFO("INFO : saving image %s\n", outFitsName);
-    pFits->SetFileName(outFitsName);
-
-    // fill FITS header :
-    // TODO :
-    pFits->SetKeyword("TELESCOP", "EDA2");
-
-    // scripts/add_fits_header.py
-    // TODO - use properly calculated values :
-    // double pixscale = m_PixscaleAtZenith/3; // ??? why divided by 3 seems to be
-    // best ???
-    //   double pixscale =
-    //   m_ImagerParameters.m_ImageFOV_degrees/pFits->GetXSize();
-    double pixscale = m_ImagerParameters.m_PixsizeInRadians * (180.00 / M_PI);
-    if (m_bCompareToMiriad && false)
-    { // 2023-12-17 temporary disabled as WCS is not correctly saved
-      // then !!! see
-      // 20231215_repeat_processing_of_small_part_of_20230709.odt
-        PRINTF_WARNING("WARNING (CPacerImager::SaveSkyImage) : MIRIAD-like option -> changing "
-                       "pixscale  %.8f -> %.8f\n",
-                       pixscale, m_PixscaleAtZenith);
-        pixscale = m_PixscaleAtZenith;
-    }
-
-    PRINTF_DEBUG("DEBUG : m_PixscaleAtZenith = %.6f [deg] -> pixscale = %.6f [deg] , FoV "
-                 "= %.4f [deg], ImageSize = %ld x %ld\n",
-                 m_PixscaleAtZenith, pixscale, m_ImagerParameters.m_ImageFOV_degrees, pFits->GetXSize(),
-                 pFits->GetYSize());
-    // azh2radec 1581220006 mwa 0 90
-    // (RA,DEC) = ( 312.07545047 , -26.70331900 )
-    // 20.80503003133333333333
-    // double ra_deg = 312.07545047; // = 20.80503003133333333333 hours ; //
-    // was 2.13673600000E+02; double dec_deg = -2.67033000000E+01;
-
-    // libnova_interface.h
-    // void azh2radec( double az, double alt, time_t unix_time, double
-    // geo_long_deg, double geo_lat_deg, double& out_ra, double& out_dec ); for
-    // all-sky images at zenith :
-    double ra_deg = -1000, dec_deg = -1000;
-    if (m_ImagerParameters.m_bConstantUVW)
-    {
-        PRINTF_DEBUG("DEBUG : calculating RA,DEC from (AZ,EL) = (0,90) [deg] for unixtime = "
-                     "%d, geo location (%.4f,%.4f)\n",
-                     int(unixtime), m_MetaData.geo_long, m_MetaData.geo_lat);
-        ::azh2radec(0.00, 90.00, unixtime, m_MetaData.geo_long, m_MetaData.geo_lat, ra_deg, dec_deg);
-    }
-    else
-    {
-        // use RA DEC from metafits or something like this
-        ra_deg = m_MetaData.raHrs * 15.00;
-        dec_deg = m_MetaData.decDegs;
-        PRINTF_DEBUG("DEBUG : using RA,DEC = (%.8f,%.8f) [deg] from metafits\n", ra_deg, dec_deg);
-    }
-
-    int crpix1 = int(pFits->GetXSize() / 2) + 1;
-    pFits->SetKeyword("CTYPE1", "RA---SIN");
-    pFits->SetKeyword("CRPIX1", crpix1);
-    pFits->SetKeywordFloat("CDELT1", -pixscale); // WARNING / TODO : this may be related to image
-                                                 // flip and can differ for different data -> really
-                                                 // need to sort this out ASAP !!!
-    pFits->SetKeywordFloat("CRVAL1", ra_deg);    // RA of the centre
-    pFits->SetKeyword("CUNIT1", "deg    ");
-
-    int crpix2 = int(pFits->GetYSize() / 2) + 1;
-    pFits->SetKeyword("CTYPE2", "DEC--SIN");
-    pFits->SetKeyword("CRPIX2", crpix2);
-    pFits->SetKeywordFloat("CDELT2", pixscale);
-    pFits->SetKeywordFloat("CRVAL2", dec_deg); // RA of the centre
-    pFits->SetKeyword("CUNIT2", "deg    ");
-
-    // add UTC - also required for scripts pix2sky.py to work ok !
-    struct tm gmtime_tm;
-    double fraction_sec = 0.00;
-    time_t unix_time_time_t = (time_t)unixtime;
-    fraction_sec = unixtime - double(unix_time_time_t);
-    if (gmtime_r(&unix_time_time_t, &gmtime_tm))
-    {
-        char tempstring[64];
-        // 2023-06-01T10:42:50.1
-        sprintf(tempstring, "%04u%02u%02u_%02u%02u%02u.%03d", gmtime_tm.tm_year + 1900, (gmtime_tm.tm_mon + 1),
-                gmtime_tm.tm_mday, gmtime_tm.tm_hour, gmtime_tm.tm_min, gmtime_tm.tm_sec, int(fraction_sec * 1000.00));
-
-        pFits->SetKeyword("DATE-OBS", tempstring);
-    }
-    else
-    {
-        printf("ERROR : could not convert unixtime = %.4f to UTC using gmtime_r\n", unixtime);
-    }
-
-    pFits->WriteFits(outFitsName);
-
-    return true;
-}
 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
@@ -866,8 +611,6 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
 
                                     int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
                                     int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
-                                    if(u_index < 0) printf("MODULO ERROR: u_index = %d , u_pix = %d , %d \n", u_index, u_pix, n_pixels);
-                                    if(v_index < 0) printf("MODULO ERROR: v_index = %d , v_pix = %d , %d \n", v_index, v_pix, n_pixels);
 
 
                                     // now fft shift
@@ -943,22 +686,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     }
 
-    // CBgFits reference_grid, reference_grid_counter;
-    // reference_grid.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
-    // reference_grid_counter.ReadFits("/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data_2/1592584200/133/000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
 
-    // for(size_t i {0}; i < n_pixels * n_pixels; i++){
-    //     if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
-    //         std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
-    //         break;
-    //     }
-    // }
-    // for(size_t i {0}; i < n_pixels * n_pixels; i++){
-    //     if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
-    //         std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
-    //         exit(1);
-    //     }
-    // }
     std::cout << "OK!!! GRIDS are fine!" << std::endl;
     // // TODO: Cristian investigate use of single precision fftw
     //     // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
@@ -1154,66 +882,6 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     }
 }
 
-void CPacerImager::ConvertXCorr2Fits(Visibilities &xcorr, CBgFits &vis_re, CBgFits &vis_im, int time_step,
-                                     int fine_channel, const char *szBaseFitsName)
-{
-    int n_ant = xcorr.obsInfo.nAntennas;
-    int n_corrs = 4; // 4 correlation products : XX XY YX YY
-    int n_baselines = n_ant * (n_ant + 1) / 2;
-    ObservationInfo &obsInfo = xcorr.obsInfo;
-    const size_t matrixSize = n_baselines * obsInfo.nPolarizations * obsInfo.nPolarizations;
-    const size_t nIntervals = (obsInfo.nTimesteps); // TODO  + voltages.nIntegrationSteps - 1) /
-                                                    // voltages.nIntegrationSteps;
-    unsigned int nChannelsToAvg = 1;                // TODO : verify
-    const size_t nOutFrequencies = obsInfo.nFrequencies / nChannelsToAvg;
-    const size_t nValuesInTimeInterval = matrixSize * nOutFrequencies;
-    const size_t outSize = nValuesInTimeInterval * nIntervals;
-    unsigned int avgCh = fine_channel / nChannelsToAvg;
-
-    // size_t outIndex {interval * nValuesInTimeInterval + avgCh * matrixSize +
-    // baseline * obsInfo.nPolarizations * obsInfo.nPolarizations
-    //                             + p1*obsInfo.nPolarizations + p2};
-
-    // TODO !!!
-
-    // assuming single timestep for now :
-    // assuming ordering of data as Cristian told me during the meeting :
-    // Ant11        | Ant 12       | Ant 13       | ...
-    // XX XY YX YY  | XX XY YX YY  | XX XY YX YY  | ...
-    int index = 0;
-
-    vis_re.SetNaN();
-    vis_im.SetNaN();
-
-    printf("DEBUG : CPacerImager::ConvertXCorr2Fits n_ant = %d\n", n_ant);
-    // using at :
-    // Complex<float> *at_float(Visibilities& vis, unsigned int interval, unsigned
-    // int frequency, unsigned int a1, unsigned a2)
-    for (int i = 0; i < n_ant; i++)
-    { // loop over ant1
-        for (int j = 0; j <= i; j++)
-        { // loop over ant2
-            // auto& vis = xcorr.data[idx];
-            //        std::complex<double>* vis = at( xcorr, time_step, fine_channel,
-            //        i, j );
-            std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, i, j);
-
-            vis_re.setXY(j, i, float(vis[0].real()));
-            vis_im.setXY(j, i, float(vis[0].imag()));
-
-            vis_re.setXY(i, j, float(vis[0].real()));
-            vis_im.setXY(i, j, -float(vis[0].imag()));
-        }
-        index += (n_ant - i);
-    }
-
-    char szReFits[1024], szImFits[1024];
-    sprintf(szReFits, "%s/%s_re.fits", m_ImagerParameters.m_szOutputDirectory.c_str(), szBaseFitsName);
-    sprintf(szImFits, "%s/%s_im.fits", m_ImagerParameters.m_szOutputDirectory.c_str(), szBaseFitsName);
-    vis_re.WriteFits(szReFits);
-    vis_im.WriteFits(szImFits);
-    printf("DEBUG : saved %s and %s\n", szReFits, szImFits);
-}
 
 Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, int n_pixels, double FOV_degrees,
                               double min_uv /*=-1000*/,      // minimum UV

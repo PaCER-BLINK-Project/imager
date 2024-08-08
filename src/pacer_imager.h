@@ -123,14 +123,7 @@ class CPacerImager
 {
 // simple functions required for some internal calculations : date/time/filename etc :
 protected : 
-   // memory buffers for internal processing 
-   // FFTW / cuFFT memory :
-//   fftw_complex* m_in_buffer;
-   void*         m_in_buffer; // using void* and casting to (fftw_complex*) later in .cpp file to avoid including fftw3.h which conflicts with cufft.h (cufftComplex !!!)
-   int           m_in_size;
-//   fftw_complex* m_out_buffer;
-   void*         m_out_buffer; // using void* and casting to (fftw_complex*) later in .cpp file to avoid including fftw3.h which conflicts with cufft.h (cufftComplex !!!)
-   int           m_out_size;
+
  
 
 protected :
@@ -204,21 +197,11 @@ public :
    int m_Baselines; // number of calculated baselines, also indicator if m_U, m_V and m_W have been initialised 
    int m_nAntennas;
    
-   // gridded visibilities :
-   CBgFits* m_uv_grid_counter;
-   CBgFits* m_uv_grid_real;
-   CBgFits* m_uv_grid_imag;
    
    // values calculated for the current image :
    double m_PixscaleAtZenith;
    
-   //
-   // Resulting sky images :
-   // WARNING : be careful with using this object as global !
-   CBgFits* m_pSkyImageReal;
-   CBgFits* m_pSkyImageImag;
-   CBgFits* m_pSkyImageRealTmp;
-   CBgFits* m_pSkyImageImagTmp;
+
    bool     m_bLocalAllocation;
 
    //-------------------------------------------------------------------------------------------------------------
@@ -272,11 +255,7 @@ public :
    //-----------------------------------------------------------------------------------------------------------------------------
    bool UpdateParameters(double frequency_hz);
    
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // Set external buffers for output images (Real/Imag) 
-   //-----------------------------------------------------------------------------------------------------------------------------
-   void SetOutputImagesExternal( CBgFits* pSkyImageRealExt, CBgFits* pSkyImageImagExt );
-   
+
    //-----------------------------------------------------------------------------------------------------------------------------
    // 1st version producing a dirty image (tested on both MWA and SKA-Low).
    // TODO : Test cases can be found in PaCER documentation 

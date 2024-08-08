@@ -40,9 +40,6 @@ protected :
    int m_AllocatedXYSize;    // size of allocated correlation matrix or UVW 
    int m_AllocatedImageSize; // size of memory allocated for images 
    
-   // Test buffers:
-   float *test_data_real_gpu; // intitialised for size of corr. matrix 
-   float *test_data_imag_gpu; // intitialised for size of corr. matrix 
 
    // Memory management functions for GPU version - for just a single image (N parameter is not used here on purpose)
    //  N blocks version is implemented in the derived class CPacerImagerMultiHip
@@ -88,22 +85,14 @@ protected :
                 );
 
     // virtual function to NOT DO corrections in CPU but in GPU :
-    virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, double frequency_mhz);
+    virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w);
    
-    virtual bool ApplyCableCorrections( Visibilities& xcorr, double frequency_mhz);
+    virtual bool ApplyCableCorrections( Visibilities& xcorr);
 
 
-    virtual void SaveTestFitsFilesAndShowStat( int n_pixels, 
-                                               const char* weighting,
-                                               const char* szBaseOutFitsName, 
-                                               bool bSaveIntermediate, 
-                                               bool bSaveImaginary 
-                                             );
+
 public :
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // IsGPU() - returns true if CPacerImagerHip object and false here:
-   //-----------------------------------------------------------------------------------------------------------------------------
-   virtual inline bool IsGPU(){ return true; }
+
 
    CPacerImagerHip();
    ~CPacerImagerHip();
