@@ -13,6 +13,12 @@ https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-c
 #include <array_config_common.h>
 #include "../pacer_imager_defs.h"
 
+__device__ inline int wrap_index(int i, int side){
+    if(i >= 0) return i % side;
+    else return (side + i);
+}
+
+
 __device__ int calculate_pos(float u,
                              float v,
                              double delta_u_cuda,
@@ -20,10 +26,6 @@ __device__ int calculate_pos(float u,
                              double wavelength_cuda,
                              double min_uv_cuda,
                              int n_pixels_cuda,
-                             int center_x_cuda,
-                             int center_y_cuda,
-                             int is_odd_x_cuda,
-                             int is_odd_y_cuda,
                              int uv_sign_cuda) // will be called with +1 and -1 
 {
    // Operation 1: uv_lambda()
@@ -40,22 +42,10 @@ __device__ int calculate_pos(float u,
       double u_pix, v_pix;
       u_pix = round(u_lambda/delta_u_cuda); 
       v_pix = round(v_lambda/delta_v_cuda);
-      int u_index = uv_sign_cuda*u_pix + (n_pixels_cuda/2); 
-      int v_index = uv_sign_cuda*v_pix + (n_pixels_cuda/2);
+      int u_index = wrap_index(uv_sign_cuda*u_pix, n_pixels_cuda); 
+      int v_index = wrap_index(uv_sign_cuda*v_pix, n_pixels_cuda);
 
-      // Operation 3: x_grid, y_grid (With FFT-UNSHIFT)
-      int x_grid = 0;
-      int y_grid = 0; 
-
-      if( u_index < center_x_cuda )
-         x_grid = u_index + center_x_cuda + is_odd_x_cuda;
-      else
-         x_grid = u_index - center_x_cuda;
-
-      if( v_index < center_y_cuda )
-         y_grid = v_index + center_y_cuda + is_odd_y_cuda;
-      else
-         y_grid = v_index - center_y_cuda; 
+ 
      
       // TODO : understand why this is giving wrong image with a black stripe in the centre !
       // This may optimise this code in the future (remove if-s) if it also produces the same results
@@ -67,7 +57,7 @@ __device__ int calculate_pos(float u,
 
       // Operation 4: Assignment of (re,im)vis to uv_grid
       // Position for assignment 
-      return (n_pixels_cuda*y_grid) + x_grid; 
+      return (n_pixels_cuda*v_index) + u_index; 
    }
 
    // same as else :   
@@ -75,70 +65,7 @@ __device__ int calculate_pos(float u,
 }
 
 
-// Cuda kernal: gridding and cuFFT 
-__global__ void gridding_imaging_cuda( int xySize, // size of the correlation matrix
-                                      int n_ant,   // number of antennas 
-                                      float *u_cuda, float *v_cuda, 
-                                      int* antenna_flags, float* antenna_weights,
-                                      double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
-                                      float *vis_real_cuda, float *vis_imag_cuda, 
-                                      float *uv_grid_counter_cuda, float *uv_grid_real_cuda, float *uv_grid_imag_cuda, double min_uv_cuda, 
-                                      gpufftComplex *m_in_buffer_cuda)
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if ( i >= xySize ){
-       // this thread should not be used as it will correspond to the cell
-       // outside the size of the correlation matrix
-       return;
-    }
-
-    // Getting corresponding real and imag visibilities 
-    double re = vis_real_cuda[i]; 
-    double im = vis_imag_cuda[i]; 
-    
-    // int n_ant = int( sqrt(xySize) );
-    int ant1 = i % n_ant;
-    int ant2 = i / n_ant;
-
-    // Checking for NaN values 
-    if( !isnan(re) && !isnan(im) && antenna_flags[ant1]<=0 && antenna_flags[ant2]<=0 ) // not NaN and not flagged
-    {
-        if( ant1 > ant2 ){ // >= to include auto-correlations !
-           // grids both ant1,ant2 and ant2,ant1 UV points - this means that
-           // only half of the matrix should be done !
-           // if the input correlation matrix has values != NaN in the top half
-           // -> they will be gridded -> 2x too many UV points !!!
-     
-           int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, +1 );
-           if(pos>=0 && pos<image_size_cuda)
-           {
-              // Allocating in uv_grid                
-              atomicAdd(&uv_grid_real_cuda[pos],re); // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
-              atomicAdd(&uv_grid_imag_cuda[pos],im); // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
-              atomicAdd(&uv_grid_counter_cuda[pos],1);
-
-              // Allocating inside m_in_buffer as well 
-              atomicAdd(&m_in_buffer_cuda[pos].x,re);
-              atomicAdd(&m_in_buffer_cuda[pos].y,im);
-           }   
-
-           int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
-           if(pos2>=0 && pos2<image_size_cuda)
-           {
-              atomicAdd(&uv_grid_real_cuda[pos2],re);  // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
-              atomicAdd(&uv_grid_imag_cuda[pos2],-im); // TODO : these may not be necessary in the future (only for debugging and saving, but it can be done conditionally)
-              atomicAdd(&uv_grid_counter_cuda[pos2],1);
-
-              // Allocating inside m_in_buffer as well 
-              atomicAdd(&m_in_buffer_cuda[pos2].x,re);
-              atomicAdd(&m_in_buffer_cuda[pos2].y,-im);
-           }        
-        }           
-    }   
-}
 
 // Cuda kernal: gridding and cuFFT 
 __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlation matrix
@@ -146,7 +73,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
                                       float *u_cuda, float *v_cuda, 
                                       int* antenna_flags, float* antenna_weights,
                                       double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
+                                      int n_pixels_cuda,
                                       VISIBILITY_TYPE *vis_cuda,  
                                       float *uv_grid_counter_cuda, double min_uv_cuda, 
                                       gpufftComplex *m_in_buffer_cuda)
@@ -206,7 +133,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
     // Checking for NaN values 
     if( !isnan(re) && !isnan(im) && antenna_flags[min_a]<=0 && antenna_flags[max_a]<=0 ) // not NaN and not flagged
     {
-        int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, +1 );
+        int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda,  +1 );
         if(pos>=0 && pos<image_size_cuda)
         {
            // Allocating in uv_grid                
@@ -217,7 +144,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
            atomicAdd(&m_in_buffer_cuda[pos].y,im);
         }   
 
-        int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
+        int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, -1 );
         if(pos2>=0 && pos2<image_size_cuda)
         {
           atomicAdd(&uv_grid_counter_cuda[pos2],1);
@@ -388,97 +315,6 @@ __global__ void vis2corrmatrix( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda
     }    
 }
 
-__global__ void gridding_imaging_cuda_optimised(int xySize, // size of the correlation matrix
-                                      float *u_cuda, float *v_cuda, 
-                                      double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
-                                      float *vis_real_cuda, float *vis_imag_cuda, 
-                                      float *uv_grid_counter_cuda, double min_uv_cuda, 
-                                      gpufftComplex *m_in_buffer_cuda)
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if ( i >= xySize ){
-       // this thread should not be used as it will correspond to the cell
-       // outside the size of the correlation matrix
-       return;
-    }
-
-    // Getting corresponding real and imag visibilities 
-    double re = vis_real_cuda[i]; 
-    double im = vis_imag_cuda[i]; 
-
-    // Checking for NaN values 
-    if( !isnan(re) && !isnan(im) )
-    {
-        int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, +1 );
-        if(pos>=0 && pos<image_size_cuda)
-        {
-           // Allocating in uv_grid                
-           atomicAdd(&uv_grid_counter_cuda[pos],1);
-
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos].y,im);
-        }   
-
-        int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
-        if(pos2>=0 && pos2<image_size_cuda)
-        {
-           // Allocating in uv_grid
-           atomicAdd(&uv_grid_counter_cuda[pos2],1);
-
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos2].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos2].y,-im);
-        }
-        
-    }   
-}
-
-// same as above gridding_imaging_cuda_blocks_optimised but counter is not calculated, which is for the case of CONSTANT UVW :
-__global__ void gridding_imaging_cuda_optimised_nocounter(int xySize, // size of the correlation matrix
-                                      float *u_cuda, float *v_cuda, 
-                                      double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
-                                      float *vis_real_cuda, float *vis_imag_cuda, 
-                                      double min_uv_cuda, 
-                                      gpufftComplex *m_in_buffer_cuda)
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if ( i >= xySize ){
-       // this thread should not be used as it will correspond to the cell
-       // outside the size of the correlation matrix
-       return;
-    }
-
-    // Getting corresponding real and imag visibilities 
-    double re = vis_real_cuda[i]; 
-    double im = vis_imag_cuda[i]; 
-
-    // Checking for NaN values 
-    if( !isnan(re) && !isnan(im) )
-    {
-        int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, +1 );
-        if(pos>=0 && pos<image_size_cuda)
-        {
-           atomicAdd(&m_in_buffer_cuda[pos].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos].y,im);
-        }   
-
-        int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
-        if(pos2>=0 && pos2<image_size_cuda)
-        {
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos2].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos2].y,-im);
-        }
-        
-    }   
-}
 
 
 
@@ -506,118 +342,18 @@ __global__ void calculate_counter( int xySize, // size of the correlation matrix
     // Checking for NaN values 
     if( !isnan(re) && !isnan(im) )
     {
-         int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, +1 );
+         int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, +1 );
          if(pos>=0 && pos<image_size_cuda)
          {
             // Allocating in uv_grid
             atomicAdd(&uv_grid_counter_cuda[pos],1);
          }   
 
-         int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
+         int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, -1 );
          if(pos2>=0 && pos2<image_size_cuda)
          {
             atomicAdd(&uv_grid_counter_cuda[pos2],1);
          }
-    }   
-}
-
-
-// gridding kernels using BLOCKS : with and without counter calculation:
-__global__ void gridding_imaging_cuda_blocks_optimised(int xySize, // size of the correlation matrix
-                                      float *u_cuda, float *v_cuda, 
-                                      double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
-                                      float *vis_real_cuda, float *vis_imag_cuda, 
-                                      float *uv_grid_counter_cuda_param, double min_uv_cuda, 
-                                      gpufftComplex *m_in_buffer_cuda_param)
-{
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    int block = blockIdx.y; // second block dimension means IMAGE BLOCK now 
-
-    gpufftComplex *m_in_buffer_cuda = m_in_buffer_cuda_param + block*image_size_cuda;
-    float* uv_grid_counter_cuda = uv_grid_counter_cuda_param  + (block*image_size_cuda);
-
-    if ( i >= xySize ){
-       // this thread should not be used as it will correspond to the cell
-       // outside the size of the correlation matrix
-       return;
-    }
-
-    // Getting corresponding real and imag visibilities 
-    double re = vis_real_cuda[i]; 
-    double im = vis_imag_cuda[i]; 
-
-    // Checking for NaN values 
-    if( !isnan(re) && !isnan(im) )
-    {
-        int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, +1 );
-        if(pos>=0 && pos<image_size_cuda)
-        {
-           // Allocating in uv_grid                
-           atomicAdd(&uv_grid_counter_cuda[pos],1);
-
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos].y,im);
-        }   
-
-        int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
-        if(pos2>=0 && pos2<image_size_cuda)
-        {
-           // Allocating in uv_grid
-           atomicAdd(&uv_grid_counter_cuda[pos2],1);
-
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos2].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos2].y,-im);
-        }        
-    }   
-}
-
-// same as above gridding_imaging_cuda_blocks_optimised but counter is not calculated, which is for the case of CONSTANT UVW :
-__global__ void gridding_imaging_cuda_blocks_optimised_nocounter(int xySize, // size of the correlation matrix
-                                      float *u_cuda, float *v_cuda, 
-                                      double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
-                                      float *vis_real_cuda, float *vis_imag_cuda, 
-                                      double min_uv_cuda, 
-                                      gpufftComplex *m_in_buffer_cuda_param)
-{
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    int block = blockIdx.y; // second block dimension means IMAGE BLOCK now 
-
-    gpufftComplex *m_in_buffer_cuda = m_in_buffer_cuda_param + block*image_size_cuda;
-
-    if ( i >= xySize ){
-       // this thread should not be used as it will correspond to the cell
-       // outside the size of the correlation matrix
-       return;
-    }
-
-    // Getting corresponding real and imag visibilities 
-    double re = vis_real_cuda[i]; 
-    double im = vis_imag_cuda[i]; 
-
-    // Checking for NaN values 
-    if( !isnan(re) && !isnan(im) )
-    {
-        int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, +1 );
-        if(pos>=0 && pos<image_size_cuda)
-        {
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos].y,im);
-        }   
-
-        int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, center_x_cuda, center_y_cuda, is_odd_x_cuda, is_odd_y_cuda, -1 );
-        if(pos2>=0 && pos2<image_size_cuda)
-        {
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos2].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos2].y,-im);
-        }        
     }   
 }
 

@@ -228,9 +228,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 {
   std::cout << "Running 'gridding_imaging' on GPU.." << std::endl;
 
-  // allocates data structures for gridded visibilities:
-  AllocGriddedVis( n_pixels, n_pixels );
-
 
   PACER_PROFILER_START
   bool bStatisticsCalculated = false;
@@ -324,7 +321,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
          double frequency_hz = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
          double wavelength_m = VEL_LIGHT / frequency_hz;
       int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
-      gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, center_x, center_y, is_odd_x, is_odd_y, vis_local_gpu, uv_grid_counter_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
+      gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, vis_local_gpu, uv_grid_counter_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
       PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
       
       // Gives the error in the kernel! 
@@ -348,7 +345,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // Checking Execution time for cuFFT 
 
   if( !m_FFTPlan ){
-     gpufftPlan2d((gpufftHandle*)(&m_FFTPlan), uv_grid_counter_xSize, uv_grid_counter_ySize, GPUFFT_C2C);
+     gpufftPlan2d((gpufftHandle*)(&m_FFTPlan), n_pixels, n_pixels, GPUFFT_C2C);
      PRINTF_INFO("INFO : gpufftPlan2d created\n");
   }
   gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_FORWARD);
@@ -373,7 +370,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   
   // FFT shift together with multiplication by fnorm (normalisation)
   // bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
-  fft_shift_and_norm_gpu( (gpufftComplex*)m_out_buffer_gpu, m_uv_grid_real->GetXSize(), m_uv_grid_real->GetYSize(), fnorm );
+  fft_shift_and_norm_gpu( (gpufftComplex*)m_out_buffer_gpu, n_pixels, n_pixels, fnorm );
   
   // End of gpuMemcpy() GPU to CPU 
   clock_t end_time5 = clock();
