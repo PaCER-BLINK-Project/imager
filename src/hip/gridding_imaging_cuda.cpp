@@ -155,7 +155,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
     }   
 }
 
-__global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *cable_lengths_cuda, double frequency_hz, double speed_of_light )
+__global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, double *cable_lengths_cuda, double frequency_hz, double speed_of_light )
 {
     // Calculating the required id 
     int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -197,10 +197,10 @@ __global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE 
     // int vis_index = ( (ant1 * (ant1 + 1)) / 2 + ant2 )*2*4; // *2 because there are REAL/IMAG pairs of values, *4 correlation products !!!
     VISIBILITY_TYPE* vis = vis_cuda + vis_index;
     double re = vis[0];
-    double im = -vis[1]; // - due to upper triangular matrix here (from Cristian's correlator)
+    double im = vis[1]; // - due to upper triangular matrix here (from Cristian's correlator)
 
     // double cableDeltaLen = 0.00;
-    double cableDeltaLen = (cable_lengths_cuda[max_a] - cable_lengths_cuda[min_a]);
+    double cableDeltaLen = (cable_lengths_cuda[min_a] - cable_lengths_cuda[max_a]);
     // double w = -w_cuda[i]; // was + but now - for upper triangular matrix
     double angle = -2.0*M_PI*cableDeltaLen*frequency_hz / speed_of_light; // was +  but changed to - due to upper triangular matrix here (from Cristian's correlator)
     double sin_angle,cos_angle;
@@ -214,7 +214,7 @@ __global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE 
     }
     
     vis[0] = re_prim;
-    vis[1] = -im_prim; // was + but now - for upper triangular matrix
+    vis[1] = im_prim; // was + but now - for upper triangular matrix
 
 }
 

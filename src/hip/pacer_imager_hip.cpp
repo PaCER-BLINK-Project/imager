@@ -450,17 +450,13 @@ bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr){
 
    if(!xcorr.on_gpu()) xcorr.to_gpu();
 
-   if(!cable_lengths_cpu){
-      cable_lengths_cpu = new float[xcorr.obsInfo.nAntennas];
-      for(int ant=0; ant< xcorr.obsInfo.nAntennas; ant++){
-         InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
-         cable_lengths_cpu[ant] = ant1_info.cableLenDelta;
-      }
+   MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
+   for(int ant=0; ant< xcorr.obsInfo.nAntennas; ant++){
+      InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
+      cable_lengths[ant] = ant1_info.cableLenDelta;
    }
-   if(!cable_lengths_gpu){
-      gpuMalloc(&cable_lengths_gpu, xcorr.obsInfo.nAntennas*sizeof(float));
-      gpuMemcpy(cable_lengths_gpu, cable_lengths_cpu, sizeof(float)*xcorr.obsInfo.nAntennas, gpuMemcpyHostToDevice);      
-   }
+   cable_lengths.to_gpu();
+
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
    int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
 
@@ -469,9 +465,13 @@ bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr){
          // TODO: if ( frequency == freq_channel || freq_channel < 0 ){
          double frequency_hz = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
          VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-         apply_cable_corrections<<<nBlocks, NTHREADS>>>(xySize, xcorr.obsInfo.nAntennas, vis_local_gpu, cable_lengths_gpu, frequency_hz, SPEED_OF_LIGHT);
+         apply_cable_corrections<<<nBlocks, NTHREADS>>>(xySize, xcorr.obsInfo.nAntennas, vis_local_gpu, cable_lengths.data(), frequency_hz, SPEED_OF_LIGHT);
          gpuCheckLastError();
+         gpuDeviceSynchronize();
       }
    }
+   xcorr.to_cpu();
+   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/02_after_cable_corrections.fits");
+    xcorr.to_gpu();
    return true;
 }

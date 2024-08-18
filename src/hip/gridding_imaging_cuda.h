@@ -24,7 +24,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
 // kernel for applying geometric corrections:
 __global__ void apply_geometric_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *w_cuda, double frequency_hz, double speed_of_light );
 
-__global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *cable_lengths_cuda, double frequency_hz, double speed_of_light );
+__global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, double *cable_lengths_cuda, double frequency_hz, double speed_of_light );
 
 
 
