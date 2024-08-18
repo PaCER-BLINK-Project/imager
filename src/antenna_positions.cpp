@@ -90,7 +90,7 @@ int CAntennaPositions::CalculateUVW( CBgFits& fits_vis_u, CBgFits& fits_vis_v, C
             u = u - u2;
             v = v - v2;
             w = w - w2;
-            PRINTF_DEBUG("DEBUG UVW : %d - %d : (%.3f,%.3f,%.3f) - (%.3f,%.3f,%.3f) = (%.4f,%.4f,%.4f)\n",i,j,ant1.x, ant1.y, ant1.z, ant2.x, ant2.y, ant2.z, u, v, w );
+            //PRINTF_DEBUG("DEBUG UVW : %d - %d : (%.3f,%.3f,%.3f) - (%.3f,%.3f,%.3f) = (%.4f,%.4f,%.4f)\n",i,j,ant1.x, ant1.y, ant1.z, ant2.x, ant2.y, ant2.z, u, v, w );
          }else{
             u = (ant1.x - ant2.x); // *(-1); TODO : image flip
             v = (ant1.y - ant2.y);

@@ -48,7 +48,7 @@ public:
                         //2400000.5 +  // convert MJD to JD
                         refHour/24.0 + refMinute/1440.0 + refSecond/86400.0; // add intra-day offset
                         
-                printf("DEBUG_MJD2 : jdBase = %.8f (from %d/%d/%.8f) + %d/24.0 + %d/1440.00 + %.4f/86400.00 -> mjd = %.8f\n",jdBase,year, month, day, refHour,refMinute,refSecond,ret);
+                //printf("DEBUG_MJD2 : jdBase = %.8f (from %d/%d/%.8f) + %d/24.0 + %d/1440.00 + %.4f/86400.00 -> mjd = %.8f\n",jdBase,year, month, day, refHour,refMinute,refSecond,ret);
                 return ret;        
         }
 
@@ -118,10 +118,10 @@ public:
                 
                 precXYZ(uvwInfo.rmatpr, x, y, z, lmst, &xprec, &yprec, &zprec, lmst2000);
                 
-                PRINTF_DEBUG("DEBUG : HA2000 = %.8f (hardcoded = 6.1717), LMST2000 = %.8f , LMST = %.8f\n",ha2000,lmst2000,lmst);
+                //PRINTF_DEBUG("DEBUG : HA2000 = %.8f (hardcoded = 6.1717), LMST2000 = %.8f , LMST = %.8f\n",ha2000,lmst2000,lmst);
 
                 CalcUVW(ha2000, dec_aber, xprec, yprec, zprec, u, v, w);
-                PRINTF_DEBUG("DEBUG : (x,y,z) = (%.4f,%.4f,%.4f), ha2000 = %.4f , lmst = %.8f , dec_aber = %.4f, lmst2000 = %.8f -> (u,v,w) = (%.8f,%.8f,%.8f)\n",x,y,z,ha2000,lmst,dec_aber,lmst2000,u,v,w);
+                //PRINTF_DEBUG("DEBUG : (x,y,z) = (%.4f,%.4f,%.4f), ha2000 = %.4f , lmst = %.8f , dec_aber = %.4f, lmst2000 = %.8f -> (u,v,w) = (%.8f,%.8f,%.8f)\n",x,y,z,ha2000,lmst,dec_aber,lmst2000,u,v,w);
 
                 if(!printed){
                     for(int i=0;i<3;i++){
@@ -175,7 +175,7 @@ public:
                  
                  double newarrlat; // ha2000, lmst2000;
                  ha_dec_j2000( rmatpr,lmst,arrayLattitudeRad,ra_aber,dec_aber,&ha2000,&newarrlat,&lmst2000);
-                 printf("DEBUG : HA2000 = %.8f , LMST2000 = %.8f , LMST = %.8f , raHrs = %.8f , decDeg = %.8f , ra_app = %.8f , dec_app = %.8f, mjd = %.8f\n",ha2000,lmst2000,lmst,raHrs,decDeg,ra_app,dec_app,mjd);
+                 //printf("DEBUG : HA2000 = %.8f , LMST2000 = %.8f , LMST = %.8f , raHrs = %.8f , decDeg = %.8f , ra_app = %.8f , dec_app = %.8f, mjd = %.8f\n",ha2000,lmst2000,lmst,raHrs,decDeg,ra_app,dec_app,mjd);
                 
 
                 // TODO : This rotation matrix needs a proper fix !!!
@@ -202,7 +202,7 @@ public:
 // -----------------------------------------------------------------------------------------------------                
                 CalcUVW(ha2000, dec_aber, xprec, yprec, zprec, u, v, w);
                 
-                PRINTF_DEBUG("DEBUG : (x,y,z)=(%.4f,%.4f,%.4f) , ha2000 = %.4f , lmst = %.8f , dec_aber = %.4f , lmst2000 = %.8f -> (u,v,w) = (%.4f,%.4f,%.4f)\n",xprec,yprec,zprec,ha2000,lmst,dec_aber,lmst2000,u,v,w);
+                //PRINTF_DEBUG("DEBUG : (x,y,z)=(%.4f,%.4f,%.4f) , ha2000 = %.4f , lmst = %.8f , dec_aber = %.4f , lmst2000 = %.8f -> (u,v,w) = (%.4f,%.4f,%.4f)\n",xprec,yprec,zprec,ha2000,lmst,dec_aber,lmst2000,u,v,w);
         }
 
         static void CalcUVW(UVWTimestepInfo &uvwInfo, double x, double y, double z, double &u, double &v, double &w)

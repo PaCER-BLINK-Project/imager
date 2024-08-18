@@ -12,6 +12,34 @@
 #include <mystring.h>
 #include <mydate.h>
 
+namespace {
+       void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
+        auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
+        size_t fine_channel {0}, int_time {0};
+        size_t n_nans {0};
+        size_t total {0};
+        for(size_t a1 {0}; a1 < xcorr.obsInfo.nAntennas; a1++){
+            for(size_t a2 {0}; a2 < a1; a2++){
+                std::complex<float> *p1 = xcorr.at(int_time, fine_channel, a1, a2);
+                std::complex<float> *p2 = vis2.at(int_time, fine_channel, a1, a2);
+                for(size_t p {0}; p < 4; p++){
+                    total++;
+                    if(isnan(p1->real()) && isnan(p2->real()) && isnan(p2->imag()) && isnan(p1->imag())){
+                        n_nans++;
+                        continue;
+                    }
+                    if(*p1 != *p2){
+                        std::cerr << "xcorr differs from " << filename << "!!!!" << std::endl;
+                        std::cerr << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
+                        exit(1);
+                    }
+                }
+            }
+        }
+        std::cout << "OKK comparison with " << filename << std::endl;
+        std::cout << "Percentage NaNs: " << (static_cast<double>(n_nans) / total * 100.0) << std::endl;
+    }
+}
 
 
 CPacerImagerHip::CPacerImagerHip()
@@ -383,6 +411,12 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
 
 bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w){
+   std::cout << "Applying geometric corrections on GPU.." << std::endl;
+   
+   xcorr.to_cpu();
+   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits");
+   
+   
    if(!xcorr.on_gpu()) xcorr.to_gpu();
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
    if(!w_gpu){
@@ -397,14 +431,23 @@ bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& f
          VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
          apply_geometric_corrections<<<nBlocks,NTHREADS>>>(xySize, xcorr.obsInfo.nAntennas, vis_local_gpu, w_gpu, frequency_hz, SPEED_OF_LIGHT);
          gpuCheckLastError();
+         gpuDeviceSynchronize();
       }
    }
+   xcorr.to_cpu();
+   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/01_after_geo_corrections.fits");
+   
    printf("DEBUG : after call of apply_geometric_corrections kernel\n");
    return true;
 }
 
 
 bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr){
+   std::cout << "Applying cable corrections on GPU.." << std::endl;
+   xcorr.to_cpu();
+   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/02_before_cable_corrections.fits");
+    
+
    if(!xcorr.on_gpu()) xcorr.to_gpu();
 
    if(!cable_lengths_cpu){

@@ -259,7 +259,7 @@ __global__ void apply_geometric_corrections(int xySize, int n_ant, VISIBILITY_TY
     double im = -vis[1]; // - due to upper triangular matrix here (from Cristian's correlator)
 
     double w = -w_cuda[i]; // was + but now - for upper triangular matrix
-    double angle = -2.0*M_PI*w*frequency_hz / speed_of_light; // was +  but changed to - due to upper triangular matrix here (from Cristian's correlator)
+    double angle = 2.0*M_PI*w*frequency_hz / speed_of_light; // was +  but changed to - due to upper triangular matrix here (from Cristian's correlator)
     double sin_angle,cos_angle;
     sincos(angle, &sin_angle, &cos_angle);
     
