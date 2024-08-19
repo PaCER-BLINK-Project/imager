@@ -47,7 +47,7 @@ CPacerImagerHip::CPacerImagerHip()
   u_gpu(NULL), v_gpu(NULL), w_gpu(NULL),
   m_AllocatedXYSize(0), m_AllocatedImageSize(0),
   m_FFTPlan(0), vis_gpu(NULL), cable_lengths_gpu(NULL), cable_lengths_cpu(NULL),
-  antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL), m_out_data(NULL)
+  antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL)
 {
 
 }
@@ -76,31 +76,7 @@ void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size )
       (gpuMemset((float*)v_gpu, 0, corr_size*sizeof(float)));
    }
    
-   // gridded visibilities :      
-   if( !uv_grid_counter_gpu )
-   {
-      (gpuMalloc((void**)&uv_grid_counter_gpu, image_size*sizeof(float)));
-      (gpuMemset((float*)uv_grid_counter_gpu, 0, image_size*sizeof(float)));
-   }
-
-   if( !uv_grid_counter_cpu )
-   {
-      uv_grid_counter_cpu = new float[image_size];
-      memset(uv_grid_counter_cpu,'\0',image_size*sizeof(float));
-   }
-   
-   // input and output to cuFFT :
-   if( !m_in_buffer_gpu )
-   {
-      // m_in_buffer 
-      (gpuMalloc((void**) &m_in_buffer_gpu, image_size*sizeof(gpufftComplex)));
-      (gpuMemset((gpufftComplex*)m_in_buffer_gpu, 0, image_size*sizeof(gpufftComplex)));
-   }   
-   if( !m_out_buffer_gpu )
-   {      
-      (gpuMalloc((void**) &m_out_buffer_gpu, image_size*sizeof(gpufftComplex))); 
-      (gpuMemset((gpufftComplex*)m_out_buffer_gpu, 0, image_size*sizeof(gpufftComplex)));
-   }
+  
    
 }
 
@@ -129,17 +105,6 @@ void CPacerImagerHip::CleanGPUMemory()
    {
       (gpuFree( w_gpu)); 
       w_gpu = NULL;
-   }
-
-   if( uv_grid_counter_gpu )
-   {
-      (gpuFree( uv_grid_counter_gpu)); 
-      uv_grid_counter_gpu = NULL;
-   }
-
-   if( uv_grid_counter_cpu ){
-      delete [] uv_grid_counter_cpu;
-      uv_grid_counter_cpu = NULL;
    }
 
    if( cable_lengths_gpu ){
@@ -236,12 +201,11 @@ void CPacerImagerHip::UpdateAntennaFlags( int n_ant )
 // TODO : 
 //     - do more cleanup of this function as this is nearly "RAW" copy paste from Gayatri's code:
 //     - optimise (same in CPU version) uv_grid_counter, uv_grid_real, uv_grid_imag to become member variables.
-void CPacerImagerHip::gridding_imaging( Visibilities& xcorr, 
+Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr, 
                                      int time_step, 
                                      int fine_channel,
                                      CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                                      double delta_u, double delta_v,
-                                     double frequency_mhz,
                                      int    n_pixels,
                                      double min_uv /*=-1000*/,    // minimum UV 
                                      const char* weighting /*=""*/, // weighting : U for uniform (others not implemented)
@@ -273,62 +237,33 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
   // Input size: u, v and w 
   int n_ant = xcorr.obsInfo.nAntennas;
-  int u_xSize = fits_vis_u.GetXSize();
-  int u_ySize = fits_vis_u.GetYSize();
-  int xySize = u_xSize*u_ySize;
-
-  int vis_real_xSize = n_ant; 
-  int vis_real_ySize = n_ant; 
+  int xySize = n_ant * n_ant;
 
 
   int image_size {n_pixels * n_pixels}; 
-  int vis_real_size = (vis_real_xSize*vis_real_ySize);
-  int vis_imag_size = (vis_real_xSize*vis_real_ySize);
-
-  if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL){
-     printf("\n SIZE CHECK xySize = %d", xySize);
-     printf("\n SIZE CHECK image_size = %d", image_size);
-     printf("\n SIZE CHECK vis_real_size = %d",vis_real_size); 
-     printf("\n SIZE CHECK vis_imag_size = %d", vis_imag_size); 
-  }
 
   // In order to include conjugates at (-u,-v) UV point in gridding
   u_min = -u_max;
   v_min = -v_max;
 
 
-//   int center_x = int(n_pixels/2);
-//   int center_y = int(n_pixels/2);
-//   int is_odd_x = 0 , is_odd_y = 0;
-//   if( (n_pixels % 2) == 1 ){
-//      is_odd_x = 1;
-//   }
-//   if( (n_pixels % 2) == 1 ){
-//      is_odd_y = 1;
-//   }
-
-  // initialise values in the UV GRID to zeros: 
-  // 2024-06-14 : this code is not need as it is only used to initialise GPU arrays with zeros later in the code (cudaMemcpy), but these arrays are already initialised with zeros in 
-  //              AllocGPUMemory function using cudaMemset
-  // m_uv_grid_real->SetZeroValue();
-  // m_uv_grid_imag->SetZeroValue();
-  // m_uv_grid_counter->SetZeroValue();
-
-  // Setting the initial values of out_image_real/out_image_imag 
-  // MS (2024-06-12) : not required as these are overwritten later in a loop where normalisation factor fnorm is applied:
-  // out_image_real.SetValue( 0.00 );
-  // out_image_imag.SetValue( 0.00 );
-
-  // Step 1: Declare GPU(Device) and CPU(Host) Variables 
-  // CPU input variables 
   float *u_cpu = fits_vis_u.get_data();
   float *v_cpu = fits_vis_v.get_data();
-  float *w_cpu = fits_vis_w.get_data();
 
   // Allocate only if not-allocated 
 
   // TODO : warning GPU UV grid is not initialised to ZEROs :
+  // For the UV matrices, for now
   AllocGPUMemory(xySize, image_size ); //  out_image_real.get_data() );
+
+   size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
+   size_t buffer_size {image_size * n_images};
+   MemoryBuffer<float> grids_counters_buffer(buffer_size, false, true);
+   MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false,  true);
+   MemoryBuffer<std::complex<float>> images_buffer(buffer_size, false, true);
+   gpuMemset(grids_counters_buffer.data(), 0, n_images * image_size*sizeof(float));
+   
+   
  
   // Step 3: Copy contents from CPU to GPU [input variables]
   // gpuMemcpy(destination, source, size, HostToDevice)
@@ -337,9 +272,6 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   (gpuMemcpy((float*)u_gpu, (float*)u_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
   (gpuMemcpy((float*)v_gpu, (float*)v_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice));
   
-  // TODO : COPY xcorr strucuttre here:
-  VISIBILITY_TYPE* vis_local_gpu = NULL;
-
   
   // update antenna flags before gridding which uses these flags or weights:
   UpdateAntennaFlags( n_ant );
@@ -348,13 +280,17 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
       for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
          double frequency_hz = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
          double wavelength_m = VEL_LIGHT / frequency_hz;
-      int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
-      gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, vis_local_gpu, uv_grid_counter_gpu, min_uv, (gpufftComplex*)m_in_buffer_gpu ); 
-      PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
-      
-      // Gives the error in the kernel! 
-      gpuGetLastError();
-      gpuDeviceSynchronize();
+         int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
+         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
+         std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
+         float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
+
+         gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, vis_local_gpu, current_counter, min_uv, (gpufftComplex*)current_grid); 
+         PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
+         
+         // Gives the error in the kernel! 
+         gpuGetLastError();
+         gpuDeviceSynchronize();
       }
    }
   // TODO: 2024-06-22 : DIVIDE m_in_buffer_gpu and uv_grid_real_gpu, uv_grid_imag_gpu by uv_grid_counter_gpu for uniform and other weightings to really work
@@ -370,13 +306,32 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   // uv_grid_counter_ySize = height
   // size = image_size: (width x height)
 
-  // Checking Execution time for cuFFT 
+  // Checking Execution time for cuFFT
+    if( !m_FFTPlan ){
+       int n[2]; 
+       n[0] = n_pixels; 
+       n[1] = n_pixels; 
 
-  if( !m_FFTPlan ){
-     gpufftPlan2d((gpufftHandle*)(&m_FFTPlan), n_pixels, n_pixels, GPUFFT_C2C);
-     PRINTF_INFO("INFO : gpufftPlan2d created\n");
-  }
-  gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_FORWARD);
+       // START: gpufftPLanMany() 
+       std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+
+       // DONE : make plan -> m_FFTPlan and do it once in the lifetime of the program !!!
+       //        it takes ~200ms and is not required every time as it is always the same !!!
+       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2C, n_images );    
+       std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+       std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+       PRINTF_BENCHMARK("BENCHMARK : gpufftPlanMany executed and took %.6f seconds.\n",time_span.count());
+    }
+
+    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+    gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_FORWARD);
+    gpuDeviceSynchronize();
+
+    // END: gpufftPlanMany() 
+    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+    PRINTF_BENCHMARK("BENCHMARK : gpufftExecC2C took: %.6f seconds. \n",time_span.count());
+
 
 
   // Step 5: Copy contents from GPU variables to CPU variables
@@ -386,8 +341,8 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   clock_t start_time5 = clock();
 
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
-  // double fnorm = 1.00/m_uv_grid_counter->Sum();
-  double fnorm = 1.00/sum_gpu_atomicadd( uv_grid_counter_gpu, image_size );
+  // TODO: fix this
+  double fnorm = 1.00/sum_gpu_atomicadd( grids_counters_buffer.data(), image_size );
   // double fnorm = 1.00/sum_gpu_parallel_reduce( uv_grid_counter_gpu, image_size );
 
   
@@ -398,7 +353,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   
   // FFT shift together with multiplication by fnorm (normalisation)
   // bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
-  fft_shift_and_norm_gpu( (gpufftComplex*)m_out_buffer_gpu, n_pixels, n_pixels, fnorm );
+  fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, fnorm );
   
   // End of gpuMemcpy() GPU to CPU 
   clock_t end_time5 = clock();

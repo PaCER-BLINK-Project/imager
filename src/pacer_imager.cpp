@@ -372,7 +372,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
                                             // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
                                             // SumVisibilityWeights and gridKernel.c:650 also
                                             // read TMS (Thomson, Moran, Swenson) about this
-            PRINTF_DEBUG("DEBUG : size = %lu (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm,
+            PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm,
                         counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
 
@@ -686,8 +686,6 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     }
 
-
-    std::cout << "OK!!! GRIDS are fine!" << std::endl;
     // // TODO: Cristian investigate use of single precision fftw
     //     // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
     // // we cannot free this memory as it is corrupted

@@ -2,21 +2,15 @@
 #define _PACER_IMAGER_GPU_H__
 
 #include <typeinfo>
+#include <gpu_fft.hpp>
+#include <astroio.hpp>
 
 #include "../pacer_imager.h"
 
 class CPacerImagerHip : public CPacerImager {
 protected :
    // CUDA / HIP FFT plan:
-   long int m_FFTPlan; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
-
-   // member variables for cuFFT :
-   void* m_in_buffer_gpu;  // buffer for gridded visibilities which are passed to cuFFT/hipFFT
-
-   void* m_out_buffer_gpu; // output of cu/hip FFT - GPU memory (Device)
-   void* m_out_buffer_cpu; // output of cu/fip FFT - Host memory (Host)
-   void* m_out_data; // temporary CPU buffer to apply normalisation. TODO : apply normalisation in a GPU kernal
-
+   gpufftHandle m_FFTPlan; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
 
    // Additional GPU Input variables 
    // GPU Input variables 
@@ -67,12 +61,11 @@ protected :
    //          - uv_grid_real, uv_grid_imag : visibilities on UV grid (real and imag arrays)
    //          - uv_grid_counter : visibility counter and 
    //-----------------------------------------------------------------------------------------------------------------------------
-   virtual void gridding_imaging( Visibilities& xcorr, 
+   virtual Images gridding_imaging( Visibilities& xcorr, 
                   int time_step, 
                   int fine_channel,
                   CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                   double delta_u, double delta_v,
-                  double frequency_mhz,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="", // weighting : U for uniform (others not implemented)
