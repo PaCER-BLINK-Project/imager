@@ -31,6 +31,18 @@
 
 #define DEFAULT_VALUE -1000
 
+double CObsMetadata::ux2gps( double uxtime )
+{
+   return uxtime - 315964783.00;
+}
+
+double CObsMetadata::gps2ux( double gpstime )
+{
+   return gpstime + 315964783.00;
+}
+
+
+
 bool CObsMetadata::checkStatus(int status, const char* szErrorMsg )
 {
    if( status ){
@@ -54,8 +66,8 @@ CObsMetadata::CObsMetadata( const char* filename ) :
         raHrs(DEFAULT_VALUE),
         decDegs(DEFAULT_VALUE),
         haHrsStart(DEFAULT_VALUE),
-        refEl(M_PI*0.5),
-        refAz(0.0),
+        AzimDeg(DEFAULT_VALUE),
+        ElevDeg(DEFAULT_VALUE),
         year(0),
         month(0),
         day(0),
@@ -90,7 +102,7 @@ CObsMetadata::CObsMetadata( const char* filename ) :
 }
 
 
-bool CObsMetadata::ReadMetaData( const char* filename )
+bool CObsMetadata::ReadMetaData( const char* filename, double obsid /*=-1*/ )
 {
    if( strlen(m_filename.c_str())<=0 || strcmp(m_filename.c_str(),filename) ){
       m_filename = filename;
@@ -101,7 +113,7 @@ bool CObsMetadata::ReadMetaData( const char* filename )
          return ReadMetaDataTxt( m_filename.c_str() );
       }
       if( strstr(m_filename.c_str(),".metafits") ){
-         return ReadMetaFitsFile( m_filename.c_str() );
+         return ReadMetaFitsFile( m_filename.c_str(), obsid );
       }
    }
    
@@ -164,10 +176,11 @@ bool CObsMetadata::ReadMetaDataTxt( const char* filename )
    return true;
 }
 
-bool CObsMetadata::ReadMetaFitsFile( const char* filename )
+bool CObsMetadata::ReadMetaFitsFile( const char* filename, double obsid /*=-1*/ )
 {
 //   fitsfile *_fptr = NULL; 
    int status = 0;
+   printf("DEBUG : reading metafits file %s\n",filename);
    
    if(fits_open_file(&_fptr, filename, READONLY, &status)){
       printf("ERROR : could not read FITS file %s\n",filename);
@@ -198,6 +211,8 @@ bool CObsMetadata::ReadMetaFitsFile( const char* filename )
    tilePointingRARad  = DEFAULT_VALUE;
    raHrs   = DEFAULT_VALUE;
    decDegs = DEFAULT_VALUE;
+   AzimDeg = DEFAULT_VALUE;
+   ElevDeg = DEFAULT_VALUE;
    
    for(int i=0; i!=keywordCount; ++i){
       char keyName[80], keyValue[80], *keyValueLong, szErrorMsg[1024];
@@ -290,6 +305,11 @@ bool CObsMetadata::ReadMetaFitsFile( const char* filename )
    printf("\tdecDegs = %.8f [deg] , tilePointingDecRad = %.8f [rad]\n",decDegs,tilePointingDecRad);
    printf("\tstartUnixTime = %.8f [sec]\n",startUnixTime);
    
+   if( obsid > 0 ){
+      // fix_metafits( long int obsid, double inttime_sec /*=1.00*/ )
+      fix_metafits( obsid, 1.00 ); // TODO : implement other integration times than 1-second !!!
+   }
+   
    return true;
 }
 
@@ -349,6 +369,10 @@ bool CObsMetadata::parseKeyword( const std::string& keyName, const std::string& 
                 tilePointingRARad = atof(keyValue.c_str()) * (M_PI / 180.0);
         else if(keyName == "DEC")
                 tilePointingDecRad = atof(keyValue.c_str()) * (M_PI / 180.0);
+        else if(keyName == "AZIMUTH")
+                AzimDeg = atof(keyValue.c_str());
+        else if(keyName == "ALTITUDE")
+                ElevDeg = atof(keyValue.c_str());
         else if(keyName == "GRIDNAME"){
                 // gridName = parseFitsString(keyValue.c_str());
                 if( !parseFitsString(keyValue.c_str(), gridName ) ){
@@ -417,7 +441,7 @@ bool CObsMetadata::parseKeyword( const std::string& keyName, const std::string& 
               szTelescopeName = "MWA";
               eTelescopeName  = eMWA;
            }
-        }else if( keyName == "EXPOSURE" || keyName == "MJD" || keyName == "LST" || keyName == "HA" || keyName == "AZIMUTH" || keyName == "ALTITUDE" || keyName == "SUN-DIST" || keyName == "MOONDIST" || 
+        }else if( keyName == "EXPOSURE" || keyName == "MJD" || keyName == "LST" || keyName == "HA" || keyName == "SUN-DIST" || keyName == "MOONDIST" || 
                  keyName == "JUP-DIST" || keyName == "GRIDNUM" || keyName == "RECVRS" || keyName == "CHANNELS" || keyName == "SUN-ALT" || keyName == "TILEFLAG" || keyName == "NAV_FREQ" || 
                  keyName == "FINECHAN" || keyName == "TIMEOFF" )
                 ; // Ignore these fields, they can be derived from others.
@@ -427,6 +451,33 @@ bool CObsMetadata::parseKeyword( const std::string& keyName, const std::string& 
         }
 
         return true;
+}
+
+bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
+{
+   double uxtime = gps2ux( obsid );
+   
+   startUnixTime = uxtime; 
+   // ???? startUnixTime += (refSecond-int(refSecond)); 
+   
+   nScans = 1;
+   integrationTime = inttime_sec;
+   nChannels = 768;
+   
+   // ( ra_deg, dec_deg ) = azh2radec.azh2radec( uxtime, azim, alt, site=site, frame=frame )
+   // void azh2radec( double az, double alt, time_t unix_time, double geo_long_deg, double geo_lat_deg, double& out_ra, double& out_dec );      
+   double out_ra_deg, out_dec_deg;
+   azh2radec( AzimDeg, ElevDeg, uxtime, geo_long, geo_lat, out_ra_deg, out_dec_deg );
+   
+   raHrs = out_ra_deg/15.00;
+   tilePointingRARad = out_ra_deg*180.00/M_PI;
+   
+   decDegs = out_dec_deg;
+   tilePointingDecRad = out_dec_deg*180.00/M_PI;
+   
+   printf("DEBUG (CObsMetadata::fix_metafits) : meta data updated to n_scans = %ld, n_channels = %ld , integrationTime = %.6f [sec], raHrs = %.6f [h] , decDegs = %.6f [deg]\n",nScans,nChannels,integrationTime,raHrs,decDegs);
+    
+   return true;
 }
 
 bool CObsMetadata::parseFitsString(const char* valueStr, std::string& outString )

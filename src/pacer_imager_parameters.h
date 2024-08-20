@@ -14,6 +14,7 @@ public :
    // for example antenna positions are the same for all frequency channels (if they are imaged by separate CPacerImager objects as is currently implemented)
    static std::string m_AntennaPositionsFile; // antenna positions are same for all freq. channels -> static, similarly m_bConstantUVW
    static std::string m_MetaDataFile; // metafits file (.txt or .metafits)
+   static bool   m_bAutoFixMetaData;  // automatically recalculate RA,DEC,TIME using just standard METAFITS file (no need to create special METAFITS using fix_metafits_time_radec_all.py )
    static bool   m_bConstantUVW; // default false and only true to zenith phase centered images (all-sky from EDA2)
    static bool   m_bAntennaPositionsXYZ; // default false, true when antenna poisitions already in XYZ coordinates system (WG54 or whatever it is)
    static bool   m_bCalcEarthXYZ; // for the MWA we require conversion from local (x,y,z) to Earth's (X,Y,Z) coordinates , for EDA2 we can keep using local (x,y,z) 
