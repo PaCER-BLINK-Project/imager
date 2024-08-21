@@ -262,6 +262,8 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false,  true);
    MemoryBuffer<std::complex<float>> images_buffer(buffer_size, false, true);
    gpuMemset(grids_counters_buffer.data(), 0, n_images * image_size*sizeof(float));
+   gpuMemset(grids_buffer.data(), 0, n_images * image_size*sizeof(std::complex<float>));
+   
    
    
  
@@ -293,6 +295,27 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
          gpuDeviceSynchronize();
       }
    }
+   
+   grids_counters_buffer.to_cpu();
+   grids_buffer.to_cpu();
+   CBgFits reference_grid, reference_grid_counter;
+    reference_grid.ReadFits("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
+    reference_grid_counter.ReadFits("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
+
+    for(size_t i {0}; i < n_pixels * n_pixels; i++){
+        if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
+            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
+            break;
+        }
+    }
+    for(size_t i {0}; i < n_pixels * n_pixels; i++){
+        if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
+            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
+            exit(1);
+        }
+    }
+   grids_counters_buffer.to_gpu();
+   grids_buffer.to_gpu();
   // TODO: 2024-06-22 : DIVIDE m_in_buffer_gpu and uv_grid_real_gpu, uv_grid_imag_gpu by uv_grid_counter_gpu for uniform and other weightings to really work
   //            are uv_grid_imag_gpu uv_grid_real_gpu really needed ???
 
