@@ -365,19 +365,26 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
   // TODO: fix this
-  double fnorm = 1.00/sum_gpu_atomicadd( grids_counters_buffer.data(), image_size );
-  // double fnorm = 1.00/sum_gpu_parallel_reduce( uv_grid_counter_gpu, image_size );
+   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
+      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
+         std::complex<float>* current_image = images_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
+         float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
 
-  
-  // TODO : for now keeping it as it was as there is no clear advantage of doing normalsation on GPU 
-  // apply normalisation constant on GPU :
-  // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
-  // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
-  
-  // FFT shift together with multiplication by fnorm (normalisation)
-  // bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
-  fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, fnorm );
-  
+         double fnorm = 1.00/sum_gpu_atomicadd( current_counter, image_size );
+         // double fnorm = 1.00/sum_gpu_parallel_reduce( uv_grid_counter_gpu, image_size );
+
+         
+         // TODO : for now keeping it as it was as there is no clear advantage of doing normalsation on GPU 
+         // apply normalisation constant on GPU :
+         // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
+         // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
+         
+         // FFT shift together with multiplication by fnorm (normalisation)
+         // bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
+         fft_shift_and_norm_gpu( (gpufftComplex*) current_image, n_pixels, n_pixels, fnorm );
+      }
+   }
+
   // End of gpuMemcpy() GPU to CPU 
   clock_t end_time5 = clock();
   double duration_sec5 = double(end_time5-start_time5)/CLOCKS_PER_SEC;
@@ -385,6 +392,7 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
   printf("\n ** CLOCK gpuMemcpy() GPU to CPU took : %.6f [seconds], %.3f [ms]\n",duration_sec5,duration_ms5);
   PRINTF_DEBUG("\n GRIDDING CHECK: Step 5 GPU to CPU copied"); 
 
+    return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
 
