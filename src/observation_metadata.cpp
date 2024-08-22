@@ -465,7 +465,7 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    nChannels = 768;
    
    // WARNING : libnova has azimuth from the South !!!
-   azim = AzimDeg + 180.00;
+   double azim = AzimDeg + 180.00;
    if (azim > 360){
       azim = azim - 360;
    }
