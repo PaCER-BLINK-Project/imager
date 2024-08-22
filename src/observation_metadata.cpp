@@ -476,12 +476,15 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    printf("DEBUG : (CObsMetadata::fix_metafits) : azh2radec( %.6f , %.6f , %.6f , %.6f, %.6f , OUTPUT )\n",azim, ElevDeg, uxtime, geo_long, geo_lat);
    azh2radec( azim, ElevDeg, uxtime, geo_long, geo_lat, out_ra_deg, out_dec_deg );
    
-   raHrs = out_ra_deg/15.00;
+   // keep RA PHASE CENTRE AS IT IS IN THE METAFITS !!! DO NOT CHANGE THIS , just pointing direction 
+   // raHrs = out_ra_deg/15.00;
    tilePointingRARad = out_ra_deg*(M_PI/180.00);
    
-   decDegs = out_dec_deg;
+   // keep PHASE CENTRE AS IT IS IN THE METAFITS !!! DO NOT CHANGE THIS , just pointing direction
+   // decDegs = out_dec_deg;
    tilePointingDecRad = out_dec_deg*(M_PI/180.00);
-   
+
+   // update HA as this is pointing (not desired phase centre)   
    haHrs = hour_angle( out_ra_deg, uxtime );
       
    printf("DEBUG (CObsMetadata::fix_metafits) : meta data updated to n_scans = %ld, n_channels = %ld , integrationTime = %.6f [sec], raHrs = %.6f [h] , decDegs = %.6f [deg] , haHrs = %.6f [deg]\n",nScans,nChannels,integrationTime,raHrs,decDegs,haHrs);
