@@ -482,7 +482,9 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    decDegs = out_dec_deg;
    tilePointingDecRad = out_dec_deg*180.00/M_PI;
    
-   printf("DEBUG (CObsMetadata::fix_metafits) : meta data updated to n_scans = %ld, n_channels = %ld , integrationTime = %.6f [sec], raHrs = %.6f [h] , decDegs = %.6f [deg]\n",nScans,nChannels,integrationTime,raHrs,decDegs);
+   haHrs = hour_angle( out_dec_deg, unix_time );
+      
+   printf("DEBUG (CObsMetadata::fix_metafits) : meta data updated to n_scans = %ld, n_channels = %ld , integrationTime = %.6f [sec], raHrs = %.6f [h] , decDegs = %.6f [deg] , haHrs = %.6f [deg]\n",nScans,nChannels,integrationTime,raHrs,decDegs,haHrs);
     
    return true;
 }
