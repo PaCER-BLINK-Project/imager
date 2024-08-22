@@ -467,6 +467,7 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    // ( ra_deg, dec_deg ) = azh2radec.azh2radec( uxtime, azim, alt, site=site, frame=frame )
    // void azh2radec( double az, double alt, time_t unix_time, double geo_long_deg, double geo_lat_deg, double& out_ra, double& out_dec );      
    double out_ra_deg, out_dec_deg;
+   printf("DEBUG : (CObsMetadata::fix_metafits) : azh2radec( %.6f , %.6f , %.6f , %.6f, %.6f , OUTPUT )\n",AzimDeg, ElevDeg, uxtime, geo_long, geo_lat);
    azh2radec( AzimDeg, ElevDeg, uxtime, geo_long, geo_lat, out_ra_deg, out_dec_deg );
    
    raHrs = out_ra_deg/15.00;
