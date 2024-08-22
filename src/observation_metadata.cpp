@@ -477,10 +477,10 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    azh2radec( azim, ElevDeg, uxtime, geo_long, geo_lat, out_ra_deg, out_dec_deg );
    
    raHrs = out_ra_deg/15.00;
-   tilePointingRARad = out_ra_deg*180.00/M_PI;
+   tilePointingRARad = out_ra_deg*(M_PI/180.00);
    
    decDegs = out_dec_deg;
-   tilePointingDecRad = out_dec_deg*180.00/M_PI;
+   tilePointingDecRad = out_dec_deg*(M_PI/180.00);
    
    haHrs = hour_angle( out_ra_deg, uxtime );
       
