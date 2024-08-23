@@ -354,9 +354,9 @@ public :
    //-----------------------------------------------------------------------------------------------------------------------------
    // Apply phase corrections : geometrical correction, cable correction etc   
    //-----------------------------------------------------------------------------------------------------------------------------
-   virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w);
+   virtual bool ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies);
    
-   virtual bool ApplyCableCorrections( Visibilities& xcorr);
+   virtual bool ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies);
 
    //-----------------------------------------------------------------------------------------------------------------------------
    // Function saving output FITS files: 

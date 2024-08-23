@@ -23,7 +23,7 @@
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
 #include "files.hpp"
-
+#include "corrections.h"
 #include <fstream>
 #include <omp.h>
 
@@ -703,91 +703,6 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     return {std::move(images_buffer_float), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
-bool CPacerImager::ApplyGeometricCorrections(Visibilities &xcorr, CBgFits &fits_vis_w)
-{
-    if(xcorr.on_gpu()){
-        std::cout << "xcorr is on GPU!!! Moving to cpu.." << std::endl;
-        xcorr.to_cpu();
-    }else{
-        std::cout << "xcorr is on CPU.." << std::endl;
-    }
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_before_geo_corrections.fits");
-    int n_ant = xcorr.obsInfo.nAntennas;
-    #pragma omp parallel for collapse(2) schedule(static)
-    for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
-    {
-        for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
-        {
-            for (int ant1 = 0; ant1 < n_ant; ant1++)
-            {
-                for (int ant2 = 0; ant2 <= ant1; ant2++)
-                {
-                    double w = fits_vis_w.getXY(ant1, ant2); // or ant2,ant1 , was (+1)
-                    double angle = - 2.0 * M_PI * w * this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE) /
-                                   SPEED_OF_LIGHT; // TODO : + or - here ??? In brute force branch
-                                                   // was -
-
-                    double sin_angle, cos_angle;
-                    sincos(angle, &sin_angle, &cos_angle);
-
-                    std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, ant1, ant2);
-
-                    double re = vis[0].real();
-                    double im = vis[0].imag();
-
-                    double re_prim = re * cos_angle - im * sin_angle;
-                    double im_prim = im * cos_angle + re * sin_angle;
-
-                    std::complex<double> vis_new(re_prim, im_prim);
-                    *vis = vis_new;
-                }
-            }
-        }
-    }
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/01_after_geo_corrections.fits");
-    return true;
-}
-
-bool CPacerImager::ApplyCableCorrections(Visibilities &xcorr)
-{
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_before_cable_corrections.fits");
-    int n_ant = xcorr.obsInfo.nAntennas;
-    #pragma omp parallel for collapse(2) schedule(static)
-    for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
-    {
-        for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
-        {
-            for (int ant1 = 0; ant1 < n_ant; ant1++)
-            {
-                InputMapping &ant1_info = m_MetaData.m_AntennaPositions[ant1];
-                for (int ant2 = 0; ant2 <= ant1; ant2++)
-                {
-                    InputMapping &ant2_info = m_MetaData.m_AntennaPositions[ant2];
-
-                    double cableDeltaLen = ant2_info.cableLenDelta - ant1_info.cableLenDelta; // was ant2 - ant1
-                    double angle = -2.0 * M_PI * cableDeltaLen *
-                                   this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE) / SPEED_OF_LIGHT;
-
-                    double sin_angle, cos_angle;
-                    sincos(angle, &sin_angle, &cos_angle);
-
-                    std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, ant1, ant2);
-
-                    double re = vis[0].real();
-                    double im = vis[0].imag(); // TODO : why do I need 1 here ???
-                    double re_prim = re * cos_angle - im * sin_angle;
-                    double im_prim = im * cos_angle + re * sin_angle;
-
-                    std::complex<double> vis_new(re_prim, im_prim);
-                    *vis = vis_new;
-                }
-            }
-        }
-    }
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/02_after_cable_corrections.fits");
-    
-    return true;
-}
 
 //-----------------------------------------------------------------------------------------------------------------------------
 // Wrapper to run_imager as before : run_imager( CBgFits& fits_vis_real,
@@ -914,11 +829,21 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);
 
-    if (m_ImagerParameters.m_bApplyGeomCorr)
-        ApplyGeometricCorrections(xcorr, m_W);
+    MemoryBuffer<double> frequencies {xcorr.nFrequencies, false, false};
+    for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
+        frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 
-    if (m_ImagerParameters.m_bApplyCableCorr)
-        ApplyCableCorrections(xcorr);
+    if (m_ImagerParameters.m_bApplyGeomCorr)
+        ApplyGeometricCorrections(xcorr, m_W, frequencies);
+
+    if (m_ImagerParameters.m_bApplyCableCorr){
+        MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
+        for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
+            cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
+
+        ApplyCableCorrections(xcorr, cable_lengths, frequencies);
+    }
+        
 
     printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
     fflush(stdout);
@@ -953,4 +878,12 @@ double CPacerImager::get_frequency_hz(const Visibilities &vis, int fine_channel,
             coarse_channel_central_freq_MHz - coarse_ch_bw / 2.00 + fine_ch_bw * fine_channel + fine_ch_bw / 2.00;
     }
     return channel_frequency_MHz * 1e6;
+}
+
+bool CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
+    apply_geometric_corrections_cpu(xcorr, fits_vis_w, frequencies);
+}
+   
+bool CPacerImager::ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
+    apply_cable_lengths_corrections_cpu(xcorr, cable_lengths, frequencies);
 }

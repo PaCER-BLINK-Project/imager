@@ -17,4 +17,66 @@ class TestFailed : public std::exception {
 };
 
 
+template <typename T>
+bool complex_vectors_equal(const std::complex<T>* a, const std::complex<T>* b, size_t length){
+    double delta;
+    const double TOL {1e-5};
+    for(size_t i {0}; i < length; i++){
+        if (std::abs(a[i]) == 0) 
+            delta = std::abs(b[i]);
+        else 
+            delta = std::abs(a[i] - b[i]);
+        
+        if (delta > TOL) {
+            std::cout << "Elements at position " << i << " differs (delta = " << delta <<"): " << "a[i] = " << a[i] << ", b[i] = " << b[i] << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
+
+void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
+    auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
+    size_t fine_channel {0}, int_time {0};
+    size_t n_nans {0};
+    size_t total {0};
+    for(size_t a1 {0}; a1 < xcorr.obsInfo.nAntennas; a1++){
+        for(size_t a2 {0}; a2 < a1; a2++){
+            std::complex<float> *p1 = xcorr.at(int_time, fine_channel, a1, a2);
+            std::complex<float> *p2 = vis2.at(int_time, fine_channel, a1, a2);
+            for(size_t p {0}; p < 4; p++){
+                total++;
+                if(std::isnan(p1->real()) && std::isnan(p2->real()) && std::isnan(p2->imag()) && std::isnan(p1->imag())){
+                    n_nans++;
+                    continue;
+                }
+                if(*p1 != *p2){
+                    std::cerr << "xcorr differs from " << filename << "!!!!" << std::endl;
+                    std::cerr << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
+                    exit(1);
+                }
+            }
+        }
+    }
+    std::cout << "OKK comparison with " << filename << std::endl;
+    std::cout << "Percentage NaNs: " << (static_cast<double>(n_nans) / total * 100.0) << std::endl;
+}
+
+
+void load_dump(std::string filename, char *& buffer, size_t& size){
+    std::ifstream infile (filename, std::ifstream::binary);
+    // get size of file
+    infile.seekg (0,infile.end);
+    size = infile.tellg();
+    infile.seekg (0);
+
+    // allocate memory for file content
+    buffer = new char[size];
+
+    // read content of infile
+    infile.read (buffer, size);
+    infile.close();
+}
+
 #endif

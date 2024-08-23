@@ -350,19 +350,6 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_FORWARD);
     gpuDeviceSynchronize();
 
-    // END: gpufftPlanMany() 
-    std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-    PRINTF_BENCHMARK("BENCHMARK : gpufftExecC2C took: %.6f seconds. \n",time_span.count());
-
-
-
-  // Step 5: Copy contents from GPU variables to CPU variables
-  // gpuMemcpy(destination, source, size, HostToDevice)
-
-  // Start of gpuMemcpy() 
-  clock_t start_time5 = clock();
-
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
   // TODO: fix this
    for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
@@ -384,19 +371,11 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
          fft_shift_and_norm_gpu( (gpufftComplex*) current_image, n_pixels, n_pixels, fnorm );
       }
    }
-
-  // End of gpuMemcpy() GPU to CPU 
-  clock_t end_time5 = clock();
-  double duration_sec5 = double(end_time5-start_time5)/CLOCKS_PER_SEC;
-  double duration_ms5 = duration_sec5*1000;
-  printf("\n ** CLOCK gpuMemcpy() GPU to CPU took : %.6f [seconds], %.3f [ms]\n",duration_sec5,duration_ms5);
-  PRINTF_DEBUG("\n GRIDDING CHECK: Step 5 GPU to CPU copied"); 
-
     return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
 
-bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w){
+bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
    std::cout << "Applying geometric corrections on GPU.." << std::endl;
    
    xcorr.to_cpu();
@@ -428,19 +407,13 @@ bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& f
 }
 
 
-bool CPacerImagerHip::ApplyCableCorrections( Visibilities& xcorr){
+bool CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
    std::cout << "Applying cable corrections on GPU.." << std::endl;
    xcorr.to_cpu();
    ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/02_before_cable_corrections.fits");
     
 
    if(!xcorr.on_gpu()) xcorr.to_gpu();
-
-   MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
-   for(int ant=0; ant< xcorr.obsInfo.nAntennas; ant++){
-      InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
-      cable_lengths[ant] = ant1_info.cableLenDelta;
-   }
    cable_lengths.to_gpu();
 
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
