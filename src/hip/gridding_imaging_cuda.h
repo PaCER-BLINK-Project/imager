@@ -16,15 +16,15 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
                                       int* antenna_flags, float* antenna_weights,
                                       double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
                                       int n_pixels_cuda,
-                                      VISIBILITY_TYPE *vis_cuda,  
+                                      float *vis_cuda,  
                                       float *uv_grid_counter_cuda, double min_uv_cuda, 
                                       gpufftComplex *m_in_buffer_cuda);
 
 //----------------------------------- Phase corrections : cable, geometric, apply calibration ----------------------------------- 
 // kernel for applying geometric corrections:
-__global__ void apply_geometric_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *w_cuda, double frequency_hz, double speed_of_light );
+__global__ void apply_geometric_corrections( int xySize, int n_ant, float *vis_cuda, float *w_cuda, double frequency_hz, double speed_of_light );
 
-__global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, double *cable_lengths_cuda, double frequency_hz, double speed_of_light );
+__global__ void apply_cable_corrections( int xySize, int n_ant, float *vis_cuda, double *cable_lengths_cuda, double frequency_hz, double speed_of_light );
 
 
 
@@ -92,6 +92,6 @@ __device__ int calculate_pos(float u,
                              int uv_sign_cuda);
 
 // test functions :
-__global__ void vis2corrmatrix( int xySize, int n_ant, VISIBILITY_TYPE *vis_cuda, float *vis_corrmatrix_re_cuda, float* vis_corrmatrix_im_cuda );
+__global__ void vis2corrmatrix( int xySize, int n_ant, float *vis_cuda, float *vis_corrmatrix_re_cuda, float* vis_corrmatrix_im_cuda );
 
 #endif 

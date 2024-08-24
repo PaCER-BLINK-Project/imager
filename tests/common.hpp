@@ -3,6 +3,7 @@
 
 #include <exception>
 #include <string>
+#include <sstream>
 
 #define ENV_DATA_ROOT_DIR "BLINK_TEST_DATADIR"
 
@@ -38,29 +39,31 @@ bool complex_vectors_equal(const std::complex<T>* a, const std::complex<T>* b, s
 
 void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
     auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
-    size_t fine_channel {0}, int_time {0};
-    size_t n_nans {0};
-    size_t total {0};
-    for(size_t a1 {0}; a1 < xcorr.obsInfo.nAntennas; a1++){
-        for(size_t a2 {0}; a2 < a1; a2++){
-            std::complex<float> *p1 = xcorr.at(int_time, fine_channel, a1, a2);
-            std::complex<float> *p2 = vis2.at(int_time, fine_channel, a1, a2);
-            for(size_t p {0}; p < 4; p++){
-                total++;
-                if(std::isnan(p1->real()) && std::isnan(p2->real()) && std::isnan(p2->imag()) && std::isnan(p1->imag())){
-                    n_nans++;
-                    continue;
-                }
-                if(*p1 != *p2){
-                    std::cerr << "xcorr differs from " << filename << "!!!!" << std::endl;
-                    std::cerr << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
-                    exit(1);
+    for(size_t int_time {0}; int_time < xcorr.integration_intervals(); int_time++){
+        for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++){
+            size_t n_nans {0};
+            size_t total {0};
+            for(size_t a1 {0}; a1 < xcorr.obsInfo.nAntennas; a1++){
+                for(size_t a2 {0}; a2 < a1; a2++){
+                    std::complex<float> *p1 = xcorr.at(int_time, fine_channel, a1, a2);
+                    std::complex<float> *p2 = vis2.at(int_time, fine_channel, a1, a2);
+                    for(size_t p {0}; p < 4; p++){
+                        total++;
+                        if(std::isnan(p1->real()) && std::isnan(p2->real()) && std::isnan(p2->imag()) && std::isnan(p1->imag())){
+                            n_nans++;
+                            continue;
+                        }
+                        if(*p1 != *p2){
+                            std::stringstream ss;
+                            ss << "xcorr differs from " << filename << "!!!!" << std::endl;
+                            ss << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
+                            throw TestFailed(ss.str().c_str());
+                        }
+                    }
                 }
             }
         }
     }
-    std::cout << "OKK comparison with " << filename << std::endl;
-    std::cout << "Percentage NaNs: " << (static_cast<double>(n_nans) / total * 100.0) << std::endl;
 }
 
 

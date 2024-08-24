@@ -833,6 +833,8 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 
+    // m_W.WriteFits("m_W.fits");
+    //memdump((char*) frequencies.data(), xcorr.nFrequencies * sizeof(double), "frequencies.bin");
     if (m_ImagerParameters.m_bApplyGeomCorr)
         ApplyGeometricCorrections(xcorr, m_W, frequencies);
 
@@ -840,6 +842,9 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
         for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
             cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
+        
+        //memdump((char*) cable_lengths.data(), xcorr.obsInfo.nAntennas * sizeof(double), "cable_lengths.bin");
+
 
         ApplyCableCorrections(xcorr, cable_lengths, frequencies);
     }

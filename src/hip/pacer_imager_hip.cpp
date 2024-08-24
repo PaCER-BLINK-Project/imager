@@ -12,6 +12,8 @@
 #include <mystring.h>
 #include <mydate.h>
 
+#include "corrections_gpu.h"
+
 namespace {
        void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
         auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
@@ -376,61 +378,15 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 
 
 bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
-   std::cout << "Applying geometric corrections on GPU.." << std::endl;
-   
-   xcorr.to_cpu();
-   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits");
-   
-   
-   if(!xcorr.on_gpu()) xcorr.to_gpu();
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
    if(!w_gpu){
       gpuMalloc((void**)&w_gpu, xySize*sizeof(float));
    }
    gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
-   int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
-   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
-      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
-         double frequency_hz = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
-         // TODO: if ( frequency == freq_channel || freq_channel < 0 ){
-         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-         apply_geometric_corrections<<<nBlocks,NTHREADS>>>(xySize, xcorr.obsInfo.nAntennas, vis_local_gpu, w_gpu, frequency_hz, SPEED_OF_LIGHT);
-         gpuCheckLastError();
-         gpuDeviceSynchronize();
-      }
-   }
-   xcorr.to_cpu();
-   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/01_after_geo_corrections.fits");
-   
-   printf("DEBUG : after call of apply_geometric_corrections kernel\n");
-   return true;
+   apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies);
 }
 
 
 bool CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
-   std::cout << "Applying cable corrections on GPU.." << std::endl;
-   xcorr.to_cpu();
-   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/02_before_cable_corrections.fits");
-    
-
-   if(!xcorr.on_gpu()) xcorr.to_gpu();
-   cable_lengths.to_gpu();
-
-   int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
-   int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
-
-   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
-      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
-         // TODO: if ( frequency == freq_channel || freq_channel < 0 ){
-         double frequency_hz = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
-         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-         apply_cable_corrections<<<nBlocks, NTHREADS>>>(xySize, xcorr.obsInfo.nAntennas, vis_local_gpu, cable_lengths.data(), frequency_hz, SPEED_OF_LIGHT);
-         gpuCheckLastError();
-         gpuDeviceSynchronize();
-      }
-   }
-   xcorr.to_cpu();
-   ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/02_after_cable_corrections.fits");
-    xcorr.to_gpu();
-   return true;
+   apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies);
 }
