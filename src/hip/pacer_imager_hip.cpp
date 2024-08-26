@@ -384,9 +384,11 @@ bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& f
    }
    gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies);
+   return true;
 }
 
 
 bool CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
    apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies);
+   return true;
 }
