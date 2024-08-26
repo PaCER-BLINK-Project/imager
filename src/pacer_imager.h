@@ -121,30 +121,6 @@ class Images : public MemoryBuffer<std::complex<float>> {
 
 class CPacerImager
 {
-// simple functions required for some internal calculations : date/time/filename etc :
-protected : 
-
- 
-
-protected :
-
-   // check if image size is as required and re-alloc if not:
-   // Return : 
-   //    false - if image size was ok and nothing was required
-   //    true  - if image size was changed
-   bool CheckSize( CBgFits& image, int sizeX, int sizeY );
-   
-   // allocate memory if not yet done (NULL pointers) or check image size and re-size if needed :
-   bool AllocOutPutImages( int sizeX, int sizeY );   
-   bool AllocGriddedVis( int sizeX, int sizeY );
-   
-   // clean local variables allocated locally 
-   void CleanLocalAllocations();
-   
-   // TEMPORARY FOR TESTING - TO BE REMOVED LATER:
-   void ConvertXCorr2Fits( Visibilities& xcorr, CBgFits& vis_re, CBgFits& vis_im, int time_step, int fine_channel, const char* szBaseFitsName );
-   
-
 public :
    // TODO: decide if this should be static or member variables
    // debug level for the whole library / program :
