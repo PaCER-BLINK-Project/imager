@@ -1,7 +1,6 @@
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
 #include <gpu_macros.hpp>
-#include "gridding_imaging_cuda.h"
 #include "pacer_imager_hip_defines.h"
 
 

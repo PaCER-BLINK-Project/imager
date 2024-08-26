@@ -1,7 +1,7 @@
  #include "pacer_imager_hip.h"
 #include "pacer_imager_hip_defines.h"
 
-#include "gridding_imaging_cuda.h"
+#include "gridding_gpu.h"
 
 #define __GPU__
 #include <gpu_macros.hpp>
