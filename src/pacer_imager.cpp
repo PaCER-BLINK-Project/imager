@@ -202,7 +202,7 @@ void CPacerImager::SetFlaggedAntennas(vector<int> &flagged_antennas)
 }
 
 CPacerImager::CPacerImager()
-    : m_bInitialised(false), m_Baselines(0), m_SkyImageCounter(0),
+    : m_bInitialised(false), m_Baselines(0),
      m_bIncludeAutos(false),
       m_nAntennas(0), u_mean(0.00), u_rms(0.00), u_min(0.00), u_max(0.00), v_mean(0.00),
       v_rms(0.00), v_min(0.00), v_max(0.00), w_mean(0.00), w_rms(0.00), w_min(0.00), w_max(0.00)

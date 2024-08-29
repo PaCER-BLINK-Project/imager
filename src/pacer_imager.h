@@ -180,13 +180,6 @@ public :
 
    bool     m_bLocalAllocation;
 
-   //-------------------------------------------------------------------------------------------------------------
-   // image counter : counts how many sky images have been already created
-   //-------------------------------------------------------------------------------------------------------------
-   int      m_SkyImageCounter;
-   
-   
-
 
    CPacerImager();
    ~CPacerImager();
