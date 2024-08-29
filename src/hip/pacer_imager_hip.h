@@ -35,13 +35,8 @@ protected :
    int m_AllocatedImageSize; // size of memory allocated for images 
    
 
-   // Memory management functions for GPU version - for just a single image (N parameter is not used here on purpose)
-   //  N blocks version is implemented in the derived class CPacerImagerMultiHip
-   virtual void AllocGPUMemory( int corr_size, 
-                                int image_size
-                              );
    // Clean GPU Memory 
-   virtual void CleanGPUMemory(); 
+   void CleanGPUMemory(); 
    
    
    // update antenna flags:

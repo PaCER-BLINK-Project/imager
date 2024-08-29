@@ -8,10 +8,11 @@ https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-c
 
 #include <gpu_macros.hpp>
 #include <gpu_fft.hpp>
+#include <astroio.hpp>
+#include <memory_buffer.hpp>
+#include <bg_fits.h>
 
-// msfitslib :
-#include <array_config_common.h>
-#include "../pacer_imager_defs.h"
+#include "pacer_imager_hip_defines.h"
 
 __device__ inline int wrap_index(int i, int side){
     if(i >= 0) return i % side;
@@ -68,7 +69,7 @@ __device__ int calculate_pos(float u,
 
 
 // Cuda kernal: gridding and cuFFT 
-__global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlation matrix
+__global__ void gridding_imaging_cuda_xcorr( int corr_size, // size of the correlation matrix
                                       int n_ant,
                                       float *u_cuda, float *v_cuda, 
                                       int* antenna_flags, float* antenna_weights,
@@ -81,7 +82,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
     // Calculating the required id 
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if ( i >= xySize ){
+    if ( i >= corr_size ){
        // this thread should not be used as it will correspond to the cell
        // outside the size of the correlation matrix
        return;
@@ -158,7 +159,7 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
 
 
 // Cuda kernal: gridding and cuFFT 
-__global__ void calculate_counter( int xySize, // size of the correlation matrix
+__global__ void calculate_counter( int corr_size, // size of the correlation matrix
                                    float *u_cuda, float *v_cuda, 
                                    double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
                                    int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
@@ -168,7 +169,7 @@ __global__ void calculate_counter( int xySize, // size of the correlation matrix
     // Calculating the required id 
     int i = blockDim.x * blockIdx.x + threadIdx.x;
 
-    if ( i >= xySize ){
+    if ( i >= corr_size ){
        // this thread should not be used as it will correspond to the cell
        // outside the size of the correlation matrix
        return;
@@ -196,3 +197,56 @@ __global__ void calculate_counter( int xySize, // size of the correlation matrix
     }   
 }
 
+
+
+void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
+      CBgFits& fits_vis_u, CBgFits& fits_vis_v,
+      int* antenna_flags, float* antenna_weights,
+      MemoryBuffer<double>& frequencies,
+      double delta_u, double delta_v,
+      int n_pixels, double min_uv, MemoryBuffer<float>& grids_counters_buffer,
+      MemoryBuffer<std::complex<float>>& grids_buffer){
+  std::cout << "Running 'gridding' on GPU.." << std::endl;
+
+  int n_ant = xcorr.obsInfo.nAntennas;
+  int corr_size = n_ant * n_ant;
+  int image_size {n_pixels * n_pixels}; 
+
+  float *u_cpu = fits_vis_u.get_data();
+  float *v_cpu = fits_vis_v.get_data();
+   float *u_gpu, *v_gpu;
+   gpuMalloc((void**)&u_gpu, corr_size*sizeof(float));
+   gpuMalloc((void**)&v_gpu, corr_size*sizeof(float));
+   
+   gpuMemcpy((float*)u_gpu, (float*)u_cpu, sizeof(float)*corr_size, gpuMemcpyHostToDevice); 
+   gpuMemcpy((float*)v_gpu, (float*)v_cpu, sizeof(float)*corr_size, gpuMemcpyHostToDevice);
+  
+
+
+   size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
+   size_t buffer_size {image_size * n_images};
+   
+   gpuMemset(grids_counters_buffer.data(), 0, n_images * image_size * sizeof(float));
+   gpuMemset(grids_buffer.data(), 0, n_images * image_size * sizeof(std::complex<float>));
+   
+
+
+   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
+      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
+         double frequency_hz = frequencies[fine_channel];
+         double wavelength_m = VEL_LIGHT / frequency_hz;
+         int nBlocks = (corr_size + NTHREADS -1)/NTHREADS;
+         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
+         std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
+         float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
+
+         gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( corr_size, n_ant, u_gpu, v_gpu, antenna_flags, antenna_weights, wavelength_m, image_size,
+            delta_u, delta_v, n_pixels, vis_local_gpu, current_counter, min_uv, (gpufftComplex*)current_grid);   
+         // Gives the error in the kernel! 
+         gpuGetLastError();
+         gpuDeviceSynchronize();
+      }
+   }
+   gpuFree(u_gpu); 
+   gpuFree(v_gpu);
+}

@@ -163,9 +163,9 @@ public :
    
    
    // UVW for SKA-Low station zenith phase-centered all-sky imaging :
-//    MemoryBuffer<float> m_U {};
-//    MemoryBuffer<float> m_V {};
-//    MemoryBuffer<float> m_W {};
+   // MemoryBuffer<float> m_Ud {};
+   // MemoryBuffer<float> m_V {};
+   // MemoryBuffer<float> m_W {};
    CBgFits m_U;
    CBgFits m_V;
    CBgFits m_W;
@@ -176,6 +176,7 @@ public :
    int m_Baselines; // number of calculated baselines, also indicator if m_U, m_V and m_W have been initialised 
    int m_nAntennas;
    
+   // MemoryBuffer<double> frequencies;
    
    // values calculated for the current image :
    double m_PixscaleAtZenith;

@@ -111,10 +111,6 @@ __global__ void apply_geometric_corrections(int xySize, int n_ant, VISIBILITY_TY
     double re_prim = re*cos_angle - im*sin_angle;
     double im_prim = im*cos_angle + re*sin_angle;
     
-    if( max_a == 1 && min_a == 0 ){    
-       printf("KERNEL : (%d,%d) , angle = %.8f , w = %.8f , %.4f / %.4f , freq = %.2f Hz -> %.8f / %.8f\n",max_a,min_a,angle,w,re,im,frequency_hz,re_prim,im_prim);
-    }
-    
     vis[0] = re_prim;
     vis[1] = -im_prim; // was + but now - for upper triangular matrix
 }

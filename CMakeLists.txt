@@ -123,3 +123,7 @@ add_test(NAME imager_test COMMAND imager_test)
 add_executable(corrections_test tests/corrections_test.cpp)
 target_link_libraries(corrections_test imaging)
 add_test(NAME corrections_test COMMAND corrections_test)
+
+add_executable(gridding_test tests/gridding_test.cpp)
+target_link_libraries(gridding_test imaging)
+add_test(NAME gridding_test COMMAND gridding_test)

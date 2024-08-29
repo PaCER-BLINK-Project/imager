@@ -14,6 +14,8 @@
 
 #include "corrections_gpu.h"
 
+void memdump(char *ptr, size_t nbytes, std::string filename);
+
 namespace {
        void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
         auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
@@ -59,28 +61,6 @@ CPacerImagerHip::~CPacerImagerHip()
    CleanGPUMemory();
 }
 
-void CPacerImagerHip::AllocGPUMemory( int corr_size, int image_size ) 
-{
-   m_AllocatedXYSize = corr_size;
-   m_AllocatedImageSize = image_size;
-   int n_ant = sqrt(corr_size);
-   printf("DEBUG :  CPacerImagerHip::AllocGPUMemory( %d , %d ) -> n_ant = %d\n",corr_size,image_size,n_ant);
-
-   // Memory for GPU input variables: 
-   if( !u_gpu )
-   {
-      (gpuMalloc((void**)&u_gpu, corr_size*sizeof(float)));
-      (gpuMemset((float*)u_gpu, 0, corr_size*sizeof(float)));
-   }
-   if( !v_gpu )
-   {
-      (gpuMalloc((void**)&v_gpu, corr_size*sizeof(float)));
-      (gpuMemset((float*)v_gpu, 0, corr_size*sizeof(float)));
-   }
-   
-  
-   
-}
 
 
 void CPacerImagerHip::CleanGPUMemory()
@@ -91,18 +71,7 @@ void CPacerImagerHip::CleanGPUMemory()
       vis_gpu = NULL;
    }
 
-   if( u_gpu )
-   {
-      (gpuFree( u_gpu)); 
-      u_gpu = NULL;
-   }
 
-   if( v_gpu )
-   {
-      (gpuFree( v_gpu)); 
-      v_gpu = NULL;
-   }
-   
    if( w_gpu )
    {
       (gpuFree( w_gpu)); 
@@ -160,6 +129,7 @@ void CPacerImagerHip::UpdateAntennaFlags( int n_ant )
    if(!antenna_flags_cpu){
       antenna_flags_cpu = new int[n_ant];      
    }
+
    if(!antenna_weights_cpu){
       antenna_weights_cpu = new float[n_ant];
    }
@@ -203,7 +173,7 @@ void CPacerImagerHip::UpdateAntennaFlags( int n_ant )
 // TODO : 
 //     - do more cleanup of this function as this is nearly "RAW" copy paste from Gayatri's code:
 //     - optimise (same in CPU version) uv_grid_counter, uv_grid_real, uv_grid_imag to become member variables.
-Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr, 
+Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr, 
                                      int time_step, 
                                      int fine_channel,
                                      CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
@@ -216,116 +186,34 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
 {
   std::cout << "Running 'gridding_imaging' on GPU.." << std::endl;
 
-
-  PACER_PROFILER_START
-  bool bStatisticsCalculated = false;
-  if( m_bPrintImageStatistics ){ // TODO : ? may require a separate flag in the future, for now just using a single Statistics switch ON/OFF flag
-     fits_vis_u.GetStat( u_mean, u_rms, u_min, u_max );
-
-     // V : 
-     fits_vis_v.GetStat( v_mean, v_rms, v_min, v_max );
-
-     // W : 
-     fits_vis_w.GetStat( w_mean, w_rms, w_min, w_max );
-
-     bStatisticsCalculated = true;
-  }
-
-  // Input size: u, v and w 
   int n_ant = xcorr.obsInfo.nAntennas;
   int xySize = n_ant * n_ant;
-
-
   int image_size {n_pixels * n_pixels}; 
 
-  // In order to include conjugates at (-u,-v) UV point in gridding
-  u_min = -u_max;
-  v_min = -v_max;
-
-
-  float *u_cpu = fits_vis_u.get_data();
-  float *v_cpu = fits_vis_v.get_data();
-
-  // Allocate only if not-allocated 
-
-  // TODO : warning GPU UV grid is not initialised to ZEROs :
-  // For the UV matrices, for now
-  AllocGPUMemory(xySize, image_size ); //  out_image_real.get_data() );
+  // update antenna flags before gridding which uses these flags or weights:
+  UpdateAntennaFlags( n_ant );
 
    size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
    MemoryBuffer<float> grids_counters_buffer(buffer_size, false, true);
    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false,  true);
    MemoryBuffer<std::complex<float>> images_buffer(buffer_size, false, true);
-   gpuMemset(grids_counters_buffer.data(), 0, n_images * image_size*sizeof(float));
-   gpuMemset(grids_buffer.data(), 0, n_images * image_size*sizeof(std::complex<float>));
-   
-   
-   
- 
-  // Step 3: Copy contents from CPU to GPU [input variables]
-  // gpuMemcpy(destination, source, size, HostToDevice)
-
-  // Start of gpuMemcpy()
-  (gpuMemcpy((float*)u_gpu, (float*)u_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice)); 
-  (gpuMemcpy((float*)v_gpu, (float*)v_cpu, sizeof(float)*xySize, gpuMemcpyHostToDevice));
   
   
-  // update antenna flags before gridding which uses these flags or weights:
-  UpdateAntennaFlags( n_ant );
 
-   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
-      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
-         double frequency_hz = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
-         double wavelength_m = VEL_LIGHT / frequency_hz;
-         int nBlocks = (xySize + NTHREADS -1)/NTHREADS;
-         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-         std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
-         float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
+   MemoryBuffer<double> frequencies {xcorr.nFrequencies, false, false};
+   for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
+      frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 
-         gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( xySize, n_ant, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, wavelength_m, image_size, delta_u, delta_v, n_pixels, vis_local_gpu, current_counter, min_uv, (gpufftComplex*)current_grid); 
-         PRINTF_DEBUG("\n GRIDDING CHECK: Step 4 Calls to kernel");
-         
-         // Gives the error in the kernel! 
-         gpuGetLastError();
-         gpuDeviceSynchronize();
-      }
-   }
+
+   memdump((char*)antenna_flags_cpu, n_ant * sizeof(int), "antenna_flags.bin");
+   memdump((char*)antenna_weights_cpu, n_ant * sizeof(int), "antenna_weights.bin");
+   fits_vis_u.WriteFits("U.fits");
+   fits_vis_v.WriteFits("V.fits");
    
-   grids_counters_buffer.to_cpu();
-   grids_buffer.to_cpu();
-   CBgFits reference_grid, reference_grid_counter;
-    reference_grid.ReadFits("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/uv_grid_real_8192x8192.fits", 0, 1, 1 );
-    reference_grid_counter.ReadFits("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/uv_grid_counter_8192x8192.fits", 0, 1, 1 );
+   gridding_gpu(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies,
+      delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
 
-    for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
-            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
-            break;
-        }
-    }
-    for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
-            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
-            exit(1);
-        }
-    }
-   grids_counters_buffer.to_gpu();
-   grids_buffer.to_gpu();
-  // TODO: 2024-06-22 : DIVIDE m_in_buffer_gpu and uv_grid_real_gpu, uv_grid_imag_gpu by uv_grid_counter_gpu for uniform and other weightings to really work
-  //            are uv_grid_imag_gpu uv_grid_real_gpu really needed ???
-
-
-  // TEMPORARY - check if UV Grid values are already truncated straight after after the kernel call
-  // (gpuMemcpy((float*)uv_grid_real_cpu, (float*)uv_grid_real_gpu, sizeof(float)*image_size, gpuMemcpyDeviceToHost)); 
-  // printf("\nDEBUG : GPU gridding (4,0) = %.20f [just after kernel call gridding_imaging_cuda]\n",m_uv_grid_real->getXY(4,0));  
-
-
-  // uv_grid_counter_xSize = width
-  // uv_grid_counter_ySize = height
-  // size = image_size: (width x height)
-
-  // Checking Execution time for cuFFT
     if( !m_FFTPlan ){
        int n[2]; 
        n[0] = n_pixels; 
