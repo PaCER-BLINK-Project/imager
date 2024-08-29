@@ -310,7 +310,7 @@ void CPacerImager::Initialise()
       if( CImagerParameters::m_bAutoFixMetaData ){
          obsid = CObsMetadata::ux2gps( m_ImagerParameters.m_fUnixTime );
       }
-      if( !m_MetaData.ReadMetaData( m_ImagerParameters.m_MetaDataFile.c_str(), obsid ) ){
+      if( !m_MetaData.ReadMetaData( m_ImagerParameters.m_MetaDataFile.c_str(), obsid, m_ImagerParameters.m_integrationTime ) ){
          PRINTF_ERROR("ERROR : could not read meta data from file %s\n",m_ImagerParameters.m_MetaDataFile.c_str() );
       }
     }       

@@ -32,6 +32,7 @@ public :
    
    // output image size :
    int m_ImageSize;
+   double m_integrationTime;
    
    // Image Field-of-View :
    double m_ImageFOV_degrees;
