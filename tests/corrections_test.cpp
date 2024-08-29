@@ -46,7 +46,7 @@ void test_cable_lengths_correction_cpu(){
     std::cout << "'test_cable_lengths_correction_cpu' passed." << std::endl;
 }
 
-
+#ifdef __GPU__
 void test_geometric_correction_gpu(){
     ObservationInfo obs_info {VCS_OBSERVATION_INFO};
     Visibilities xcorr = Visibilities::from_fits_file(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits", obs_info);
@@ -83,7 +83,7 @@ void test_cable_lengths_correction_gpu(){
     compare_xcorr_to_fits_file(xcorr, dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/02_after_cable_corrections.fits");
     std::cout << "'test_cable_lengths_correction_gpu' passed." << std::endl;
 }
-
+#endif
 
 
 int main(void){
@@ -97,8 +97,10 @@ int main(void){
     try{
         test_geometric_correction_cpu();
         test_cable_lengths_correction_cpu();
+        #ifdef __GPU__
         test_geometric_correction_gpu();
         test_cable_lengths_correction_gpu();
+        #endif
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;
         return 1;
