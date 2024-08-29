@@ -69,12 +69,7 @@ protected :
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="", // weighting : U for uniform (others not implemented)
-                  const char* szBaseOutFitsName=NULL,
-                  bool do_gridding=true,                  
-                  bool do_dirty_image=true,
-                  const char* in_fits_file_uv_re = "", // gridded visibilities can be provided externally
-                  const char* in_fits_file_uv_im = "", // gridded visibilities can be provided externally
-                  bool bSaveIntermediate=false , bool bSaveImaginary=true 
+                  const char* szBaseOutFitsName=NULL
                 );
 
     // virtual function to NOT DO corrections in CPU but in GPU :

@@ -211,13 +211,7 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
                                      int    n_pixels,
                                      double min_uv /*=-1000*/,    // minimum UV 
                                      const char* weighting /*=""*/, // weighting : U for uniform (others not implemented)
-                                     const char* szBaseOutFitsName /*=NULL*/, 
-                                     bool do_gridding,
-                                     bool do_dirty_image,
-                                     const char* in_fits_file_uv_re, /*=""*/ // gridded visibilities can be provided externally
-                                     const char* in_fits_file_uv_im,  /*=""*/ // gridded visibilities can be provided externally
-                                     bool bSaveIntermediate /*=false*/ , 
-                                     bool bSaveImaginary /*=true*/
+                                     const char* szBaseOutFitsName /*=NULL*/
                 )
 {
   std::cout << "Running 'gridding_imaging' on GPU.." << std::endl;
@@ -351,6 +345,9 @@ Images CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_FORWARD);
     gpuDeviceSynchronize();
+     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
+   std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
+      PRINTF_BENCHMARK("BENCHMARK : gpufftExec executed and took %.6f seconds.\n",time_span.count());
 
   // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
   // TODO: fix this

@@ -57,11 +57,7 @@ __global__ void apply_cable_corrections( int xySize, int n_ant, VISIBILITY_TYPE 
     
     double re_prim = re*cos_angle - im*sin_angle;
     double im_prim = im*cos_angle + re*sin_angle;
-    
-    if( max_a == 1 && min_a == 0 ){    
-       printf("KERNEL : (%d,%d) , angle = %.8f , cable_max_a = %.8f , cable_min_a = %.8f, %.4f / %.4f , freq = %.2f Hz -> %.8f / %.8f\n",max_a,min_a,angle,cable_lengths_cuda[max_a],cable_lengths_cuda[min_a],re,im,frequency_hz,re_prim,im_prim);
-    }
-    
+
     vis[0] = re_prim;
     vis[1] = im_prim; // was + but now - for upper triangular matrix
 

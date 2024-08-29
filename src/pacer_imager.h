@@ -163,6 +163,9 @@ public :
    
    
    // UVW for SKA-Low station zenith phase-centered all-sky imaging :
+//    MemoryBuffer<float> m_U {};
+//    MemoryBuffer<float> m_V {};
+//    MemoryBuffer<float> m_W {};
    CBgFits m_U;
    CBgFits m_V;
    CBgFits m_W;
@@ -273,39 +276,11 @@ public :
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="", // weighting : U for uniform (others not implemented)
-                  const char* szBaseOutFitsName=NULL,
-                  bool do_gridding=true,                  
-                  bool do_dirty_image=true,
-                  const char* in_fits_file_uv_re = "", // gridded visibilities can be provided externally
-                  const char* in_fits_file_uv_im = "", // gridded visibilities can be provided externally
-                  bool bSaveIntermediate=false, bool bSaveImaginary=true
+                  const char* szBaseOutFitsName=NULL
                 );
 
 
 
-
-   // same as above, but uses Visibility from the AstroIO library :
-   Images run_imager( Visibilities& xcorr, 
-                    int time_step, 
-                    int fine_channel,
-                    CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                    int    n_pixels,
-                    double FOV_degrees,
-                    double min_uv=-1000,        // minimum UV 
-                    bool   do_gridding=true,    // excute gridding  (?)
-                    bool   do_dirty_image=true, // form dirty image (?)
-                    const char* weighting="",   // weighting : U for uniform (others not implemented)
-                    const char* in_fits_file_uv_re="", // gridded visibilities can be provided externally
-                    const char* in_fits_file_uv_im="",  // gridded visibilities can be provided externally
-                    const char* szBaseOutFitsName=NULL
-                  );
-
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // Wrapper to run_imager :
-   // Reads FITS files and executes overloaded function run_imager ( as above )
-   //-----------------------------------------------------------------------------------------------------------------------------
-
-   // overloaded function using astroio class Visibilities as an input:
    Images run_imager( Visibilities& xcorr, 
                     int time_step, 
                     int fine_channel,

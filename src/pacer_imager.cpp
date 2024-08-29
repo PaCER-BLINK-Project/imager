@@ -663,12 +663,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                                     int n_pixels, double min_uv /*=-1000*/, // minimum UV
                                     const char *weighting /*=""*/,          // weighting : U for uniform (others not
                                                                             // implemented)
-                                    const char *szBaseOutFitsName /*=NULL*/, bool do_gridding, bool do_dirty_image,
-                                    const char *in_fits_file_uv_re,
-                                    /*=""*/ // gridded visibilities can be provided externally
-                                    const char *in_fits_file_uv_im,
-                                    /*=""*/ // gridded visibilities can be provided externally
-                                    bool bSaveIntermediate /*=false*/, bool bSaveImaginary /*=true*/
+                                    const char *szBaseOutFitsName /*=NULL*/
 )
 {
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
@@ -680,23 +675,13 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
     MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false, false);
     // Should be long long int, but keeping float now for compatibility reasons
-    if (do_gridding)
-    {
-        gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids_buffer,
+    gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids_buffer,
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
-    }
+    
 
-    // // TODO: Cristian investigate use of single precision fftw
-    //     // need this memory allocation just to catch the buffer overflow happening in fft_shift!!
-    // // we cannot free this memory as it is corrupted
-    // MemoryBuffer<std::complex<double>> images_buffer_double(buffer_size, false, false);
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
-    if (do_dirty_image)
-    {
-        // dirty image :
-        PRINTF_INFO("PROGRESS : executing dirty image\n");
-        dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
-    }
+   PRINTF_INFO("PROGRESS : executing dirty image\n");
+    dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
     // float *dest {reinterpret_cast<float*>(images_buffer_float.data())};
     // double *src {reinterpret_cast<double*>(images_buffer_double.data())};
     // for(size_t i {0}; i < buffer_size * 2; i++) dest[i] = static_cast<float>(src[i]);
@@ -704,27 +689,63 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
 }
 
 
-//-----------------------------------------------------------------------------------------------------------------------------
-// Wrapper to run_imager as before : run_imager( CBgFits& fits_vis_real,
-// CBgFits& fits_vis_imag, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits&
-// fits_vis_w ...) it uses AstroIO class Visibility Reads FITS files and
-// executes overloaded function run_imager ( as above )
-//-----------------------------------------------------------------------------------------------------------------------------
-Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
-                              CBgFits &fits_vis_v, CBgFits &fits_vis_w, // UVW
-                              int n_pixels, double FOV_degrees,
-                              double min_uv,         // =-1000, minimum UV
-                              bool do_gridding,      // =true, excute gridding  (?)
-                              bool do_dirty_image,   // =true, form dirty image (?)
-                              const char *weighting, // ="",  weighting : U for uniform (others not implemented)
-                              const char *in_fits_file_uv_re, // ="", gridded visibilities can be
-                                                              // provided externally
-                              const char *in_fits_file_uv_im, // ="",  gridded visibilities can be
-                                                              // provided externally
-                              const char *szBaseOutFitsName   // =NULL
+Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, int n_pixels, double FOV_degrees,
+                              double min_uv /*=-1000*/,      // minimum UV
+                              bool do_gridding /*=true*/,    // excute gridding  (?)
+                              bool do_dirty_image /*=true*/, // form dirty image (?)
+                              const char *weighting /*=""*/, // weighting : U for uniform (others not
+                                                             // implemented)
+                              const char *szBaseOutFitsName /*=NULL*/,
+                              bool bCornerTurnRequired /*=true*/ // changes indexing of data
+                                                                 // "corner-turn" from xGPU structure to
+                                                                 // continues (FITS image-like)
 )
 {
-    //   // based on RTS : UV pixel size as function FOVtoGridsize in
+    // TODO Cristian: time_step, fine_channel will be used in the to select a
+    // subset of data to be imaged. ensures initalisation of object structures
+    // TODO: this init function must be modified
+    double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
+    Initialise(initial_frequency_hz);
+    int n_ant = xcorr.obsInfo.nAntennas;
+    int n_pol = xcorr.obsInfo.nPolarizations;
+    // Why not set in constructor?
+    m_ImagerParameters.m_ImageFOV_degrees = FOV_degrees; // 2024-03-24 - reasons as above
+
+    if (m_ImagerParameters.m_fUnixTime <= 0.0001)
+    {
+        m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
+        PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
+    }
+    xcorr.to_cpu();
+    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
+    
+    // calculate UVW (if required)
+    CalculateUVW(initial_frequency_hz);
+
+    MemoryBuffer<double> frequencies {xcorr.nFrequencies, false, false};
+    for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
+        frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
+
+    // m_W.WriteFits("m_W.fits");
+    //memdump((char*) frequencies.data(), xcorr.nFrequencies * sizeof(double), "frequencies.bin");
+    if (m_ImagerParameters.m_bApplyGeomCorr)
+        ApplyGeometricCorrections(xcorr, m_W, frequencies);
+
+    if (m_ImagerParameters.m_bApplyCableCorr){
+        MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
+        for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
+            cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
+        
+        //memdump((char*) cable_lengths.data(), xcorr.obsInfo.nAntennas * sizeof(double), "cable_lengths.bin");
+
+
+        ApplyCableCorrections(xcorr, cable_lengths, frequencies);
+    }
+        
+
+    printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
+    fflush(stdout);
+        //   // based on RTS : UV pixel size as function FOVtoGridsize in
     //   /home/msok/mwa_software/RTS_128t/src/gridder.c double frequency_hz =
     //   frequency_mhz*1e6; double wavelength_m = VEL_LIGHT / frequency_hz;
     double FoV_radians = FOV_degrees * M_PI / 180.;
@@ -789,71 +810,9 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     {
         // virtual function calls gridding and imaging in GPU/HIP version it is
         // overwritten and both gridding and imaging are performed on GPU memory :
-        return gridding_imaging(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, delta_u, delta_v, n_pixels,
-                         min_uv, weighting, szBaseOutFitsName, do_gridding, do_dirty_image, in_fits_file_uv_re,
-                         in_fits_file_uv_im);
+        return gridding_imaging(xcorr, time_step, fine_channel, m_U, m_V, m_W, delta_u, delta_v, n_pixels,
+                         min_uv, weighting, szBaseOutFitsName);
     }
-}
-
-
-Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, int n_pixels, double FOV_degrees,
-                              double min_uv /*=-1000*/,      // minimum UV
-                              bool do_gridding /*=true*/,    // excute gridding  (?)
-                              bool do_dirty_image /*=true*/, // form dirty image (?)
-                              const char *weighting /*=""*/, // weighting : U for uniform (others not
-                                                             // implemented)
-                              const char *szBaseOutFitsName /*=NULL*/,
-                              bool bCornerTurnRequired /*=true*/ // changes indexing of data
-                                                                 // "corner-turn" from xGPU structure to
-                                                                 // continues (FITS image-like)
-)
-{
-    // TODO Cristian: time_step, fine_channel will be used in the to select a
-    // subset of data to be imaged. ensures initalisation of object structures
-    // TODO: this init function must be modified
-    double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
-    Initialise(initial_frequency_hz);
-    int n_ant = xcorr.obsInfo.nAntennas;
-    int n_pol = xcorr.obsInfo.nPolarizations;
-    // Why not set in constructor?
-    m_ImagerParameters.m_ImageFOV_degrees = FOV_degrees; // 2024-03-24 - reasons as above
-
-    if (m_ImagerParameters.m_fUnixTime <= 0.0001)
-    {
-        m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
-        PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
-    }
-    xcorr.to_cpu();
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
-    
-    // calculate UVW (if required)
-    CalculateUVW(initial_frequency_hz);
-
-    MemoryBuffer<double> frequencies {xcorr.nFrequencies, false, false};
-    for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
-        frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
-
-    // m_W.WriteFits("m_W.fits");
-    //memdump((char*) frequencies.data(), xcorr.nFrequencies * sizeof(double), "frequencies.bin");
-    if (m_ImagerParameters.m_bApplyGeomCorr)
-        ApplyGeometricCorrections(xcorr, m_W, frequencies);
-
-    if (m_ImagerParameters.m_bApplyCableCorr){
-        MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
-        for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
-            cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
-        
-        //memdump((char*) cable_lengths.data(), xcorr.obsInfo.nAntennas * sizeof(double), "cable_lengths.bin");
-
-
-        ApplyCableCorrections(xcorr, cable_lengths, frequencies);
-    }
-        
-
-    printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
-    fflush(stdout);
-    return run_imager(xcorr, time_step, fine_channel, m_U, m_V, m_W, n_pixels, FOV_degrees, min_uv, do_gridding,
-                          do_dirty_image, weighting, "", "", szBaseOutFitsName);
 
 }
 
