@@ -81,23 +81,9 @@ namespace {
     }
 
 
-    int calc_fft_shift_marcin(int pos, int side){
-        int half = side / 2;
-        int is_odd = side % 2;             
-        if( pos < half ){
-            return half + pos + is_odd;
-        }else{
-            return pos - half;
-        }                    
-    }
-
-    int calc_fft_shift_cristian(int pos, int side){
+    int calc_fft_shift(int pos, int side){
         int is_odd = side % 2;
         return (pos + side/2 + is_odd) % (side);
-    }
-
-    int calc_fft_shift(int pos, int side){
-        return calc_fft_shift_cristian(pos, side);
     }
 }
 
