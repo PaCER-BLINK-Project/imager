@@ -50,6 +50,9 @@ void test_vector_sum(){
             throw TestFailed(ss.str().c_str());
         }
     }
+    gpuFree(data_gpu);
+    delete[] data_cpu;
+    delete[] sums_cpu;
     std::cout << "'test_vector_sum' passed." << std::endl;
 }
 
