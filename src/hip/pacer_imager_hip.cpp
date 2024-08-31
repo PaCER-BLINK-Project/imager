@@ -221,7 +221,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
        gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2C, n_images );
     }
     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_FORWARD);
-    float* fnorm = sum_gpu_atomicadd(grids_counters_buffer.data(), image_size, n_images);
+    MemoryBuffer<float> fnorm {n_images, false, true};
+    sum_gpu_atomicadd(grids_counters_buffer.data(), image_size, n_images, fnorm);
     fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
 
     return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};

@@ -1,7 +1,9 @@
 #include "gpu_utils.h"
-#include "gpu_macros.hpp"
+#include <gpu_macros.hpp>
 #include "pacer_imager_hip_defines.h"
 #include <exception>
+#include <memory_buffer.hpp>
+
 __global__ void mult_by_const( gpufftComplex *data, int size, double mult_value )
 {   
     // Calculating the required id 
@@ -122,13 +124,11 @@ __global__ void vector_sum(float *values, unsigned int nitems, int n_images, flo
 }
 
 
-float* sum_gpu_atomicadd( float* data_gpu, int image_size, int n_images){
+void sum_gpu_atomicadd( float* data_gpu, int image_size, int n_images, MemoryBuffer<float>& sum_gpu){
    int nBlocks = (image_size + NTHREADS -1)/NTHREADS;
-   float* sum_gpu=NULL;
-   gpuMalloc((void **)&sum_gpu, n_images * sizeof(float));
-   gpuMemset(sum_gpu, 0, n_images * sizeof(float));
-   vector_sum<<<nBlocks, NTHREADS>>>( data_gpu, image_size, n_images, sum_gpu );
-   return sum_gpu;
+   sum_gpu.to_gpu();
+   gpuMemset(sum_gpu.data(), 0, n_images * sizeof(float));
+   vector_sum<<<nBlocks, NTHREADS>>>( data_gpu, image_size, n_images, sum_gpu.data());
 }
 
 __device__ inline int calc_fft_shift(int pos, int side){
@@ -176,7 +176,7 @@ __global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, s
 
 
 // fft shift on complex data :
-void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int n_images, float *fnorm){
+void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int n_images, MemoryBuffer<float>& fnorm){
    if( (xSize % 2) != 0 ){
       throw std::invalid_argument {"function fft_shift_gpu currently only handles even image size"};
    }
@@ -187,8 +187,7 @@ void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int 
    fft_shift_and_norm_x<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images);
    n_threads_needed = xSize * (ySize / 2);
    n_blocks = (n_threads_needed + NTHREADS - 1) / NTHREADS;
-   fft_shift_and_norm_y<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images, fnorm);
-   gpuFree(fnorm);
+   fft_shift_and_norm_y<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images, fnorm.data());
 }
 
 

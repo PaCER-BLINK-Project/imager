@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include <astroio.hpp>
+#include <memory_buffer.hpp>
 #include <gpu_macros.hpp>
 #include "common.hpp"
 #include "../src/hip/gpu_utils.h"
@@ -37,10 +38,9 @@ void test_vector_sum(){
     float* data_gpu;
     gpuMalloc(&data_gpu, sizeof(float) * n_images * image_size);
     gpuMemcpy(data_gpu, data_cpu, sizeof(float) * n_images * image_size, gpuMemcpyHostToDevice);
-    float* results_gpu = sum_gpu_atomicadd(data_gpu, image_size, n_images);
-    float* results {new float[image_size * n_images]};
-    gpuMemcpy(results, results_gpu, sizeof(float) * n_images, gpuMemcpyDeviceToHost);
-
+    MemoryBuffer<float> results {n_images, false, true};
+    sum_gpu_atomicadd(data_gpu, image_size, n_images, results);
+    results.to_cpu();
     // check the values
     for(int img_id {0}; img_id < n_images; img_id++){
         if(sums_cpu[img_id] != results[img_id]){
@@ -57,6 +57,37 @@ void test_vector_sum(){
 }
 
 
+void test_fft_shift_and_norm(){
+    std::complex<float> input_cpx_one[] {
+        {0, 0}, {1, 0}, {2, 0}, {3, 0},
+        {0, 0}, {1, 0}, {2, 0}, {3, 0},
+        {0, 0}, {1, 0}, {2, 0}, {3, 0}
+    };
+    std::complex<float> ref_output_one[] {
+        {3, 0}, {2, 0}, {1, 0}, {0, 0},
+        {3, 0}, {2, 0}, {1, 0}, {0, 0},
+        {3, 0}, {2, 0}, {1, 0}, {0, 0}
+    
+    };
+    MemoryBuffer<std::complex<float>> input_gpu {12, false, false};
+    for(int i {0}; i < 12; i++) input_gpu[i] = input_cpx_one[i];
+    MemoryBuffer<float> fnorm {3, false, false};
+    fnorm[0] = 1;
+    fnorm[1] = 1;
+    fnorm[2] = 1;
+    fnorm.to_gpu();
+    input_gpu.to_gpu();
+    fft_shift_and_norm_gpu(reinterpret_cast<gpufftComplex*>(input_gpu.data()), 2, 2, 3, fnorm);
+    input_gpu.to_cpu();
+    for(int x = 0; x < 12; x++)
+        if(input_gpu[x] != ref_output_one[x])
+            throw TestFailed("'test_fft_shift_and_norm': wrong output.");
+    
+    std::cout << "'test_fft_shift_and_norm' passed." << std::endl;
+}
+
+
+
 int main(void){
     char *pathToData {std::getenv(ENV_DATA_ROOT_DIR)};
     if(!pathToData){
@@ -67,6 +98,7 @@ int main(void){
 
     try{
         test_vector_sum();
+        test_fft_shift_and_norm();
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;
         return 1;
