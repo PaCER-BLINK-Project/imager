@@ -127,3 +127,7 @@ add_test(NAME corrections_test COMMAND corrections_test)
 add_executable(gridding_test tests/gridding_test.cpp)
 target_link_libraries(gridding_test imaging)
 add_test(NAME gridding_test COMMAND gridding_test)
+
+add_executable(gpu_utils_test tests/gpu_utils_test.cpp)
+target_link_libraries(gpu_utils_test imaging)
+add_test(NAME gpu_utils_test COMMAND gpu_utils_test)

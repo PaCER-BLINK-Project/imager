@@ -204,12 +204,6 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    MemoryBuffer<double> frequencies {xcorr.nFrequencies, false, false};
    for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
       frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
-
-
-   memdump((char*)antenna_flags_cpu, n_ant * sizeof(int), "antenna_flags.bin");
-   memdump((char*)antenna_weights_cpu, n_ant * sizeof(int), "antenna_weights.bin");
-   fits_vis_u.WriteFits("U.fits");
-   fits_vis_v.WriteFits("V.fits");
    
    gridding_gpu(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies,
       delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
@@ -224,40 +218,12 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
        // DONE : make plan -> m_FFTPlan and do it once in the lifetime of the program !!!
        //        it takes ~200ms and is not required every time as it is always the same !!!
-       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2C, n_images );    
-       std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-       std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-       PRINTF_BENCHMARK("BENCHMARK : gpufftPlanMany executed and took %.6f seconds.\n",time_span.count());
+       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2C, n_images );
     }
-
-    std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_FORWARD);
-    gpuDeviceSynchronize();
-     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-   std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-      PRINTF_BENCHMARK("BENCHMARK : gpufftExec executed and took %.6f seconds.\n",time_span.count());
+    float* fnorm = sum_gpu_atomicadd(grids_counters_buffer.data(), image_size, n_images);
+    fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
 
-  // TODO: CPU->GPU : calculate this sum on GPU, can it be done in the gridding kernel itself ???
-  // TODO: fix this
-   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
-      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
-         std::complex<float>* current_image = images_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
-         float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
-
-         double fnorm = 1.00/sum_gpu_atomicadd( current_counter, image_size );
-         // double fnorm = 1.00/sum_gpu_parallel_reduce( uv_grid_counter_gpu, image_size );
-
-         
-         // TODO : for now keeping it as it was as there is no clear advantage of doing normalsation on GPU 
-         // apply normalisation constant on GPU :
-         // int nBlocksImage = (image_size + NTHREADS -1)/NTHREADS;
-         // mult_by_const<<<nBlocksImage,NTHREADS>>>( (gpufftComplex*)m_out_buffer_gpu, image_size, fnorm );
-         
-         // FFT shift together with multiplication by fnorm (normalisation)
-         // bool fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
-         fft_shift_and_norm_gpu( (gpufftComplex*) current_image, n_pixels, n_pixels, fnorm );
-      }
-   }
     return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 

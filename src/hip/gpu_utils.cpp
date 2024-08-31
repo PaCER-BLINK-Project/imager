@@ -78,64 +78,57 @@ __global__ void div_arrays( float* data, float* data2, float* data_out, int size
 #define NWARPS (NTHREADS / warpSize)
 
 
-__global__ void vector_sum(float *values, unsigned int nitems, float* result){
-    unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void vector_sum(float *values, unsigned int nitems, int n_images, float* result){
     __shared__ float partial_sums[NWARPS];
     unsigned int warpId = threadIdx.x / warpSize;
     unsigned int laneId = threadIdx.x % warpSize; 
     unsigned int gridSize = gridDim.x * blockDim.x;
     unsigned int nloops = (nitems + gridSize  - 1) / gridSize;
-    float myvalue = 0;
-    for(unsigned int l = 0; l < nloops; l++, idx+=gridSize){
-        if(idx < nitems) myvalue += values[idx]; 
-    }
- 
-    for(unsigned int i = warpSize/2; i >= 1; i /= 2){
-      float up = __shfl_down(myvalue, i); 
-        if(laneId < i){
-            myvalue += up; 
-        }
-    }
-    if(laneId == 0 && warpId > 0) partial_sums[warpId] = myvalue;
 
-    __syncthreads();
-    // step 2
-    if(warpId == 0){
-        if(laneId > 0 && laneId < NWARPS) myvalue = partial_sums[laneId];
-        for(unsigned int i = NWARPS/2; i >= 1; i >>= 1){
-            float up = __shfl_down(myvalue, i, NWARPS); 
-            if(laneId < i){
+    for(int img_id = 0; img_id < n_images; img_id++){
+      unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+      float myvalue = 0;
+      for(unsigned int l = 0; l < nloops; l++, idx+=gridSize){
+         if(idx < nitems) myvalue += values[img_id * nitems + idx]; 
+      }
+   
+      for(unsigned int i = warpSize/2; i >= 1; i /= 2){
+         float up = __shfl_down(myvalue, i); 
+         if(laneId < i){
                myvalue += up; 
-            }
-        }
-        if(laneId == 0) atomicAdd(result, myvalue);
+         }
+         #ifdef __NVCC__
+         __syncwarp();
+         #endif
+      }
+      if(laneId == 0 && warpId > 0) partial_sums[warpId] = myvalue;
+
+      __syncthreads();
+      // step 2
+      if(warpId == 0){
+         if(laneId > 0 && laneId < NWARPS) myvalue = partial_sums[laneId];
+         for(unsigned int i = NWARPS/2; i >= 1; i >>= 1){
+               float up = __shfl_down(myvalue, i, NWARPS); 
+               if(laneId < i){
+                  myvalue += up; 
+               }
+               #ifdef __NVCC__
+               __syncwarp();
+               #endif
+         }
+         if(laneId == 0) atomicAdd(result + img_id, myvalue);
+      }
     }  
 }
 
-float sum_gpu_atomicadd( float* data_gpu, int size )
-{
-   int nBlocks = (size + NTHREADS -1)/NTHREADS;
+
+float* sum_gpu_atomicadd( float* data_gpu, int image_size, int n_images){
+   int nBlocks = (image_size + NTHREADS -1)/NTHREADS;
    float* sum_gpu=NULL;
-   float sum_cpu=0.00;
-   gpuMalloc((void **)&sum_gpu, sizeof(float));
-   gpuMemcpy((float*)sum_gpu, (float*)(&sum_cpu), sizeof(float), gpuMemcpyHostToDevice); // initilise
-
-//   gpuEvent_t startEvent, stopEvent; 
-//   float ms;
-   std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-//   checkCuda( gpuEventRecord(startEvent,0) );
-   vector_sum<<<nBlocks,NTHREADS>>>( data_gpu, size, sum_gpu );
-//   printf("DEBUG : using %d * %d = %d bytes of shared memory\n",nBlocks*NTHREADS,int(sizeof(float)),int(nBlocks*NTHREADS*sizeof(float)));
-   gpuDeviceSynchronize();
-   std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-   std::chrono::duration<double> time_span = std::chrono::duration_cast<std::chrono::duration<double>>(t2 - t1);
-   printf("BENCHMARK_chrono : sum_atomic_add took %.6f [ms]\n",time_span.count()*1000.00);
-
-   gpuMemcpy((float*)(&sum_cpu), (float*)sum_gpu, sizeof(float),gpuMemcpyDeviceToHost);
-
-   gpuFree( sum_gpu );
-
-   return sum_cpu;
+   gpuMalloc((void **)&sum_gpu, n_images * sizeof(float));
+   gpuMemset(sum_gpu, 0, n_images * sizeof(float));
+   vector_sum<<<nBlocks, NTHREADS>>>( data_gpu, image_size, n_images, sum_gpu );
+   return sum_gpu;
 }
 
 __device__ inline int calc_fft_shift(int pos, int side){
@@ -145,7 +138,7 @@ __device__ inline int calc_fft_shift(int pos, int side){
 
 //-------------------------------------------------------------------- FFT shift on complex data ---------------------------------------------------------------------------------------------------
 // FFT shift in X direction:
-__global__ void fft_shift_and_norm_x(gpufftComplex* data, size_t image_x_side, size_t image_y_side){
+__global__ void fft_shift_and_norm_x(gpufftComplex* data, size_t image_x_side, size_t image_y_side, int n_images ){
    size_t tid {blockDim.x * blockIdx.x + threadIdx.x};
    if(tid >= image_x_side / 2 * image_y_side) return;
 
@@ -154,15 +147,16 @@ __global__ void fft_shift_and_norm_x(gpufftComplex* data, size_t image_x_side, s
    size_t src = src_row * image_x_side + src_col;
    size_t dst_col = calc_fft_shift(src_col, image_x_side);
    size_t dst = src_row * image_x_side + dst_col;
-
-   gpufftComplex tmp = data[dst];
-   data[dst] = data[src];
-   data[src] = tmp;
+   for(int img_id = 0; img_id < n_images; img_id++){
+      gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst];
+      data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src];
+      data[img_id * image_x_side * image_y_side + src] = tmp;
+   }
 }
 
 
 
-__global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, size_t image_y_side, float fnorm ){
+__global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, size_t image_y_side, int n_images, float *fnorm ){
    size_t tid {blockDim.x * blockIdx.x + threadIdx.x};
    if(tid >= image_x_side * (image_y_side / 2)) return;
 
@@ -172,15 +166,17 @@ __global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, s
    size_t dst_row = calc_fft_shift(src_row, image_y_side);
    size_t dst = dst_row * image_x_side + src_col;
 
-   gpufftComplex tmp = data[dst] * fnorm;
-   data[dst] = data[src] * fnorm;
-   data[src] = tmp;
+   for(int img_id = 0; img_id < n_images; img_id++){
+      gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst] / fnorm[img_id];
+      data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src] / fnorm[img_id];
+      data[img_id * image_x_side * image_y_side + src] = tmp;
+   }
 }
 
 
 
 // fft shift on complex data :
-void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm /*=1.00*/ ){
+void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int n_images, float *fnorm){
    if( (xSize % 2) != 0 ){
       throw std::invalid_argument {"function fft_shift_gpu currently only handles even image size"};
    }
@@ -188,10 +184,11 @@ void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, floa
    int size = xSize*ySize;
    int n_threads_needed {(xSize / 2) * ySize};
    int n_blocks {(n_threads_needed + NTHREADS - 1) / NTHREADS};
-   fft_shift_and_norm_x<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize);
+   fft_shift_and_norm_x<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images);
    n_threads_needed = xSize * (ySize / 2);
    n_blocks = (n_threads_needed + NTHREADS - 1) / NTHREADS;
-   fft_shift_and_norm_y<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, fnorm);
+   fft_shift_and_norm_y<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images, fnorm);
+   gpuFree(fnorm);
 }
 
 

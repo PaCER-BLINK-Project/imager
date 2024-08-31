@@ -9,11 +9,9 @@ __global__ void mult_by_const( gpufftComplex *data, int size, double mult_value 
 
 __global__ void mult_arrays( float* data, float* data2, int size );
 
-// two versions of array summing :
-float sum_gpu_atomicadd( float* data_gpu, int size );
-float sum_gpu_parallel_reduce( float* data_gpu, int size );
 
-// fft shift on complex data :
-void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, float fnorm=1.00 );
+float* sum_gpu_atomicadd( float* data_gpu, int size, int n_images);
+
+void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int n_images, float *fnorm);
 
 #endif
