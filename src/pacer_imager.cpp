@@ -702,7 +702,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
         PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
     }
-    xcorr.to_cpu();
+    // xcorr.to_cpu();
     //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
     
     // calculate UVW (if required)
@@ -830,10 +830,10 @@ double CPacerImager::get_frequency_hz(const Visibilities &vis, int fine_channel,
     return channel_frequency_MHz * 1e6;
 }
 
-bool CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
+void CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
     apply_geometric_corrections_cpu(xcorr, fits_vis_w, frequencies);
 }
    
-bool CPacerImager::ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
+void CPacerImager::ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
     apply_cable_lengths_corrections_cpu(xcorr, cable_lengths, frequencies);
 }

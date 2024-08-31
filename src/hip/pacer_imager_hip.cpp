@@ -220,7 +220,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
        //        it takes ~200ms and is not required every time as it is always the same !!!
        gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2C, n_images );
     }
-    gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_FORWARD);
+    #define GPUFFT_BACKWARD 1
+    gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_BACKWARD);
     MemoryBuffer<float> fnorm {n_images, false, true};
     sum_gpu_atomicadd(grids_counters_buffer.data(), image_size, n_images, fnorm);
     fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
@@ -229,18 +230,16 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 }
 
 
-bool CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
+void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
    if(!w_gpu){
       gpuMalloc((void**)&w_gpu, xySize*sizeof(float));
    }
    gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies);
-   return true;
 }
 
 
-bool CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
+void CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
    apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies);
-   return true;
 }
