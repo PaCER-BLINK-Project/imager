@@ -40,19 +40,12 @@ void test_gridding_gpu(){
     fits_vis_v.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/V.fits").c_str(), 0, 1, 1 );
   
     int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
-    char *frequencies_data, *antenna_weights_data, *antenna_flags_data;
-    int *antenna_flags_gpu;
-    gpuMalloc(&antenna_flags_gpu, sizeof(int) * xcorr.obsInfo.nAntennas);
-    float *antenna_weights_gpu;
-    gpuMalloc(&antenna_weights_gpu, sizeof(float) * xcorr.obsInfo.nAntennas);
-    size_t input_size;
-    load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/frequencies.bin", frequencies_data, input_size);
-    MemoryBuffer<double> frequencies {reinterpret_cast<double *>(frequencies_data), input_size / sizeof(double), false, false};
-    load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_weights.bin", antenna_weights_data, input_size);
-    gpuMemcpy(antenna_weights_gpu, antenna_weights_data, sizeof(float) * xcorr.obsInfo.nAntennas, gpuMemcpyHostToDevice);
-    load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_flags.bin", antenna_flags_data, input_size);
-    gpuMemcpy(antenna_flags_gpu, antenna_flags_data, sizeof(int) * xcorr.obsInfo.nAntennas, gpuMemcpyHostToDevice);
-  
+    MemoryBuffer<double> frequencies {MemoryBuffer<double>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/frequencies.bin")};
+    MemoryBuffer<int> antenna_flags {MemoryBuffer<int>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_flags.bin")};
+    MemoryBuffer<float> antenna_weights {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_weights.bin")};
+    antenna_flags.to_gpu();
+    antenna_weights.to_gpu();
+
     double delta_u = 1.221977710723877;
     double delta_v = 1.1040256023406982;
     int n_pixels= 8192;
@@ -62,11 +55,8 @@ void test_gridding_gpu(){
     size_t buffer_size {n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, true);
     MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false,  true);
-    gridding_gpu(xcorr, -1, -1, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies,
+    gridding_gpu(xcorr, -1, -1, fits_vis_u, fits_vis_v, antenna_flags.data(), antenna_weights.data(), frequencies,
       delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
-    gpuFree(antenna_flags_gpu);
-    gpuFree(antenna_weights_gpu);
-
 
    grids_counters_buffer.to_cpu();
    grids_buffer.to_cpu();

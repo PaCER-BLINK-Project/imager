@@ -66,20 +66,4 @@ void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
     }
 }
 
-
-void load_dump(std::string filename, char *& buffer, size_t& size){
-    std::ifstream infile (filename, std::ifstream::binary);
-    // get size of file
-    infile.seekg (0,infile.end);
-    size = infile.tellg();
-    infile.seekg (0);
-
-    // allocate memory for file content
-    buffer = new char[size];
-
-    // read content of infile
-    infile.read (buffer, size);
-    infile.close();
-}
-
 #endif

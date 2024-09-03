@@ -39,25 +39,25 @@ void test_fft_shift_simple(){
 
 
 
-void test_fft_shift_on_reference(){
+// void test_fft_shift_on_reference(){
 
-    char *input, *ref_output;
-    size_t input_size, ref_output_size;
-    const size_t image_side {8192ul};
-    load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/image_before_shift.bin", input, input_size);
-    load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/image_after_shift.bin", ref_output, ref_output_size);
+//     char *input, *ref_output;
+//     size_t input_size, ref_output_size;
+//     const size_t image_side {8192ul};
+//     load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/image_before_shift.bin", input, input_size);
+//     load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/image_after_shift.bin", ref_output, ref_output_size);
 
-    std::complex<float> *input_cpx {reinterpret_cast<std::complex<float>*>(input)};
-    std::complex<float> *ref_output_cpx {reinterpret_cast<std::complex<float>*>(ref_output)};
+//     std::complex<float> *input_cpx {reinterpret_cast<std::complex<float>*>(input)};
+//     std::complex<float> *ref_output_cpx {reinterpret_cast<std::complex<float>*>(ref_output)};
 
-    fft_shift(input_cpx, image_side, image_side);
+//     fft_shift(input_cpx, image_side, image_side);
 
-    if(!complex_vectors_equal(input_cpx, ref_output_cpx, image_side * image_side)){
-        throw TestFailed("test_fft_shift_on_reference: vectors are not equal!");
-    }
+//     if(!complex_vectors_equal(input_cpx, ref_output_cpx, image_side * image_side)){
+//         throw TestFailed("test_fft_shift_on_reference: vectors are not equal!");
+//     }
     
-    std::cout << "Test 'test_fft_shift_on_reference' passed." << std::endl;
-}
+//     std::cout << "Test 'test_fft_shift_on_reference' passed." << std::endl;
+// }
 
 
 
@@ -104,8 +104,6 @@ int main(void){
 
     try{
         test_fft_shift_simple();
-        // the following does not work anymore the reference is in double
-        //test_fft_shift_on_reference();
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;
         return 1;

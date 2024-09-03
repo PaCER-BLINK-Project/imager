@@ -7,6 +7,7 @@
 
 void apply_geometric_corrections_cpu(Visibilities &xcorr, CBgFits &fits_vis_w, const MemoryBuffer<double>& frequencies){
     if(xcorr.on_gpu()) xcorr.to_cpu();
+    xcorr.to_fits_file("01_before_geo_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
@@ -36,13 +37,13 @@ void apply_geometric_corrections_cpu(Visibilities &xcorr, CBgFits &fits_vis_w, c
             }
         }
     }
-    // xcorr.to_fits_file("01_after_geo_corrections.fits");
+    xcorr.to_fits_file("01_after_geo_corrections.fits");
 }
 
 void apply_cable_lengths_corrections_cpu(Visibilities &xcorr, const MemoryBuffer<double>& cable_lengths, const MemoryBuffer<double>& frequencies)
 {
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    // xcorr.to_fits_file("02_before_cable_corrections.fits");
+    xcorr.to_fits_file("02_before_cable_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
@@ -72,5 +73,5 @@ void apply_cable_lengths_corrections_cpu(Visibilities &xcorr, const MemoryBuffer
             }
         }
     }
-    // xcorr.to_fits_file("02_after_cable_corrections.fits");
+    xcorr.to_fits_file("02_after_cable_corrections.fits");
 }
