@@ -11,7 +11,7 @@
 #include "gpu_utils.h"
 #include <mystring.h>
 #include <mydate.h>
-
+#include <exception>
 #include "corrections_gpu.h"
 
 void memdump(char *ptr, size_t nbytes, std::string filename);
@@ -168,6 +168,26 @@ void CPacerImagerHip::UpdateAntennaFlags( int n_ant )
 
 }
 
+template <typename T>
+inline void compare_buffers(MemoryBuffer<T>& a, MemoryBuffer<T>&b ){
+   for(size_t i {0}; i < a.size(); i++){
+      if(std::abs(a[i] - b[i]) >= 1e-4) {
+         std::cout << "Elements differ at position " << i << ": a[i] = " << a[i] << ", b[i] = " << b[i] << std::endl;
+         throw std::exception{};
+      }
+   }
+}
+
+template <>
+inline void compare_buffers(MemoryBuffer<std::complex<float>>& a, MemoryBuffer<std::complex<float>>&b ){
+   for(size_t i {0}; i < a.size(); i++){
+      if(std::abs(a[i].real() - b[i].real()) >= 1e-4 || std::abs(a[i].imag() - b[i].imag()) >= 1e-4) {
+         std::cout << "Elements differ at position " << i << ": a[i] = " << a[i] << ", b[i] = " << b[i] << std::endl;
+         //throw std::exception{};
+      }
+   }
+}
+
 
 
 // TODO : 
@@ -207,6 +227,15 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    
    gridding_gpu(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies,
       delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
+
+   // auto ref_grids_counters = MemoryBuffer<float>::from_dump("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/grids_counters_buffer.bin");
+   // auto ref_grids =  MemoryBuffer<std::complex<float>>::from_dump("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/grids_buffer.bin");
+   // grids_counters_buffer.to_cpu();
+   // std::cout << "Comparing counters..." << std::endl;
+   // compare_buffers(ref_grids_counters, grids_counters_buffer);
+   // std::cout << "Comparing grids..." << std::endl;
+   // compare_buffers(ref_grids, grids_buffer);
+
 
     if( !m_FFTPlan ){
        int n[2]; 

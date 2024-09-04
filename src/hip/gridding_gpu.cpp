@@ -158,45 +158,6 @@ __global__ void gridding_imaging_cuda_xcorr( int corr_size, // size of the corre
 
 
 
-// Cuda kernal: gridding and cuFFT 
-__global__ void calculate_counter( int corr_size, // size of the correlation matrix
-                                   float *u_cuda, float *v_cuda, 
-                                   double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                   int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
-                                   float *vis_real_cuda, float *vis_imag_cuda, 
-                                   float *uv_grid_counter_cuda, double min_uv_cuda )
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-
-    if ( i >= corr_size ){
-       // this thread should not be used as it will correspond to the cell
-       // outside the size of the correlation matrix
-       return;
-    }
-
-    // Getting corresponding real and imag visibilities 
-    double re = vis_real_cuda[i]; 
-    double im = vis_imag_cuda[i]; 
-
-    // Checking for NaN values 
-    if( !isnan(re) && !isnan(im) )
-    {
-         int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, +1 );
-         if(pos>=0 && pos<image_size_cuda)
-         {
-            // Allocating in uv_grid
-            atomicAdd(&uv_grid_counter_cuda[pos],1);
-         }   
-
-         int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, -1 );
-         if(pos2>=0 && pos2<image_size_cuda)
-         {
-            atomicAdd(&uv_grid_counter_cuda[pos2],1);
-         }
-    }   
-}
-
 
 
 void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,

@@ -20,15 +20,6 @@ __global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlat
 
 
 
-// Counter calculation - just using threads (no BLOCKS) :
-__global__ void calculate_counter( int xySize, // size of the correlation matrix
-                                   float *u_cuda, float *v_cuda, 
-                                   double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                   int n_pixels_cuda, int center_x_cuda, int center_y_cuda, int is_odd_x_cuda, int is_odd_y_cuda,
-                                   float *vis_real_cuda, float *vis_imag_cuda, 
-                                   float *uv_grid_counter_cuda, double min_uv_cuda );
-
-
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 

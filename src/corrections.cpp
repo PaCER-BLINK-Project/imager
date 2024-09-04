@@ -18,8 +18,8 @@ void apply_geometric_corrections_cpu(Visibilities &xcorr, CBgFits &fits_vis_w, c
             {
                 for (int ant2 = 0; ant2 <= ant1; ant2++)
                 {
-                    double w = fits_vis_w.getXY(ant1, ant2);
-                    double angle = - 2.0 * M_PI * w * frequencies[fine_channel] / SPEED_OF_LIGHT;
+                    double w = fits_vis_w.getXY(ant2, ant1);
+                    double angle = 2.0 * M_PI * w * frequencies[fine_channel] / SPEED_OF_LIGHT;
                     double sin_angle, cos_angle;
                     sincos(angle, &sin_angle, &cos_angle);
 

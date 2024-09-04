@@ -335,7 +335,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
     fftwf_execute(pFwd);
     fftwf_destroy_plan(pFwd);
     fftwf_cleanup_threads();
-    
+    //images_buffer.dump("images_after_fft.bin");
     #pragma omp parallel for collapse(2) schedule(static)
     for (size_t time_step = 0; time_step < n_integration_intervals; time_step++)
     {
@@ -370,6 +370,8 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
             // memdump((char *) current_image, grid_size * sizeof(std::complex<double>), "image_after_shift.bin");
         }
     }
+
+    //images_buffer.dump("images_after_shift.bin");
 
     auto tstop = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(tstop - tstart).count();
@@ -552,7 +554,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                             if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
                             {
                                 // TODO convert [m] -> wavelength
-                                double u = fits_vis_u.getXY(ant1, ant2) / wavelength_m;
+                                double u = fits_vis_u.getXY(ant2, ant1) / wavelength_m;
 
                                 // 2022-09-24 : - removed for a test on MWA data
                                 // 2022-09-09 - for now sticking to - sign here to have back
@@ -560,7 +562,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                 //  but looks like this (-) should not be here at least does not
                                 //  match UV coverage from WSCEAN (it is flipped then see :
                                 //  /home/msok/Desktop/PAWSEY/PaCER/logbook/20220826_image_simulation_part3.odt
-                                double v = fits_vis_v.getXY(ant1, ant2) /
+                                double v = fits_vis_v.getXY(ant2, ant1) /
                                            wavelength_m; // the - sign here fixes the Y flip, but I am
                                                          // not sure why needed ??? check RTS :
                                                          // imagefromuv.c , LM_CopyFromFFT where some
@@ -569,7 +571,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                                          // data - it may be consistent once I start
                                                          // using TMS equation 4.1 consistently for
                                                          // both EDA2 and MWA
-                                double w = fits_vis_w.getXY(ant1, ant2) / wavelength_m;
+                                double w = fits_vis_w.getXY(ant2, ant1) / wavelength_m;
                                 double uv_distance = sqrt(u * u + v * v);
 
                                 /* this is in WSCLEAN, but here seems to have no effect ...
@@ -665,6 +667,8 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     
 
+    //grids_counters_buffer.dump("grids_counters_buffer.bin");
+    //grids_buffer.dump("grids_buffer.bin");
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
    PRINTF_INFO("PROGRESS : executing dirty image\n");
     dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
@@ -702,7 +706,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
         PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
     }
-    // xcorr.to_cpu();
+    xcorr.to_cpu();
     //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
     
     // calculate UVW (if required)
@@ -717,6 +721,9 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     if (m_ImagerParameters.m_bApplyGeomCorr)
         ApplyGeometricCorrections(xcorr, m_W, frequencies);
 
+    // xcorr.to_cpu();
+    // ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/01_after_geo_corrections.fits");
+    // xcorr.to_gpu();
     if (m_ImagerParameters.m_bApplyCableCorr){
         MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
         for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
@@ -727,6 +734,10 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
 
         ApplyCableCorrections(xcorr, cable_lengths, frequencies);
     }
+
+    // xcorr.to_cpu();
+    // ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/02_after_cable_corrections.fits");
+    // xcorr.to_gpu();
         
 
     printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
