@@ -80,18 +80,17 @@ __global__ void div_arrays( float* data, float* data2, float* data_out, int size
 #define NWARPS (NTHREADS / warpSize)
 
 
-__global__ void vector_sum(float *values, unsigned int nitems, int n_images, float* result){
+__global__ void vector_sum_kernel(float *values, unsigned int nitems, int n_images, float* result){
     __shared__ float partial_sums[NWARPS];
     unsigned int warpId = threadIdx.x / warpSize;
     unsigned int laneId = threadIdx.x % warpSize; 
     unsigned int gridSize = gridDim.x * blockDim.x;
-    unsigned int nloops = (nitems + gridSize  - 1) / gridSize;
 
     for(int img_id = 0; img_id < n_images; img_id++){
       unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
       float myvalue = 0;
-      for(unsigned int l = 0; l < nloops; l++, idx+=gridSize){
-         if(idx < nitems) myvalue += values[img_id * nitems + idx]; 
+      for(; idx < nitems; idx+=gridSize){
+         myvalue += values[img_id * nitems + idx]; 
       }
    
       for(unsigned int i = warpSize/2; i >= 1; i /= 2){
@@ -124,11 +123,15 @@ __global__ void vector_sum(float *values, unsigned int nitems, int n_images, flo
 }
 
 
-void sum_gpu_atomicadd( float* data_gpu, int image_size, int n_images, MemoryBuffer<float>& sum_gpu){
-   int nBlocks = (image_size + NTHREADS -1)/NTHREADS;
+void vector_sum_gpu( float* data_gpu, int image_size, int n_images, MemoryBuffer<float>& sum_gpu){
+   struct gpuDeviceProp_t props;
+   int gpu_id = -1;
+   gpuGetDevice(&gpu_id);
+   gpuGetDeviceProperties(&props, gpu_id);
+   unsigned int n_blocks = props.multiProcessorCount * 2;
    sum_gpu.to_gpu();
    gpuMemset(sum_gpu.data(), 0, n_images * sizeof(float));
-   vector_sum<<<nBlocks, NTHREADS>>>( data_gpu, image_size, n_images, sum_gpu.data());
+   vector_sum_kernel<<<n_blocks, NTHREADS>>>( data_gpu, image_size, n_images, sum_gpu.data());
 }
 
 __device__ inline int calc_fft_shift(int pos, int side){

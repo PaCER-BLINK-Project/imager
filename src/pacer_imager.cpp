@@ -706,7 +706,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
         PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
     }
-    xcorr.to_cpu();
+    // xcorr.to_cpu();
     //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
     
     // calculate UVW (if required)

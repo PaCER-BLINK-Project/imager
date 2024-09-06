@@ -163,8 +163,6 @@ void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
       n_ant, u_gpu, v_gpu, antenna_flags, antenna_weights, frequencies.data(), image_size,
       delta_u, delta_v, n_pixels, grids_counters_buffer.data(), min_uv, (gpufftComplex*) grids_buffer.data());
    gpuGetLastError();
-   gpuDeviceSynchronize();
-
    gpuFree(u_gpu); 
    gpuFree(v_gpu);
 }
