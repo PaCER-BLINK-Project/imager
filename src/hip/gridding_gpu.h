@@ -7,34 +7,6 @@
 #include <bg_fits.h>
 #include <memory_buffer.hpp>
 
-// same as above but using xcorr structure instead :
-__global__ void gridding_imaging_cuda_xcorr( int xySize, // size of the correlation matrix
-                                      int n_ant,
-                                      float *u_cuda, float *v_cuda, 
-                                      int* antenna_flags, float* antenna_weights,
-                                      double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda,
-                                      float *vis_cuda,  
-                                      float *uv_grid_counter_cuda, double min_uv_cuda, 
-                                      gpufftComplex *m_in_buffer_cuda);
-
-
-
-
-//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-__device__ int calculate_pos(float u,
-                             float v,
-                             double delta_u_cuda,
-                             double delta_v_cuda,
-                             double wavelength_cuda,
-                             double min_uv_cuda,
-                             int n_pixels_cuda,
-                             int center_x_cuda,
-                             int center_y_cuda,
-                             int is_odd_x_cuda,
-                             int is_odd_y_cuda,
-                             int uv_sign_cuda);
 
 
 

@@ -1,6 +1,6 @@
 /* 
 Header file for both gridding + cuFFT, implemented in cuda 
-- gridding_imaging_cuda
+- gridding_imaging
 
 References: 
 https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-cufftcomplex-in-side-a-kernel
@@ -22,29 +22,29 @@ __device__ inline int wrap_index(int i, int side){
 
 __device__ int calculate_pos(float u,
                              float v,
-                             double delta_u_cuda,
-                             double delta_v_cuda,
-                             double wavelength_cuda,
-                             double min_uv_cuda,
-                             int n_pixels_cuda,
-                             int uv_sign_cuda) // will be called with +1 and -1 
+                             double delta_u,
+                             double delta_v,
+                             double wavelength,
+                             double min_uv,
+                             int n_pixels,
+                             int uv_sign) // will be called with +1 and -1 
 {
    // Operation 1: uv_lambda()
-   double u_lambda = (u)/(wavelength_cuda); 
-   double v_lambda = (v)/(wavelength_cuda); 
+   double u_lambda = (u)/(wavelength); 
+   double v_lambda = (v)/(wavelength); 
 
    // Calculating distance between the two antennas 
    double uv_distance = sqrt(u_lambda*u_lambda + v_lambda*v_lambda);
 
-   if( uv_distance > min_uv_cuda )
+   if( uv_distance > min_uv )
    {            
       // (For all the rows of the Correlation Matrix)
       // Operation 2: uv_index()
       double u_pix, v_pix;
-      u_pix = round(u_lambda/delta_u_cuda); 
-      v_pix = round(v_lambda/delta_v_cuda);
-      int u_index = wrap_index(uv_sign_cuda*u_pix, n_pixels_cuda); 
-      int v_index = wrap_index(uv_sign_cuda*v_pix, n_pixels_cuda);
+      u_pix = round(u_lambda/delta_u); 
+      v_pix = round(v_lambda/delta_v);
+      int u_index = wrap_index(uv_sign*u_pix, n_pixels); 
+      int v_index = wrap_index(uv_sign*v_pix, n_pixels);
 
  
      
@@ -52,13 +52,13 @@ __device__ int calculate_pos(float u,
       // This may optimise this code in the future (remove if-s) if it also produces the same results
       // WARNING : does not support ODD image sizes (add ASSERT !!!)
       // TODO : maybe copysign(int,int) is required - doesn't copysign use if-s too ?
-      // int x_grid = round(u_index + copysignf( 1.0, float(center_x_cuda-u_index))*center_x_cuda);
-      // int y_grid = round(v_index + copysignf( 1.0, float(center_y_cuda-v_index))*center_y_cuda);
+      // int x_grid = round(u_index + copysignf( 1.0, float(center_x-u_index))*center_x);
+      // int y_grid = round(v_index + copysignf( 1.0, float(center_y-v_index))*center_y);
       
 
       // Operation 4: Assignment of (re,im)vis to uv_grid
       // Position for assignment 
-      return (n_pixels_cuda*v_index) + u_index; 
+      return (n_pixels*v_index) + u_index; 
    }
 
    // same as else :   
@@ -67,93 +67,54 @@ __device__ int calculate_pos(float u,
 
 
 
-
-// Cuda kernal: gridding and cuFFT 
-__global__ void gridding_imaging_cuda_xcorr( int corr_size, // size of the correlation matrix
+__global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
                                       int n_ant,
-                                      float *u_cuda, float *v_cuda, 
+                                      float *u, float *v, 
                                       int* antenna_flags, float* antenna_weights,
-                                      double wavelength_cuda, int image_size_cuda, double delta_u_cuda, double delta_v_cuda, 
-                                      int n_pixels_cuda,
-                                      VISIBILITY_TYPE *vis_cuda,  
-                                      float *uv_grid_counter_cuda, double min_uv_cuda, 
-                                      gpufftComplex *m_in_buffer_cuda)
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
+                                      double *frequencies, int image_size, double delta_u, double delta_v, 
+                                      int n_pixels,
+                                      float *uv_grid_counter, double min_uv, 
+                                      gpufftComplex *m_in_buffer) {
 
-    if ( i >= corr_size ){
-       // this thread should not be used as it will correspond to the cell
-       // outside the size of the correlation matrix
-       return;
-    }
+   unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
+   unsigned int grid_size = gridDim.x * blockDim.x;
+   unsigned int total_baselines = n_baselines * n_frequencies * n_intervals;
+   const int n_pols_prod = 4;
 
-    int max_a = (i / n_ant); // row 
-    int min_a = (i % n_ant); // col
+   for (; i < total_baselines; i += grid_size){
+      unsigned int baseline = i % n_baselines;
+      unsigned int m_idx = i / n_baselines;
+      unsigned int fine_channel = m_idx % n_frequencies;
 
-    // printf("DEBUG : i = %d -> (%d,%d) vs. image_size = %d , n_ant = %d\n",i,ant1,ant2,image_size_cuda,n_ant);
+      double re = visibilities[i * 2 * n_pols_prod];
+      double im = visibilities[i * 2 * n_pols_prod + 1];
+      
+      unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
+      unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
+      if(a1 == a2) continue;
 
-    //if( i == 0 ){
-    //   printf("DEBUG : gridding_imaging_cuda_xcorr vis_cuda[0] = %.8f\n",vis_cuda[0]);
-    //}
+      // Checking for NaN values 
+      if( !isnan(re) && !isnan(im) && antenna_flags[a2]<=0 && antenna_flags[a1]<=0 ) {
+         int pos = calculate_pos( u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
+         if(pos>=0 && pos<image_size) {
+            // Allocating in uv_grid                
+            atomicAdd(&uv_grid_counter[image_size * m_idx + pos],1);
 
-    // TODO : < change to <=     
-    if( max_a <= min_a ){ // <= to exclude autos, temporarily including them !
-       return;
-    }
-    // max_a must really be > min_a to ensure the upper triangular matrix !
+            // Allocating inside m_in_buffer as well 
+            atomicAdd(&m_in_buffer[image_size * m_idx + pos].x,re);
+            atomicAdd(&m_in_buffer[image_size * m_idx + pos].y,im);
+         }   
 
-
-    // Getting corresponding real and imag visibilities 
-    // double re = vis_real_cuda[i]; 
-    // double im = vis_imag_cuda[i]; 
-    // std::complex<double>* vis = xcorr.at( time_step, fine_channel, i, j );
-    // int vis_index = ( (max_a * (max_a + 1)) / 2 + min_a )*2; // *2 because there are REAL/IMAG pairs of values 
-
-    // UPPER TRIANGULAR MATRIX : index of element - skip : (max_a*(max_a+1))/2 + min_a elements, but here *2 (re/im)  *4 (4 correlation products)    
-    // ant1=max_a and ant2=min_a :
-    int vis_index = ( (max_a * (max_a + 1)) / 2 + min_a )*2*4; // *2 because there are REAL/IMAG pairs of values, *4 correlation products !!!
-    // int vis_index = ( (ant1 * (ant1 + 1)) / 2 + ant2 )*2*4; // *2 because there are REAL/IMAG pairs of values, *4 correlation products !!!
-    VISIBILITY_TYPE* vis = vis_cuda + vis_index;
-    double re = vis[0];
-    double im = vis[1];
-
-    // TODO: comment below lines including return:    
-    // debugging :
-    /*u_cuda[i] = re; // vis_cuda[2*i];
-    v_cuda[i] = im; // vis_cuda[2*i+1];    
-    // fill also other half of the matrix :
-    if( max_a != min_a ){
-       // ant1 is max :
-       int it = min_a*n_ant + max_a;
-       u_cuda[it] = re;
-       v_cuda[it] = -im;
-    }    
-    return;*/
-
-    // Checking for NaN values 
-    if( !isnan(re) && !isnan(im) && antenna_flags[min_a]<=0 && antenna_flags[max_a]<=0 ) // not NaN and not flagged
-    {
-        int pos = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda,  +1 );
-        if(pos>=0 && pos<image_size_cuda)
-        {
-           // Allocating in uv_grid                
-           atomicAdd(&uv_grid_counter_cuda[pos],1);
-
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos].y,im);
-        }   
-
-        int pos2 = calculate_pos( u_cuda[i], v_cuda[i], delta_u_cuda, delta_v_cuda, wavelength_cuda, min_uv_cuda, n_pixels_cuda, -1 );
-        if(pos2>=0 && pos2<image_size_cuda)
-        {
-          atomicAdd(&uv_grid_counter_cuda[pos2],1);
-           // Allocating inside m_in_buffer as well 
-           atomicAdd(&m_in_buffer_cuda[pos2].x,re);
-           atomicAdd(&m_in_buffer_cuda[pos2].y,-im);
-        }        
-    }   
+         int pos2 = calculate_pos(u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
+         if(pos2>=0 && pos2<image_size)
+         {
+            atomicAdd(&uv_grid_counter[image_size * m_idx + pos2],1);
+            // Allocating inside m_in_buffer as well 
+            atomicAdd(&m_in_buffer[image_size * m_idx + pos2].x,re);
+            atomicAdd(&m_in_buffer[image_size * m_idx + pos2].y,-im);
+         }        
+      }
+   }
 }
 
 
@@ -190,24 +151,20 @@ void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
    gpuMemset(grids_counters_buffer.data(), 0, n_images * image_size * sizeof(float));
    gpuMemset(grids_buffer.data(), 0, n_images * image_size * sizeof(std::complex<float>));
    
+   int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
+   struct gpuDeviceProp_t props;
+   int gpu_id = -1;
+   gpuGetDevice(&gpu_id);
+   gpuGetDeviceProperties(&props, gpu_id);
+   unsigned int n_blocks = props.multiProcessorCount * 2;
 
+   frequencies.to_gpu();
+   gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
+      n_ant, u_gpu, v_gpu, antenna_flags, antenna_weights, frequencies.data(), image_size,
+      delta_u, delta_v, n_pixels, grids_counters_buffer.data(), min_uv, (gpufftComplex*) grids_buffer.data());
+   gpuGetLastError();
+   gpuDeviceSynchronize();
 
-   for(int time_step = 0; time_step < xcorr.integration_intervals(); time_step++){
-      for(int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++){
-         double frequency_hz = frequencies[fine_channel];
-         double wavelength_m = VEL_LIGHT / frequency_hz;
-         int nBlocks = (corr_size + NTHREADS -1)/NTHREADS;
-         VISIBILITY_TYPE* vis_local_gpu = (VISIBILITY_TYPE*)xcorr.at(time_step,fine_channel,0,0);
-         std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
-         float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * image_size + fine_channel * image_size;
-
-         gridding_imaging_cuda_xcorr<<<nBlocks,NTHREADS>>>( corr_size, n_ant, u_gpu, v_gpu, antenna_flags, antenna_weights, wavelength_m, image_size,
-            delta_u, delta_v, n_pixels, vis_local_gpu, current_counter, min_uv, (gpufftComplex*)current_grid);   
-         // Gives the error in the kernel! 
-         gpuGetLastError();
-         gpuDeviceSynchronize();
-      }
-   }
    gpuFree(u_gpu); 
    gpuFree(v_gpu);
 }
