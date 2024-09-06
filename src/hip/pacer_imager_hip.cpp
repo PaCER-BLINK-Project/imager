@@ -236,25 +236,35 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    // std::cout << "Comparing grids..." << std::endl;
    // compare_buffers(ref_grids, grids_buffer);
 
+   gpuEvent_t start, stop;
+   gpuEventCreate(&start);
+   gpuEventCreate(&stop);
+   float elapsed;
+       
 
     if( !m_FFTPlan ){
        int n[2]; 
        n[0] = n_pixels; 
-       n[1] = n_pixels; 
-
-       // START: gpufftPLanMany() 
-       std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-
-       // DONE : make plan -> m_FFTPlan and do it once in the lifetime of the program !!!
-       //        it takes ~200ms and is not required every time as it is always the same !!!
+       n[1] = n_pixels;
+       gpuEventRecord(start);
        gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2C, n_images );
+       gpuEventRecord(stop);
+       gpuEventSynchronize(stop);
+       gpuEventElapsedTime(&elapsed, start, stop);
+       std::cout << "gpufftPlanMany took " << elapsed << "ms" << std::endl;
     }
-    #define GPUFFT_BACKWARD 1
-    gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_BACKWARD);
+     gpuEventRecord(start);
+     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_BACKWARD);
+     gpuEventRecord(stop);
+     gpuEventSynchronize(stop);
+     gpuEventElapsedTime(&elapsed, start, stop);
+     std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
     MemoryBuffer<float> fnorm {n_images, false, true};
     vector_sum_gpu(grids_counters_buffer.data(), image_size, n_images, fnorm);
     fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
 
+      gpuEventDestroy(start);
+      gpuEventDestroy(stop);
     return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
