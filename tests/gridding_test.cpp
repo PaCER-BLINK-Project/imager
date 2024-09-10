@@ -15,22 +15,6 @@
 std::string dataRootDir;
 
 
-// void test_geometric_correction_cpu(){
-//     ObservationInfo obs_info {VCS_OBSERVATION_INFO};
-//     Visibilities xcorr = Visibilities::from_fits_file(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits", obs_info);
-//     std::cout << "n_integrations = " << xcorr.integration_intervals() << ", n_frequencies = " << xcorr.nFrequencies << std::endl;
-//     CBgFits fits_vis_w;
-//     fits_vis_w.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/m_W.fits").c_str(), 0, 1, 1 );
-//     char *frequencies_data;
-//     size_t input_size;
-//     load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/frequencies.bin", frequencies_data, input_size);
-//     MemoryBuffer<double> frequencies {reinterpret_cast<double *>(frequencies_data), input_size / sizeof(double), false, false};
-//     apply_geometric_corrections_cpu(xcorr, fits_vis_w, frequencies);
-//     compare_xcorr_to_fits_file(xcorr, dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_after_geo_corrections.fits");
-//     std::cout << "'test_geometric_correction_cpu' passed." << std::endl;
-// }
-
-
 void test_gridding_gpu(){
     ObservationInfo obs_info {VCS_OBSERVATION_INFO};
     Visibilities xcorr = Visibilities::from_fits_file(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/03_after_geo_corrections.fits", obs_info);
@@ -48,13 +32,13 @@ void test_gridding_gpu(){
 
     double delta_u = 1.221977710723877;
     double delta_v = 1.1040256023406982;
-    int n_pixels= 8192;
+    int n_pixels = 8192;
     int min_uv = -1000;
 
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size {n_pixels * n_pixels * n_images};
-    MemoryBuffer<float> grids_counters_buffer(buffer_size, false, true);
-    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false,  true);
+    MemoryBuffer<float> grids_counters_buffer(buffer_size, true);
+    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size,  true);
     gridding_gpu(xcorr, -1, -1, fits_vis_u, fits_vis_v, antenna_flags.data(), antenna_weights.data(), frequencies,
       delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
 

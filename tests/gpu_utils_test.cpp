@@ -38,8 +38,8 @@ void test_vector_sum(){
     float* data_gpu;
     gpuMalloc(&data_gpu, sizeof(float) * n_images * image_size);
     gpuMemcpy(data_gpu, data_cpu, sizeof(float) * n_images * image_size, gpuMemcpyHostToDevice);
-    MemoryBuffer<float> results {n_images, false, true};
-    sum_gpu_atomicadd(data_gpu, image_size, n_images, results);
+    MemoryBuffer<float> results {n_images, true};
+    vector_sum_gpu(data_gpu, image_size, n_images, results);
     results.to_cpu();
     // check the values
     for(int img_id {0}; img_id < n_images; img_id++){

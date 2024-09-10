@@ -7,7 +7,6 @@
 
 void apply_geometric_corrections_cpu(Visibilities &xcorr, CBgFits &fits_vis_w, const MemoryBuffer<double>& frequencies){
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    xcorr.to_fits_file("01_before_geo_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
@@ -37,13 +36,11 @@ void apply_geometric_corrections_cpu(Visibilities &xcorr, CBgFits &fits_vis_w, c
             }
         }
     }
-    xcorr.to_fits_file("01_after_geo_corrections.fits");
 }
 
 void apply_cable_lengths_corrections_cpu(Visibilities &xcorr, const MemoryBuffer<double>& cable_lengths, const MemoryBuffer<double>& frequencies)
 {
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    xcorr.to_fits_file("02_before_cable_corrections.fits");
     int n_ant = xcorr.obsInfo.nAntennas;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
@@ -63,7 +60,7 @@ void apply_cable_lengths_corrections_cpu(Visibilities &xcorr, const MemoryBuffer
                     std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, ant1, ant2);
 
                     double re = vis[0].real();
-                    double im = vis[0].imag(); // TODO : why do I need 1 here ???
+                    double im = vis[0].imag();
                     double re_prim = re * cos_angle - im * sin_angle;
                     double im_prim = im * cos_angle + re * sin_angle;
 
@@ -73,5 +70,4 @@ void apply_cable_lengths_corrections_cpu(Visibilities &xcorr, const MemoryBuffer
             }
         }
     }
-    xcorr.to_fits_file("02_after_cable_corrections.fits");
 }

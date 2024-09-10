@@ -163,9 +163,6 @@ public :
    
    
    // UVW for SKA-Low station zenith phase-centered all-sky imaging :
-   // MemoryBuffer<float> m_Ud {};
-   // MemoryBuffer<float> m_V {};
-   // MemoryBuffer<float> m_W {};
    CBgFits m_U;
    CBgFits m_V;
    CBgFits m_W;

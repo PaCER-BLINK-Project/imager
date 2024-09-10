@@ -62,36 +62,45 @@ void test_fft_shift_simple(){
 
 
 
-/*
+void test_imager_cpu(){
 
-void test_imager_cpu_one_coarse_channel(){    
-    auto input_visibilities = Visibilities::from_fits_file(dataRootDir + "/imager/vis_coarse_channel.fits", VCS_OBSERVATION_INFO);
+    std::string vis_file {dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits"};
+    std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
+    std::string antennaPositionsFile {""};
+    std::string output_dir {"/scratch/director2183/cdipietrantonio/test_imager_cpu"};
+    std::string szWeighting {"N"};
+    const int image_size = 8192;
+    bool bZenithImage {false};
+    double fUnixTime {1592584240};
+    double MinUV = -1000;
+    double FOV_degrees = 30;
+    std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
 
 
-    const unsigned int n_antennas {128u};
-    const unsigned int n_baselines {(n_antennas + 1) * (n_antennas / 2)};
-    const unsigned int n_polarisations {2u};
-    const unsigned int n_fine_channels {128u};
-    const unsigned int n_time_samples {1u};
-    const unsigned int n_integrated_samples {52u};
-    const unsigned int n_integration_intervals {n_time_samples / n_integrated_samples};
-    // the following definition will make sure that the output won't be scaled by the time
-    // averaging factor.
-    const double time_resolution {1.0 / n_integrated_samples};
-    const unsigned int n_channels_to_avg {1u};
-    const unsigned int reset_visibilities {1u};
+    CPacerImager imager;
+    imager.m_ImagerParameters.m_bConstantUVW = true; 
+    imager.m_ImagerParameters.SetGlobalParameters(antennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
+    imager.m_ImagerParameters.m_szOutputDirectory = output_dir.c_str();
+
+
+    if(strlen(metadataFile.c_str())){
+        imager.m_ImagerParameters.m_MetaDataFile = metadataFile.c_str();
+        imager.m_ImagerParameters.m_bConstantUVW = false; // when Meta data file is provided it assumes that it will pointed observation (not all sky)
+    }
     
-    size_t n_voltages {static_cast<size_t>(n_integration_intervals) * n_fine_channels * n_antennas * n_polarisations * n_integrated_samples};
-    size_t n_visibilities {static_cast<size_t>(n_integration_intervals) * n_fine_channels * n_baselines * n_polarisations * n_polarisations};
-
-    delete[] visibilities_cpu;
-    delete[] outputData;
-    std::cout << "'test_correlation_with_xgpu_in_mwax_data' passed." << std::endl;
+    imager.m_ImagerParameters.m_fUnixTime = fUnixTime;
+    
+   imager.Initialise(0);
+   // setting flagged antennas must be called / done after reading METAFITS file:
+   if( flagged_antennas.size() > 0 ){
+       imager.SetFlaggedAntennas( flagged_antennas );
+   }
+   ObservationInfo obs_info {VCS_OBSERVATION_INFO};
+   auto xcorr = Visibilities::from_fits_file(vis_file, obs_info);
+   auto images = imager.run_imager(xcorr, -1, -1, image_size, FOV_degrees, MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
+   std::cout << "Saving images to disk..." << std::endl;
+   images.to_fits_files(output_dir);
 }
-
-*/
-
-
 
 
 int main(void){
@@ -104,6 +113,7 @@ int main(void){
 
     try{
         test_fft_shift_simple();
+        test_imager_cpu();
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;
         return 1;

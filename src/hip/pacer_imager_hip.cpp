@@ -215,9 +215,9 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
    size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
-   MemoryBuffer<float> grids_counters_buffer(buffer_size, false, true);
-   MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false,  true);
-   MemoryBuffer<std::complex<float>> images_buffer(buffer_size, false, true);
+   MemoryBuffer<float> grids_counters_buffer(buffer_size, true);
+   MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, true);
+   MemoryBuffer<std::complex<float>> images_buffer(buffer_size, true);
   
   
 

@@ -657,7 +657,6 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/03_after_geo_corrections.fits");
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
@@ -667,14 +666,11 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     
 
-    //grids_counters_buffer.dump("grids_counters_buffer.bin");
-    //grids_buffer.dump("grids_buffer.bin");
+    grids_counters_buffer.dump("grids_counters_buffer.bin");
+    grids_buffer.dump("grids_buffer.bin");
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
-   PRINTF_INFO("PROGRESS : executing dirty image\n");
+    PRINTF_INFO("PROGRESS : executing dirty image\n");
     dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
-    // float *dest {reinterpret_cast<float*>(images_buffer_float.data())};
-    // double *src {reinterpret_cast<double*>(images_buffer_double.data())};
-    // for(size_t i {0}; i < buffer_size * 2; i++) dest[i] = static_cast<float>(src[i]);
     return {std::move(images_buffer_float), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
@@ -706,9 +702,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
         PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
     }
-    // xcorr.to_cpu();
-    //::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/1276619416_1276619418_images_cpu_reference_data/1592584200/133/000/00_before_any_operation.fits");
-    
+
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);
 
@@ -716,29 +710,15 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 
-    // m_W.WriteFits("m_W.fits");
-    //memdump((char*) frequencies.data(), xcorr.nFrequencies * sizeof(double), "frequencies.bin");
     if (m_ImagerParameters.m_bApplyGeomCorr)
         ApplyGeometricCorrections(xcorr, m_W, frequencies);
 
-    // xcorr.to_cpu();
-    // ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/01_after_geo_corrections.fits");
-    // xcorr.to_gpu();
     if (m_ImagerParameters.m_bApplyCableCorr){
         MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
         for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
             cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
-        
-        //memdump((char*) cable_lengths.data(), xcorr.obsInfo.nAntennas * sizeof(double), "cable_lengths.bin");
-
-
         ApplyCableCorrections(xcorr, cable_lengths, frequencies);
     }
-
-    // xcorr.to_cpu();
-    // ::compare_xcorr_to_fits_file(xcorr, "/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/02_after_cable_corrections.fits");
-    // xcorr.to_gpu();
-        
 
     printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
     fflush(stdout);
