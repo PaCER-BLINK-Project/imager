@@ -29,10 +29,8 @@ void test_gridding_gpu(){
     MemoryBuffer<float> antenna_weights {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_weights.bin")};
     antenna_flags.to_gpu();
     antenna_weights.to_gpu();
-
-    double delta_u = 1.221977710723877;
-    double delta_v = 1.1040256023406982;
-    int n_pixels = 8192;
+    double delta_u = 39.10328674, delta_v = 35.32881927;
+    int n_pixels = 256;
     int min_uv = -1000;
 
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
@@ -42,22 +40,20 @@ void test_gridding_gpu(){
     gridding_gpu(xcorr, -1, -1, fits_vis_u, fits_vis_v, antenna_flags.data(), antenna_weights.data(), frequencies,
       delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
 
-   grids_counters_buffer.to_cpu();
-   grids_buffer.to_cpu();
-   CBgFits reference_grid, reference_grid_counter;
-    reference_grid.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/uv_grid_real_8192x8192.fits").c_str(), 0, 1, 1 );
-    reference_grid_counter.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/uv_grid_counter_8192x8192.fits").c_str(), 0, 1, 1 );
-
+    grids_counters_buffer.to_cpu();
+    grids_buffer.to_cpu();
+    MemoryBuffer<std::complex<float>> reference_grid {MemoryBuffer<std::complex<float>>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/grids_buffer.bin")};
+    MemoryBuffer<float> reference_grid_counter {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/grids_counters_buffer.bin")};
     for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(grids_counters_buffer[i] != reference_grid_counter.getXY(i % n_pixels, i / n_pixels)){
-            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter.getXY(i % n_pixels, i / n_pixels) << std::endl;
-            break;
+        if(grids_counters_buffer[i] != reference_grid_counter[i]){
+            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter[i] << std::endl;
+            throw TestFailed("'test_gridding_gpu' failed: counters are not the same.");
         }
     }
     for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(std::abs(grids_buffer[i].real() - reference_grid.getXY(i % n_pixels, i / n_pixels)) > 1e-4){
-            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i].real() << " != " << reference_grid.getXY(i % n_pixels, i / n_pixels) << std::endl;
-            exit(1);
+        if(std::abs(grids_buffer[i].real() - reference_grid[i].real()) > 1e-3 || std::abs(grids_buffer[i].imag() - reference_grid[i].imag()) > 1e-3){
+            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i] << " != " << reference_grid[i] << std::endl;
+            throw TestFailed("'test_gridding_gpu' failed: grids are not the same.");
         }
     }
 

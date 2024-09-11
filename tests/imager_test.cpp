@@ -39,37 +39,14 @@ void test_fft_shift_simple(){
 
 
 
-// void test_fft_shift_on_reference(){
-
-//     char *input, *ref_output;
-//     size_t input_size, ref_output_size;
-//     const size_t image_side {8192ul};
-//     load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/image_before_shift.bin", input, input_size);
-//     load_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/image_after_shift.bin", ref_output, ref_output_size);
-
-//     std::complex<float> *input_cpx {reinterpret_cast<std::complex<float>*>(input)};
-//     std::complex<float> *ref_output_cpx {reinterpret_cast<std::complex<float>*>(ref_output)};
-
-//     fft_shift(input_cpx, image_side, image_side);
-
-//     if(!complex_vectors_equal(input_cpx, ref_output_cpx, image_side * image_side)){
-//         throw TestFailed("test_fft_shift_on_reference: vectors are not equal!");
-//     }
-    
-//     std::cout << "Test 'test_fft_shift_on_reference' passed." << std::endl;
-// }
-
-
-
-
 void test_imager_cpu(){
 
-    std::string vis_file {dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits"};
+    std::string vis_file {dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/input_visibilities.fits"};
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::string antennaPositionsFile {""};
     std::string output_dir {"/scratch/director2183/cdipietrantonio/test_imager_cpu"};
     std::string szWeighting {"N"};
-    const int image_size = 8192;
+    const int image_size = 256;
     bool bZenithImage {false};
     double fUnixTime {1592584240};
     double MinUV = -1000;
@@ -78,6 +55,8 @@ void test_imager_cpu(){
 
 
     CPacerImager imager;
+    CImagerParameters::m_bApplyCableCorr = true;
+    CImagerParameters::m_bApplyGeomCorr = true;
     imager.m_ImagerParameters.m_bConstantUVW = true; 
     imager.m_ImagerParameters.SetGlobalParameters(antennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = output_dir.c_str();
