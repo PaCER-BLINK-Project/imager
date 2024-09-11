@@ -259,7 +259,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
-    MemoryBuffer<float> fnorm {n_images, false, true};
+     MemoryBuffer<float> fnorm {n_images, true};
     vector_sum_gpu(grids_counters_buffer.data(), image_size, n_images, fnorm);
     fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
 

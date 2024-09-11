@@ -11,6 +11,7 @@
 #include <gpu_macros.hpp>
 #include "common.hpp"
 #include "../src/pacer_imager.h"
+#include "../src/hip/pacer_imager_hip.h"
 
 std::string dataRootDir;
 
@@ -39,12 +40,13 @@ void test_fft_shift_simple(){
 
 
 
-void test_imager_cpu(){
+void test_imager_common(CPacerImager& imager, bool is_cpu){
 
     std::string vis_file {dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/input_visibilities.fits"};
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::string antennaPositionsFile {""};
-    std::string output_dir {"/scratch/director2183/cdipietrantonio/test_imager_cpu"};
+    std::string output_dir { is_cpu ? 
+        "/scratch/director2183/cdipietrantonio/test_imager_cpu" : "/scratch/director2183/cdipietrantonio/test_imager_gpu"};
     std::string szWeighting {"N"};
     const int image_size = 256;
     bool bZenithImage {false};
@@ -53,8 +55,6 @@ void test_imager_cpu(){
     double FOV_degrees = 30;
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
 
-
-    CPacerImager imager;
     CImagerParameters::m_bApplyCableCorr = true;
     CImagerParameters::m_bApplyGeomCorr = true;
     imager.m_ImagerParameters.m_bConstantUVW = true; 
@@ -81,6 +81,16 @@ void test_imager_cpu(){
    images.to_fits_files(output_dir);
 }
 
+void test_imager_cpu(){
+    CPacerImager imager;
+    test_imager_common(imager, true);
+}
+
+
+void test_imager_gpu(){
+    CPacerImagerHip imager;
+    test_imager_common(imager, false);
+}
 
 int main(void){
     char *pathToData {std::getenv(ENV_DATA_ROOT_DIR)};
@@ -93,6 +103,7 @@ int main(void){
     try{
         test_fft_shift_simple();
         test_imager_cpu();
+        test_imager_gpu();
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;
         return 1;

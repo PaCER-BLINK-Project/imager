@@ -666,8 +666,8 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
                       grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
     
 
-    grids_counters_buffer.dump("grids_counters_buffer.bin");
-    grids_buffer.dump("grids_buffer.bin");
+    //grids_counters_buffer.dump("grids_counters_buffer.bin");
+    //grids_buffer.dump("grids_buffer.bin");
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
     PRINTF_INFO("PROGRESS : executing dirty image\n");
     dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
