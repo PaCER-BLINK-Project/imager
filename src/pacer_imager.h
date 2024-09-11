@@ -119,8 +119,11 @@ class Images : public MemoryBuffer<std::complex<float>> {
 
 
 
-class CPacerImager
-{
+class CPacerImager {
+
+protected:
+    MemoryBuffer<double> frequencies;
+
 public :
    // TODO: decide if this should be static or member variables
    // debug level for the whole library / program :

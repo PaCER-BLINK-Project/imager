@@ -687,9 +687,12 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
                                                                  // continues (FITS image-like)
 )
 {
+    // TODO: make sure the xcorr structure has the same parameters at each run call
+    // This will avoid to reallocate memory
     // TODO Cristian: time_step, fine_channel will be used in the to select a
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
+    
     double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
     Initialise(initial_frequency_hz);
     int n_ant = xcorr.obsInfo.nAntennas;
@@ -706,7 +709,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);
 
-    MemoryBuffer<double> frequencies {xcorr.nFrequencies, false, false};
+    if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 

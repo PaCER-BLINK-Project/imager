@@ -221,11 +221,10 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
   
   
 
-   MemoryBuffer<double> frequencies {xcorr.nFrequencies, false, false};
-   for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
-      frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
+   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
+   gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    
-   gridding_gpu(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies,
+   gridding_gpu(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
       delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
 
    // auto ref_grids_counters = MemoryBuffer<float>::from_dump("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/grids_counters_buffer.bin");
@@ -270,15 +269,19 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
 
 void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
+   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
+   gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
    if(!w_gpu){
       gpuMalloc((void**)&w_gpu, xySize*sizeof(float));
    }
    gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
-   apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies);
+   apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies_gpu);
 }
 
 
 void CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
-   apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies);
+   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
+   gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
+   apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies_gpu);
 }

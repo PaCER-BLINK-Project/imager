@@ -9,6 +9,7 @@
 
 class CPacerImagerHip : public CPacerImager {
 protected :
+   MemoryBuffer<double> frequencies_gpu;
    // CUDA / HIP FFT plan:
    gpufftHandle m_FFTPlan; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
 
