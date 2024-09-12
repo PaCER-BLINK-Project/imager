@@ -46,7 +46,9 @@ public :
    double bandwidthMHz;            // bandwidth (MHz)
    double haHrs, raHrs, decDegs;          // ra,dec of phase centre.
    double haHrsStart;              // the HA of the phase center at the start of the integration
-   double refEl, refAz;            // the el/az of the normal to the plane of the array (radian)
+//   double refEl, refAz;            // NOT USED / TO BE REMOVED : the el/az of the normal to the plane of the array (radian)
+   double AzimDeg;                 // Pointing Azimuth - used
+   double ElevDeg;                 // Pointing Elevatoion - used
    int    year, month, day;        // date/time in UTC.
    int    refHour, refMinute;
    double refSecond;
@@ -97,10 +99,12 @@ public :
    // Read metadata 
    // reading meta data from text file : 
    bool ReadMetaDataTxt( const char* filename );
-   
-   bool ReadMetaFitsFile( const char* filename );
-   
-   bool ReadMetaData( const char* filename );
+
+   // if obsid > 0 is passed RA,DEC and other metadata are updated automatically    
+   bool ReadMetaFitsFile( const char* filename, double obsid=-1 );
+
+   // if obsid > 0 is passed RA,DEC and other metadata are updated automatically    
+   bool ReadMetaData( const char* filename, double obsid=-1 );
    
    // reading of antenna positions :
    int ReadAntPositions();
@@ -117,6 +121,14 @@ public :
    // error checking :
    bool checkStatus(int status, const char* szErrorMsg );
    
+   // updating pointing information and time based on current time and (Az,Elev) pointing :
+   // based on python scripts in SMART imaging pipeline : see ~/github/smart/scripts/fix_metafits_time_radec_all.py
+   bool fix_metafits( double obsid, double inttime_sec=1.00 ); // OBSID is in fact GPS time
+   
+
+   // auxiliary functions :
+   static double ux2gps( double uxtime );   
+   static double gps2ux( double gpstime );
 
    // void Validate(bool lockPointing);
    private:
