@@ -13,7 +13,7 @@
 #include <gpu_macros.hpp>
 #include "common.hpp"
 #include "../src/hip/gpu_utils.h"
-
+#include "../src/pacer_imager.h" // Just for the Images class. Then, we will move the class in AstroIO
 std::string dataRootDir;
 
 
@@ -88,6 +88,42 @@ void test_fft_shift_and_norm(){
 
 
 
+void test_averaging_kernel(){
+
+    const int n_images  {4};
+    const int image_side {512};
+    const int n_pixels {image_side * image_side};
+
+    MemoryBuffer<std::complex<float>> input_images_data {n_images * n_pixels};
+    MemoryBuffer<std::complex<float>> reference_avg_data {n_pixels};
+    memset(reference_avg_data.data(), 0, sizeof(std::complex<float>) * n_pixels);
+
+    for(int img_id {0}; img_id < n_images; img_id++){
+        for(int i {0}; i < n_pixels; i++){
+            float val = i % 100;
+            input_images_data[img_id * n_pixels + i].real(val);
+            reference_avg_data[i].real(reference_avg_data[i].real() + val);
+        }
+    }
+    for(int i {0}; i < n_pixels; i++) reference_avg_data[i] /= n_images;
+    input_images_data.to_gpu();
+    Images input_images  {std::move(input_images_data), VCS_OBSERVATION_INFO, VCS_OBSERVATION_INFO.nTimesteps, VCS_OBSERVATION_INFO.nFrequencies / n_images, image_side};
+    Images avg_image = image_averaging(input_images);
+    std::cerr << "Invocation over." << std::endl;
+    avg_image.to_cpu();
+    gpuDeviceSynchronize();
+    std::complex<float> *out_avg_data {avg_image.data()};
+    for(int i {0}; i < n_pixels; i++){
+        if(out_avg_data[i] != reference_avg_data[i]){
+            std::cout << "'test_averaging_kernel' error: output differs at position " << i << \
+                ": out_avg_data = " << out_avg_data[i] << ", reference = " << reference_avg_data[i] << std::endl;
+            throw TestFailed("'test_averaging_kernel' failed. Output differs.");
+        }
+    }
+    std::cout << "'test_averaging_kernel' passed." << std::endl;
+}
+
+
 int main(void){
     char *pathToData {std::getenv(ENV_DATA_ROOT_DIR)};
     if(!pathToData){
@@ -99,6 +135,7 @@ int main(void){
     try{
         test_vector_sum();
         test_fft_shift_and_norm();
+        test_averaging_kernel();
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;
         return 1;

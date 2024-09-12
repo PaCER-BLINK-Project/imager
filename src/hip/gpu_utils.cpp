@@ -194,3 +194,22 @@ void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int 
 }
 
 
+__global__ void averaging_kernel(const std::complex<float> *data, size_t n_pixels, size_t n_images, std::complex<float> *out){
+   size_t i {blockIdx.x * blockDim.x + threadIdx.x};
+   if(i >= n_pixels) return;
+   std::complex<float> tmp = data[i];
+   for(size_t t {i + n_pixels}; t < n_pixels * n_images; t += n_pixels) tmp += data[i];
+   tmp  /= n_images;
+   out[i] = tmp;
+}
+
+
+ Images image_averaging(const Images& images){
+   size_t image_size = images.image_size();
+   size_t n_images = images.integration_intervals() * images.nFrequencies;
+   MemoryBuffer<std::complex<float>> avg_image {image_size, true};
+   unsigned int n_blocks {static_cast<unsigned int>((image_size + NTHREADS - 1) / NTHREADS)};
+   averaging_kernel<<<n_blocks, NTHREADS>>>(images.data(), image_size, n_images, avg_image.data());
+   gpuCheckLastError();
+   return {std::move(avg_image), images.obsInfo, images.obsInfo.nTimesteps, images.obsInfo.nFrequencies, images.side_size};
+ }
