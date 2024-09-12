@@ -6,6 +6,7 @@
 #include "pacer_imager_parameters.h"
 #include "observation_metadata.h"
 #include "pacer_imager_defs.h"
+#include "images.hpp"
 #include <bg_fits.h>
 
 #include <string>
@@ -26,103 +27,14 @@ using namespace std;
 void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side);
 
 
-class Images : public MemoryBuffer<std::complex<float>> {
-    public:
-    ObservationInfo obsInfo;
-    unsigned int nIntegrationSteps;
-    unsigned int nAveragedChannels;
-    unsigned int nFrequencies;
-    unsigned int side_size;
-
-   Images(MemoryBuffer<std::complex<float>>&& data, const ObservationInfo& obsInfo, unsigned int nIntegrationSteps,
-            unsigned int nAveragedChannels, unsigned int side_size) : MemoryBuffer {std::move(data)} {
-        this->obsInfo = obsInfo;
-        this->nIntegrationSteps = nIntegrationSteps;
-        this->nAveragedChannels = nAveragedChannels;
-        this->nFrequencies = obsInfo.nFrequencies / nAveragedChannels;
-        this->side_size = side_size;
-    }
-
-    Images(const Images& other) : MemoryBuffer {other} {
-        obsInfo = other.obsInfo;
-        nIntegrationSteps = other.nIntegrationSteps;
-        nFrequencies = other.nFrequencies;
-        nAveragedChannels = other.nAveragedChannels;
-        side_size = other.side_size;
-    }
-
-    Images(Images&& other) : MemoryBuffer {std::move(other)} {
-        obsInfo = other.obsInfo;
-        nIntegrationSteps = other.nIntegrationSteps;
-        nFrequencies = other.nFrequencies;
-        nAveragedChannels = other.nAveragedChannels;
-        side_size = other.side_size;
-    }
-
-    Images& operator=(Images& other){
-        if(this == &other) return *this;
-        MemoryBuffer::operator=(other);
-        obsInfo = other.obsInfo;
-        nIntegrationSteps = other.nIntegrationSteps;
-        nFrequencies = other.nFrequencies;
-        nAveragedChannels = other.nAveragedChannels;
-        side_size = other.side_size;
-        return *this;
-    }
-
-    Images& operator=(Images&& other){
-        if(this == &other) return *this;
-        obsInfo = other.obsInfo;
-        nIntegrationSteps = other.nIntegrationSteps;
-        nFrequencies = other.nFrequencies;
-        nAveragedChannels = other.nAveragedChannels;
-        side_size = other.side_size;
-        MemoryBuffer::operator=(std::move(other));
-        return *this;
-    }
-
-
-    std::complex<float> *at(unsigned int interval, unsigned int frequency) {
-        const size_t nValuesInTimeInterval {image_size() * nFrequencies};
-        std::complex<float> *pData = this->data() + nValuesInTimeInterval * interval + image_size() * frequency;
-        return pData;
-    }
-
-    /**
-     * Number of time intervals integrated over by the correlator.
-     */
-    size_t integration_intervals() const {
-        return (obsInfo.nTimesteps + nIntegrationSteps - 1) / nIntegrationSteps;
-    }
-    
-    // Number of pixels in a single image.
-    size_t image_size() const {
-       return side_size * side_size;
-    }
-
-    // Number of images `data` array.
-    size_t size() const {
-        return this->integration_intervals() * nFrequencies;
-    }
-    
-    /**
-     * @brief Save visibilities to a FITS file on disk.
-     * 
-     * @param filename name of the output file.
-     */
-    void to_fits_file(const std::string& filename, bool save_as_complex = false, bool save_imaginary = false);
-
-
-   void to_fits_files(const std::string& directory_path, bool save_as_complex = false, bool save_imaginary = false);
-};
-
-
 
 
 class CPacerImager {
 
 protected:
     MemoryBuffer<double> frequencies;
+    MemoryBuffer<float> grids_counters;
+    MemoryBuffer<std::complex<float>> grids;
 
 public :
    // TODO: decide if this should be static or member variables
@@ -233,7 +145,7 @@ public :
    // 1st version producing a dirty image (tested on both MWA and SKA-Low).
    // TODO : Test cases can be found in PaCER documentation 
    //-----------------------------------------------------------------------------------------------------------------------------
-   void dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
+   void dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters,
      int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer);
 
    
@@ -260,7 +172,7 @@ public :
                   int time_step, 
                   int fine_channel,
                   CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
-                  MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer, double delta_u, double delta_v,
+                  MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters, double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="" // weighting : U for uniform (others not implemented)

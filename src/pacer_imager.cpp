@@ -22,7 +22,6 @@
 // AstroIO for Visibilities class :
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
-#include "files.hpp"
 #include "corrections.h"
 #include <fstream>
 #include <omp.h>
@@ -41,17 +40,7 @@ void memdump(char *ptr, size_t nbytes, std::string filename){
 
 namespace {
     
-    void save_fits_file(const std::string filename, float* data, long side_x, long side_y){
-        FITS fitsImage;
-        FITS::HDU hdu;
-        hdu.set_image(data,  side_x, side_y);
-        // hdu.add_keyword("TIME", static_cast<long>(obsInfo.startTime), "Unix time (seconds)");
-        // hdu.add_keyword("MILLITIM", msElapsed, "Milliseconds since TIME");
-        // hdu.add_keyword("INTTIME", integrationTime, "Integration time (s)");
-        // hdu.add_keyword("COARSE_CHAN", obsInfo.coarseChannel, "Receiver Coarse Channel Number (only used in offline mode)");
-        fitsImage.add_HDU(hdu);
-        fitsImage.to_file(filename);
-    }
+
 
     void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
         auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
@@ -87,33 +76,6 @@ namespace {
     }
 }
 
-void Images::to_fits_files(const std::string& directory_path, bool save_as_complex, bool save_imaginary) {
-    if(on_gpu()) to_cpu();
-    MemoryBuffer<float> img_real(this->image_size(), false, false);
-    MemoryBuffer<float> img_imag(this->image_size(), false, false);
-    for(size_t interval {0}; interval < this->integration_intervals(); interval++){
-        for(size_t fine_channel {0}; fine_channel < this->nFrequencies; fine_channel++){
-            std::complex<float> *current_data {this->data() + this->image_size() * this->nFrequencies * interval + fine_channel * this->image_size()}; 
-            std::stringstream full_directory;
-            full_directory << directory_path << "/" << "start_time_" << obsInfo.startTime << \
-                "/" << "int_" << interval << "/coarse_" << obsInfo.coarseChannel << "/fine_ch" << fine_channel;
-            std::string full_directory_str = full_directory.str();
-            blink::imager::create_directory(full_directory_str);
-            if(save_as_complex){
-                std::string filename {full_directory_str + "/image.fits"};
-                std::complex<float>* p_data = this->at(interval, fine_channel);
-                ::save_fits_file(filename, reinterpret_cast<float*>(p_data), this->side_size, this->side_size *2);
-            }else{
-                for(size_t i {0}; i < this->image_size(); i++){
-                    img_real[i] = current_data[i].real();
-                    img_imag[i] = current_data[i].imag();
-                }
-                ::save_fits_file(full_directory_str + "/image_real.fits", img_real.data(), this->side_size, this->side_size);
-                ::save_fits_file(full_directory_str + "/image_imag.fits", img_imag.data(), this->side_size, this->side_size);
-            }
-        }
-    }
-}
 
 
 // TEST OPTIONS to compare with MIRIAD image
@@ -316,7 +278,7 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
-void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, MemoryBuffer<float>& grids_counters_buffer,
+void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters,
     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer) {
 
     // TODO CRISTIAN: add check for overflows!
@@ -330,7 +292,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
     fftwf_init_threads();
     std::cout << "dirty_image: n threads used = " << omp_get_max_threads() << std::endl;
     fftwf_plan_with_nthreads(omp_get_max_threads());
-    fftwf_plan pFwd = fftwf_plan_many_dft(2, n, n_images, reinterpret_cast<fftwf_complex*>(grids_buffer.data()), NULL,
+    fftwf_plan pFwd = fftwf_plan_many_dft(2, n, n_images, reinterpret_cast<fftwf_complex*>(grids.data()), NULL,
         1, grid_size, reinterpret_cast<fftwf_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_BACKWARD, FFTW_ESTIMATE);
     fftwf_execute(pFwd);
     fftwf_destroy_plan(pFwd);
@@ -341,10 +303,10 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids_buffer, 
     {
         for (size_t fine_channel = 0; fine_channel < n_frequencies; fine_channel++)
         {
-            std::complex<float>* current_grid = grids_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_grid = grids.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
             std::complex<float>* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
             
-            float* current_counter = grids_counters_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            float* current_counter = grids_counters.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
            
             // WARNING : this is image in l,m = cos(alpha), cos(beta) coordinates and
             // still needs to go to SKY COORDINATES !!!
@@ -453,8 +415,8 @@ inline int wrap_index(int i, int side){
 
 void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
                                  CBgFits &fits_vis_v, CBgFits &fits_vis_w,
-                                 MemoryBuffer<std::complex<float>> &grids_buffer,
-                                 MemoryBuffer<float> &grids_counters_buffer, double delta_u, double delta_v, int n_pixels,
+                                 MemoryBuffer<std::complex<float>> &grids,
+                                 MemoryBuffer<float> &grids_counters, double delta_u, double delta_v, int n_pixels,
                                  double min_uv /*=-1000*/,
                                  const char *weighting /*="" weighting : U for uniform (others not implemented) */
 )
@@ -479,16 +441,16 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
 
         bStatisticsCalculated = true;
     }
-    memset(grids_buffer.data(), 0, grids_buffer.size() * sizeof(std::complex<float>));
-    memset(grids_counters_buffer.data(), 0, grids_counters_buffer.size() * sizeof(float));
+    memset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
+    memset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
     int grid_size = n_pixels * n_pixels;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
     {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
         {
-            std::complex<float>* current_grid = grids_buffer.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
-            float* current_counter = grids_counters_buffer.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_grid = grids.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
+            float* current_counter = grids_counters.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
             // calculate using CASA formula from image_tile_auto.py :
             // synthesized_beam=(lambda_m/max_baseline)*(180.00/math.pi)*60.00 # in
             // arcmin lower=synthesized_beam/5.00 higher=synthesized_beam/3.00
@@ -657,20 +619,21 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
+    xcorr.to_fits_file("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/before_gridding.fits");
+    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
-    MemoryBuffer<float> grids_counters_buffer(buffer_size, false, false);
-    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, false, false);
+    if(!grids_counters) grids_counters.allocate(buffer_size);
+    if(!grids) grids.allocate(buffer_size);
     // Should be long long int, but keeping float now for compatibility reasons
-    gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids_buffer,
-                      grids_counters_buffer, delta_u, delta_v, n_pixels, min_uv, weighting);
+    gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids,
+                      grids_counters, delta_u, delta_v, n_pixels, min_uv, weighting);
     
 
-    //grids_counters_buffer.dump("grids_counters_buffer.bin");
-    //grids_buffer.dump("grids_buffer.bin");
+    grids_counters.dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids_counters.bin");
+    grids.dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids.bin");
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
     PRINTF_INFO("PROGRESS : executing dirty image\n");
-    dirty_image(grids_buffer, grids_counters_buffer, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
+    dirty_image(grids, grids_counters, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
     return {std::move(images_buffer_float), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
 }
 
@@ -715,14 +678,18 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
 
     if (m_ImagerParameters.m_bApplyGeomCorr)
         ApplyGeometricCorrections(xcorr, m_W, frequencies);
-
+    // xcorr.to_cpu();
+    // ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/cpu_stages_dumps/after_geo_corrections.fits");
+    // xcorr.to_gpu();
     if (m_ImagerParameters.m_bApplyCableCorr){
         MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
         for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
             cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
         ApplyCableCorrections(xcorr, cable_lengths, frequencies);
     }
-
+    // xcorr.to_cpu();
+    // ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/cpu_stages_dumps/after_cable_corrections.fits");
+    // xcorr.to_gpu();
     printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
     fflush(stdout);
         //   // based on RTS : UV pixel size as function FOVtoGridsize in

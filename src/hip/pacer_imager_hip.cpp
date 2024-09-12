@@ -215,8 +215,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
    size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
-   MemoryBuffer<float> grids_counters_buffer(buffer_size, true);
-   MemoryBuffer<std::complex<float>> grids_buffer(buffer_size, true);
+   if(!grids_counters) grids_counters.allocate(buffer_size, true);
+   if(!grids) grids.allocate(buffer_size, true);
    MemoryBuffer<std::complex<float>> images_buffer(buffer_size, true);
   
   
@@ -225,16 +225,18 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    
    gridding_gpu(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
-      delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
+      delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
 
-   // auto ref_grids_counters = MemoryBuffer<float>::from_dump("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/grids_counters_buffer.bin");
-   // auto ref_grids =  MemoryBuffer<std::complex<float>>::from_dump("/software/projects/director2183/cdipietrantonio/test-data/mwa/1276619416/imager_stages/1s_ch000/grids_buffer.bin");
-   // grids_counters_buffer.to_cpu();
+   // auto ref_grids_counters = MemoryBuffer<float>::from_dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids_counters.bin");
+   // auto ref_grids =  MemoryBuffer<std::complex<float>>::from_dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids.bin");
+   // grids_counters.to_cpu();
+   // grids.to_cpu();
    // std::cout << "Comparing counters..." << std::endl;
-   // compare_buffers(ref_grids_counters, grids_counters_buffer);
+   // compare_buffers(ref_grids_counters, grids_counters);
    // std::cout << "Comparing grids..." << std::endl;
-   // compare_buffers(ref_grids, grids_buffer);
-
+   // compare_buffers(ref_grids, grids);
+   // grids_counters.to_gpu();
+   // grids.to_gpu();
    gpuEvent_t start, stop;
    gpuEventCreate(&start);
    gpuEventCreate(&stop);
@@ -253,18 +255,19 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
        std::cout << "gpufftPlanMany took " << elapsed << "ms" << std::endl;
     }
      gpuEventRecord(start);
-     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids_buffer.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_BACKWARD);
+     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_BACKWARD);
      gpuEventRecord(stop);
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
      MemoryBuffer<float> fnorm {n_images, true};
-    vector_sum_gpu(grids_counters_buffer.data(), image_size, n_images, fnorm);
+    vector_sum_gpu(grids_counters.data(), image_size, n_images, fnorm);
     fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
-
+      Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
+      //Images avg_images = image_averaging(imgs);
       gpuEventDestroy(start);
       gpuEventDestroy(stop);
-    return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
+    return imgs; //avg_images;
 }
 
 

@@ -1,0 +1,44 @@
+#include "images.hpp"
+#include "files.hpp"
+
+namespace {
+        void save_fits_file(const std::string filename, float* data, long side_x, long side_y){
+        FITS fitsImage;
+        FITS::HDU hdu;
+        hdu.set_image(data,  side_x, side_y);
+        // hdu.add_keyword("TIME", static_cast<long>(obsInfo.startTime), "Unix time (seconds)");
+        // hdu.add_keyword("MILLITIM", msElapsed, "Milliseconds since TIME");
+        // hdu.add_keyword("INTTIME", integrationTime, "Integration time (s)");
+        // hdu.add_keyword("COARSE_CHAN", obsInfo.coarseChannel, "Receiver Coarse Channel Number (only used in offline mode)");
+        fitsImage.add_HDU(hdu);
+        fitsImage.to_file(filename);
+    }
+}
+
+void Images::to_fits_files(const std::string& directory_path, bool save_as_complex, bool save_imaginary) {
+    if(on_gpu()) to_cpu();
+    MemoryBuffer<float> img_real(this->image_size(), false, false);
+    MemoryBuffer<float> img_imag(this->image_size(), false, false);
+    for(size_t interval {0}; interval < this->integration_intervals(); interval++){
+        for(size_t fine_channel {0}; fine_channel < this->nFrequencies; fine_channel++){
+            std::complex<float> *current_data {this->data() + this->image_size() * this->nFrequencies * interval + fine_channel * this->image_size()}; 
+            std::stringstream full_directory;
+            full_directory << directory_path << "/" << "start_time_" << obsInfo.startTime << \
+                "/" << "int_" << interval << "/coarse_" << obsInfo.coarseChannel << "/fine_ch" << fine_channel;
+            std::string full_directory_str = full_directory.str();
+            blink::imager::create_directory(full_directory_str);
+            if(save_as_complex){
+                std::string filename {full_directory_str + "/image.fits"};
+                std::complex<float>* p_data = this->at(interval, fine_channel);
+                ::save_fits_file(filename, reinterpret_cast<float*>(p_data), this->side_size, this->side_size *2);
+            }else{
+                for(size_t i {0}; i < this->image_size(); i++){
+                    img_real[i] = current_data[i].real();
+                    img_imag[i] = current_data[i].imag();
+                }
+                ::save_fits_file(full_directory_str + "/image_real.fits", img_real.data(), this->side_size, this->side_size);
+                ::save_fits_file(full_directory_str + "/image_imag.fits", img_imag.data(), this->side_size, this->side_size);
+            }
+        }
+    }
+}

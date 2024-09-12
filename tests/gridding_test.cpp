@@ -35,24 +35,24 @@ void test_gridding_gpu(){
 
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size {n_pixels * n_pixels * n_images};
-    MemoryBuffer<float> grids_counters_buffer(buffer_size, true);
-    MemoryBuffer<std::complex<float>> grids_buffer(buffer_size,  true);
+    MemoryBuffer<float> grids_counters(buffer_size, true);
+    MemoryBuffer<std::complex<float>> grids(buffer_size,  true);
     gridding_gpu(xcorr, -1, -1, fits_vis_u, fits_vis_v, antenna_flags.data(), antenna_weights.data(), frequencies,
-      delta_u, delta_v, n_pixels, min_uv, grids_counters_buffer, grids_buffer);
+      delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
 
-    grids_counters_buffer.to_cpu();
-    grids_buffer.to_cpu();
+    grids_counters.to_cpu();
+    grids.to_cpu();
     MemoryBuffer<std::complex<float>> reference_grid {MemoryBuffer<std::complex<float>>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/grids_buffer.bin")};
     MemoryBuffer<float> reference_grid_counter {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/grids_counters_buffer.bin")};
     for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(grids_counters_buffer[i] != reference_grid_counter[i]){
-            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters_buffer[i] << " != " << reference_grid_counter[i] << std::endl;
+        if(grids_counters[i] != reference_grid_counter[i]){
+            std::cerr << "Error!! Counters are not the same at position " << i << ": " << grids_counters[i] << " != " << reference_grid_counter[i] << std::endl;
             throw TestFailed("'test_gridding_gpu' failed: counters are not the same.");
         }
     }
     for(size_t i {0}; i < n_pixels * n_pixels; i++){
-        if(std::abs(grids_buffer[i].real() - reference_grid[i].real()) > 1e-3 || std::abs(grids_buffer[i].imag() - reference_grid[i].imag()) > 1e-3){
-            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids_buffer[i] << " != " << reference_grid[i] << std::endl;
+        if(std::abs(grids[i].real() - reference_grid[i].real()) > 1e-3 || std::abs(grids[i].imag() - reference_grid[i].imag()) > 1e-3){
+            std::cerr << "Error!! Grids are not the same at position " << i << ": " << grids[i] << " != " << reference_grid[i] << std::endl;
             throw TestFailed("'test_gridding_gpu' failed: grids are not the same.");
         }
     }
@@ -71,7 +71,7 @@ int main(void){
     }
     dataRootDir = std::string {pathToData};
 
-    try{
+   try{
         #ifdef __GPU__
         test_gridding_gpu();
         #endif
