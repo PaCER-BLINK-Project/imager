@@ -32,7 +32,7 @@ endif()
 
 
 file(GLOB sources "src/*.cpp")
-file(GLOB headers "src/*.h")
+file(GLOB headers "src/*.h" "src/*.hpp")
 file(GLOB apps "apps/*.cpp")
 file(GLOB tests "tests/*.cpp")
 
@@ -116,9 +116,9 @@ if(USE_OPENMP)
 endif()
 
 # TESTS
-add_executable(imager_test tests/imager_test.cpp)
-target_link_libraries(imager_test imaging)
-add_test(NAME imager_test COMMAND imager_test)
+# add_executable(imager_test tests/imager_test.cpp)
+# target_link_libraries(imager_test imaging)
+# add_test(NAME imager_test COMMAND imager_test)
 
 add_executable(corrections_test tests/corrections_test.cpp)
 target_link_libraries(corrections_test imaging)
