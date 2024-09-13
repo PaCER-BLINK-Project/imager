@@ -34,10 +34,14 @@ void Images::to_fits_files(const std::string& directory_path, bool save_as_compl
             }else{
                 for(size_t i {0}; i < this->image_size(); i++){
                     img_real[i] = current_data[i].real();
-                    img_imag[i] = current_data[i].imag();
                 }
                 ::save_fits_file(full_directory_str + "/image_real.fits", img_real.data(), this->side_size, this->side_size);
-                ::save_fits_file(full_directory_str + "/image_imag.fits", img_imag.data(), this->side_size, this->side_size);
+                if(save_imaginary){
+                    for(size_t i {0}; i < this->image_size(); i++){
+                        img_imag[i] = current_data[i].imag();
+                    }
+                    ::save_fits_file(full_directory_str + "/image_imag.fits", img_imag.data(), this->side_size, this->side_size);
+                }
             }
         }
     }

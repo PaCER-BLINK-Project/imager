@@ -7,7 +7,7 @@
 // CImagerParameters CPacerImager::m_ImagerParameters;
 std::string CImagerParameters::m_AntennaPositionsFile; // antenna positions are same for all freq. channels -> static, similarly m_bConstantUVW
 std::string CImagerParameters::m_MetaDataFile;         // meta data file (.txt or .metafits)
-bool   CImagerParameters::m_bAutoFixMetaData=false;
+bool   CImagerParameters::m_bAutoFixMetaData=true;
 bool   CImagerParameters::m_bConstantUVW=false; // default false and only true to zenith phase centered images (a
 bool   CImagerParameters::m_bAntennaPositionsXYZ=false; 
 bool   CImagerParameters::m_bCalcEarthXYZ=false; // for the MWA we require conversion from local (x,y,z) to Earth's (X,Y,Z) coordinates , for EDA2 we can keep using local (x,y,z)

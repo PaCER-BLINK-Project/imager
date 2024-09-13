@@ -45,19 +45,6 @@ __device__ int calculate_pos(float u,
       v_pix = round(v_lambda/delta_v);
       int u_index = wrap_index(uv_sign*u_pix, n_pixels); 
       int v_index = wrap_index(uv_sign*v_pix, n_pixels);
-
- 
-     
-      // TODO : understand why this is giving wrong image with a black stripe in the centre !
-      // This may optimise this code in the future (remove if-s) if it also produces the same results
-      // WARNING : does not support ODD image sizes (add ASSERT !!!)
-      // TODO : maybe copysign(int,int) is required - doesn't copysign use if-s too ?
-      // int x_grid = round(u_index + copysignf( 1.0, float(center_x-u_index))*center_x);
-      // int y_grid = round(v_index + copysignf( 1.0, float(center_y-v_index))*center_y);
-      
-
-      // Operation 4: Assignment of (re,im)vis to uv_grid
-      // Position for assignment 
       return (n_pixels*v_index) + u_index; 
    }
 
