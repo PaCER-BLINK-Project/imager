@@ -1216,6 +1216,108 @@ void CPacerImager::gridding( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, CBg
 
 }
 
+static double sinc(const double x)
+{
+    if (x==0)
+        return 1;
+    return sin(x)/x;
+}
+
+// see : file:///home/msok/Desktop/PAWSEY/PaCER/logbook/Convolution/MS/SIch7.pdf
+static double kernel_function( double u , double delta_u ) // x -> u or v 
+{
+   // Gaussian*Sinc only for the start :
+   double alpha = 2.00;
+   double w = 1.00;
+   double w1 = 2.52;
+   double w2 = 1.55;
+   
+   double sinc_value = sinc( u / (w*delta_u) );
+   double arg_value = fabs(u)/(w1*delta_u);
+   double gauss_value = exp( -(arg_value*arg_value) );
+   double sinc_gauss = sinc_value*gauss_value;
+   
+   // sing*gauss : 
+   // return sinc_gauss;
+   
+   // just Gaussian :
+   arg_value = fabs(u)/(delta_u);
+   gauss_value = exp( -(arg_value*arg_value) );
+   return gauss_value;
+}
+
+//
+void CPacerImager::convolve_with_kernel( CBgFits& uv_grid_real, CBgFits& uv_grid_imag, int x_grid, int y_grid, double re, double im, double u, double v, double delta_u, double delta_v, 
+                                         int n_pixels,
+                                         double im_sign, // conjugate or normal point 
+                                         int oversampling )
+{
+   double vv = v - m_ImagerParameters.m_nConvolvingKernelSize*delta_v;
+   double vv_end = v + m_ImagerParameters.m_nConvolvingKernelSize*delta_v;
+  
+   // for the start without oversampling as I am not sure how to implement it here ...
+   double step_uu = delta_u;
+   double step_vv = delta_v;
+    
+//   double step_vv = delta_v/oversampling;
+//   double step_uu = delta_u/oversampling;
+   
+   while( vv <= vv_end ){
+      double uu = u - m_ImagerParameters.m_nConvolvingKernelSize*delta_u;
+      double uu_end = u + m_ImagerParameters.m_nConvolvingKernelSize*delta_u;
+ 
+      while( uu <= uu_end ){      
+         double kernel_uu = kernel_function( uu-u, delta_u );
+         double kernel_vv = kernel_function( vv-v, delta_v );
+         
+         double re_conv = re*kernel_uu*kernel_vv;
+         double im_conv = im_sign*im*kernel_uu*kernel_vv;                  
+         
+         int x_grid, y_grid;
+         calc_xy_grid( uu, vv, delta_u, delta_v, n_pixels, x_grid, y_grid, im_sign, 0, 0 );
+
+         if( x_grid>=0 && y_grid>=0 && x_grid<uv_grid_real.GetXSize() && y_grid<uv_grid_real.GetYSize() ){
+            uv_grid_real.addXY( x_grid, y_grid, re_conv );
+            uv_grid_imag.addXY( x_grid, y_grid, im_conv );
+         }
+      
+         uu += step_uu;
+      }      
+      
+      vv += step_vv;
+   }
+}
+
+void CPacerImager::calc_xy_grid( double u, double v, double delta_u, double delta_v, 
+                                 int n_pixels, 
+                                 int& x_grid, int& y_grid, 
+                                 int im_sign, 
+                                 int is_odd_x, int is_odd_y )
+{
+   double u_pix = round( u/delta_u );
+   double v_pix = round( v/delta_v );
+   
+   int center_x = int( n_pixels / 2 );
+   int center_y = int( n_pixels / 2 );
+
+   int u_index = im_sign*u_pix + n_pixels/2; // was u - u_center
+   int v_index = im_sign*v_pix + n_pixels/2; // was v - v_center                                       
+
+   // calculate position (x,y) on UV grid as expected by fftw (no fft_unshift required)
+   x_grid = 0;
+   y_grid = 0;
+   if( u_index < center_x ){
+      x_grid = center_x + u_index + is_odd_x;
+   }else{
+      x_grid = u_index - center_x;
+   }
+   if( v_index < center_y ){
+      y_grid = center_y + v_index + is_odd_y;
+   }else{
+      y_grid = v_index - center_y;
+   }       
+}
+
 // TODO : use ConvertFits2XCorr to convert fits_vis_real,fits_vis_imag into Visibitilies-xcorr and use gridding_fast( Visibitilies& xcorr ... ) function to avoid code duplication
 void CPacerImager::gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                CBgFits& uv_grid_real, CBgFits& uv_grid_imag, CBgFits& uv_grid_counter, double delta_u, double delta_v, 
@@ -1225,6 +1327,9 @@ void CPacerImager::gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag
                const char* weighting /*="" weighting : U for uniform (others not implemented) */
             )
 {
+  // TEST convolution kernel :
+  // m_ImagerParameters.m_nConvolvingKernelSize = 7;
+  
   // debug :
   // fits_vis_real.WriteFits("fits/test_re.fits");
   // fits_vis_imag.WriteFits("fits/test_im.fits");
@@ -1417,9 +1522,15 @@ void CPacerImager::gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag
 //                 printf("DEBUG : u_index %d vs. %d ( u = %.2f , u_min = %.2f , delta_u = %.2f , u_center =%.2f)\n",u,u_index1,u_index,u_min,delta_u,u_center);
               
                  // Using CELL averaging method or setXY ?
-                    uv_grid_real.addXY( x_grid, y_grid, re );
-                    uv_grid_imag.addXY( x_grid, y_grid, im );
-                    uv_grid_counter.addXY( x_grid, y_grid , 1.00 );
+                    if( m_ImagerParameters.m_nConvolvingKernelSize > 0 ){
+                       // convolve visibiity value with a kernel 
+                       convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
+                    }else{
+                       // otherwise default NearestNeighbour gridding : 
+                       uv_grid_real.addXY( x_grid, y_grid, re );
+                       uv_grid_imag.addXY( x_grid, y_grid, im );
+                    }
+                    uv_grid_counter.addXY( x_grid, y_grid , 1.00 ); // TODO : check if this is always ok with gridding kernel 
                     
                     if( m_ImagerDebugLevel > 101 ){
                          if( x_grid <= 5 && y_grid <= 5 ){
@@ -1443,10 +1554,16 @@ void CPacerImager::gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag
                     }else{
                        y_grid = v_index - center_y;
                     }                                       
-                    
-                    uv_grid_real.addXY( x_grid, y_grid, re );
-                    uv_grid_imag.addXY( x_grid, y_grid, -im );
-                    uv_grid_counter.addXY( x_grid, y_grid , 1.00 );
+
+                    if( m_ImagerParameters.m_nConvolvingKernelSize > 0 ){
+                       // convolve visibiity value with a kernel 
+                       convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
+                    }else{
+                       // otherwise default NearestNeighbour gridding :                    
+                       uv_grid_real.addXY( x_grid, y_grid, re );
+                       uv_grid_imag.addXY( x_grid, y_grid, -im );
+                    }
+                    uv_grid_counter.addXY( x_grid, y_grid , 1.00 ); // TODO : check if this is always ok with gridding kernel
 
                     if( m_ImagerDebugLevel > 101 ){
                          if( x_grid <= 5 && y_grid <= 5 ){

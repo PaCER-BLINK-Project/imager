@@ -45,6 +45,9 @@ public :
    double m_MinW; // -INF
    double m_MaxW; // +INF
    
+   // gridding and convolution kernels :
+   int m_nConvolvingKernelSize; // default <0 -> no convolition kernel, >0 -> kernel size in pixels 
+   
 
    CImagerParameters();
    CImagerParameters( const CImagerParameters& right );

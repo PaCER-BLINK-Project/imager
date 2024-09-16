@@ -15,7 +15,7 @@ bool   CImagerParameters::m_bApplyGeomCorr=false;
 bool   CImagerParameters::m_bApplyCableCorr=false;
 
 CImagerParameters::CImagerParameters()
-  : m_fUnixTime(0), m_fCenterFrequencyMHz(0), m_fBandwidthMHz(0), m_ImageSize(0), m_fMinUV(-1000), m_ImageFOV_degrees(180.00), m_integrationTime(1.00)
+  : m_fUnixTime(0), m_fCenterFrequencyMHz(0), m_fBandwidthMHz(0), m_ImageSize(0), m_fMinUV(-1000), m_ImageFOV_degrees(180.00), m_integrationTime(1.00), m_nConvolvingKernelSize(-1)
 //  : m_bConstantUVW(false)
 {
    m_PixsizeInRadians = ((230.00/300.00)/(2.00*35.00)); // Lambda/B_max at freq = 230 MHz -> Lambda = (230/300) m ~= 1.304347 m
@@ -43,6 +43,7 @@ CImagerParameters& CImagerParameters::operator=( const CImagerParameters& right 
     m_MinW = right.m_MinW;
     m_MaxW = right.m_MaxW;
     m_integrationTime = right.m_integrationTime;
+    m_nConvolvingKernelSize = right.m_nConvolvingKernelSize;
     
     return (*this);
 }

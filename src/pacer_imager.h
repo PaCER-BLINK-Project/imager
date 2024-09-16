@@ -249,6 +249,16 @@ public :
                 );
    
    //-----------------------------------------------------------------------------------------------------------------------------
+   // GOAL : convolve with a specified 
+   //-----------------------------------------------------------------------------------------------------------------------------
+   void convolve_with_kernel( CBgFits& uv_grid_real, CBgFits& uv_grid_imag, int x_grid, int y_grid, double re, double im, double u, double v, double delta_u, double delta_v, int n_pixels, double im_sign, int oversampling=10 );
+
+   //-----------------------------------------------------------------------------------------------------------------------------
+   // Calculate coordintes withing in the UV grid array 
+   //-----------------------------------------------------------------------------------------------------------------------------   
+   void calc_xy_grid( double u, double v, double delta_u, double delta_v, int n_pixels, int& x_grid, int& y_grid, int im_sign, int is_odd_x, int is_odd_y );
+   
+   //-----------------------------------------------------------------------------------------------------------------------------
    // 
    // GOAL   : fast version of gridding code which does not require fft_unshift
    //
