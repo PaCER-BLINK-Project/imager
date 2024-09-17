@@ -1328,7 +1328,8 @@ void CPacerImager::gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag
             )
 {
   // TEST convolution kernel :
-  // m_ImagerParameters.m_nConvolvingKernelSize = 7;
+  m_ImagerParameters.m_nConvolvingKernelSize = 7;
+  printf("DEBUG : CPacerImager::gridding_fast , setting m_ImagerParameters.m_nConvolvingKernelSize = 7\n");fflush(stdout);
   
   // debug :
   // fits_vis_real.WriteFits("fits/test_re.fits");
@@ -1638,6 +1639,10 @@ void CPacerImager::gridding_fast( Visibilities& xcorr,
                const char* weighting /*="" weighting : U for uniform (others not implemented) */
             )
 {
+  // TEST convolution kernel :
+  m_ImagerParameters.m_nConvolvingKernelSize = 7;
+  printf("DEBUG : CPacerImager::gridding_fast(xcorr) , setting m_ImagerParameters.m_nConvolvingKernelSize = 7\n");fflush(stdout);
+
   // debug :
   // fits_vis_real.WriteFits("fits/test_re.fits");
   // fits_vis_imag.WriteFits("fits/test_im.fits");
@@ -1818,8 +1823,13 @@ void CPacerImager::gridding_fast( Visibilities& xcorr,
 //                 printf("DEBUG : u_index %d vs. %d ( u = %.2f , u_min = %.2f , delta_u = %.2f , u_center =%.2f)\n",u,u_index1,u_index,u_min,delta_u,u_center);
               
                  // Using CELL averaging method or setXY ?
-                    uv_grid_real.addXY( x_grid, y_grid, re );
-                    uv_grid_imag.addXY( x_grid, y_grid, im );
+                    if( m_ImagerParameters.m_nConvolvingKernelSize > 0 ){
+                       // convolve visibiity value with a kernel 
+                       convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
+                    }else{
+                       uv_grid_real.addXY( x_grid, y_grid, re );
+                       uv_grid_imag.addXY( x_grid, y_grid, im );
+                    }
                     uv_grid_counter.addXY( x_grid, y_grid , 1.00 );
                     
                     if( m_ImagerDebugLevel > 101 ){
@@ -1843,8 +1853,13 @@ void CPacerImager::gridding_fast( Visibilities& xcorr,
                        y_grid = v_index - center_y;
                     }                                       
                     
-                    uv_grid_real.addXY( x_grid, y_grid, re );
-                    uv_grid_imag.addXY( x_grid, y_grid, -im );
+                    if( m_ImagerParameters.m_nConvolvingKernelSize > 0 ){
+                       // convolve visibiity value with a kernel 
+                       convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
+                    }else{
+                       uv_grid_real.addXY( x_grid, y_grid, re );
+                       uv_grid_imag.addXY( x_grid, y_grid, -im );
+                    }
                     uv_grid_counter.addXY( x_grid, y_grid , 1.00 );
                     
                     if( ant1==ant2 ){
