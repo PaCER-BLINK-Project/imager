@@ -94,4 +94,7 @@ using namespace std::chrono;
                                  
 enum eTelescopName_Type { eUnknown=0, eMWA=1, eEDA2=2, eAAVS2=3 };
 
+enum eConvolutionKernel { eNoConvKernel=0, eConvKernelGauss=1, eConvKernelSinc=2, eConvKernelSincGauss=3 };
+
+
 #endif 

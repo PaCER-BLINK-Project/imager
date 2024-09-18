@@ -333,7 +333,7 @@ int main(int argc,char* argv[])
   CBgFits uv_grid_counter( uv_grid_real_param.GetXSize(), uv_grid_real_param.GetYSize() );
   uv_grid_counter.SetValue(1);
   
-  imager.dirty_image( uv_grid_real_param, uv_grid_imag_param, uv_grid_counter, true, "test", true, false );
+  imager.dirty_image( uv_grid_real_param, uv_grid_imag_param, uv_grid_counter, -1.00, -1.00, true, "test", true, false );
 }
 
 

@@ -545,6 +545,7 @@ bool CPacerImager::SaveSkyImage( const char* outFitsName, CBgFits* pFits, double
 
 // Based on example : https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
 void CPacerImager::dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_imag_param, CBgFits& uv_grid_counter,
+                                double delta_u, double delta_v,
                                 bool bSaveIntermediate /*=false*/ , const char* szBaseOutFitsName /*=NULL*/, 
                                 bool bSaveImaginary /*=true*/ , bool bFFTUnShift /*=true*/ )
 {
@@ -705,6 +706,12 @@ void CPacerImager::dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_im
 
    fft_shift( *m_pSkyImageRealTmp, *m_pSkyImageReal );
    fft_shift( *m_pSkyImageImagTmp, *m_pSkyImageImag );
+   
+   if( m_ImagerParameters.m_nConvolvingKernelSize > 0 ){
+     // gridding correction - divide by Fourier Transform of the convolution kernel 
+     gridding_correction( *m_pSkyImageReal, delta_u, delta_v );
+     gridding_correction( *m_pSkyImageImag, delta_u, delta_v ); // TODO : can be commented out in the future as we do not really care about Imaginary image other than as diagnostic
+   }
    
    int rest = 1; // just so that by default it is !=0 -> image not saved 
    if( CPacerImager::m_SaveControlImageEveryNth > 0 ){
@@ -1244,6 +1251,36 @@ static double kernel_function( double u , double delta_u ) // x -> u or v
    arg_value = fabs(u)/(delta_u);
    gauss_value = exp( -(arg_value*arg_value) );
    return gauss_value;
+}
+
+static double ft_kernel_function( double x , double delta_u )
+{
+   double ft = delta_u*sqrt(M_PI)*exp(-M_PI*M_PI* (delta_u*delta_u) * (x*x) );
+   
+   return ft;
+}
+
+void CPacerImager::gridding_correction( CBgFits& image, double delta_u, double delta_v )
+{
+   int center_x = int( image.GetXSize() / 2 );
+   int center_y = int( image.GetYSize() / 2 );
+   
+   int n_pixels_x = image.GetXSize();
+   int n_pixels_y = image.GetYSize();
+   
+   for(int y=0;y<n_pixels_y;y++){
+      for(int x=0;x<n_pixels_x;x++){
+         double val = image.getXY(x,y);
+         
+         double x_grid = (x - center_x)/(n_pixels_x*delta_u);
+         double y_grid = (y - center_y)/(n_pixels_y*delta_v);
+         
+         double gcf_u = ft_kernel_function( x_grid, delta_u );
+         double gcf_v = ft_kernel_function( y_grid, delta_v );
+         
+         image.setXY( x, y, val/(gcf_u*gcf_v) );
+      }
+   }
 }
 
 //
@@ -2206,7 +2243,7 @@ void CPacerImager::gridding_imaging( Visibilities& xcorr,
   if( do_dirty_image ){
      // dirty image :  
      PRINTF_INFO("PROGRESS : executing dirty image\n");
-     dirty_image( *m_uv_grid_real, *m_uv_grid_imag, *m_uv_grid_counter, 
+     dirty_image( *m_uv_grid_real, *m_uv_grid_imag, *m_uv_grid_counter, delta_u, delta_v, 
                   true, // do not save intermediate FITS files
                   szBaseOutFitsName, // output filename template
                   true,   // save imaginary image
@@ -2265,7 +2302,7 @@ void CPacerImager::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vis_i
   if( do_dirty_image ){
      // dirty image :  
      PRINTF_INFO("PROGRESS : executing dirty image\n");
-     dirty_image( uv_grid_real, uv_grid_imag, uv_grid_counter, 
+     dirty_image( uv_grid_real, uv_grid_imag, uv_grid_counter, delta_u, delta_v, 
                   true, // do not save intermediate FITS files
                   szBaseOutFitsName, // output filename template
                   true,   // save imaginary image

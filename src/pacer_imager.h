@@ -221,6 +221,7 @@ public :
    // TODO : Test cases can be found in PaCER documentation 
    //-----------------------------------------------------------------------------------------------------------------------------
    void dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_imag_param, CBgFits& uv_grid_counter, 
+                     double delta_u, double delta_v,
                      bool bSaveIntermediate=false, const char* szBaseOutFitsName=NULL, bool bSaveImaginary=true, bool bFFTUnShift=true );
 
    //-----------------------------------------------------------------------------------------------------------------------------
@@ -247,6 +248,11 @@ public :
                   double min_uv=-1000,    // minimum UV 
                   const char* weighting="" // weighting : U for uniform (others not implemented)
                 );
+   
+   //-----------------------------------------------------------------------------------------------------------------------------
+   // GOAL : gridding correction - divide by Fourier Transform of the convolution kernel. See s98book.pdf (Taylor, Carilli et al., 1998)
+   //-----------------------------------------------------------------------------------------------------------------------------
+   void gridding_correction( CBgFits& image, double delta_u, double delta_v );
    
    //-----------------------------------------------------------------------------------------------------------------------------
    // GOAL : convolve with a specified 
