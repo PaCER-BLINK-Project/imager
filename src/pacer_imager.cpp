@@ -1365,8 +1365,8 @@ void CPacerImager::gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag
             )
 {
   // TEST convolution kernel :
-  m_ImagerParameters.m_nConvolvingKernelSize = 7;
-  printf("DEBUG : CPacerImager::gridding_fast , setting m_ImagerParameters.m_nConvolvingKernelSize = 7\n");fflush(stdout);
+  // m_ImagerParameters.m_nConvolvingKernelSize = 7;
+  // printf("DEBUG : CPacerImager::gridding_fast , setting m_ImagerParameters.m_nConvolvingKernelSize = 7\n");fflush(stdout);
   
   // debug :
   // fits_vis_real.WriteFits("fits/test_re.fits");
@@ -1677,8 +1677,8 @@ void CPacerImager::gridding_fast( Visibilities& xcorr,
             )
 {
   // TEST convolution kernel :
-  m_ImagerParameters.m_nConvolvingKernelSize = 7;
-  printf("DEBUG : CPacerImager::gridding_fast(xcorr) , setting m_ImagerParameters.m_nConvolvingKernelSize = 7\n");fflush(stdout);
+  // m_ImagerParameters.m_nConvolvingKernelSize = 7;
+  // printf("DEBUG : CPacerImager::gridding_fast(xcorr) , setting m_ImagerParameters.m_nConvolvingKernelSize = 7\n");fflush(stdout);
 
   // debug :
   // fits_vis_real.WriteFits("fits/test_re.fits");
