@@ -42,7 +42,7 @@ namespace {
     
 
 
-    void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
+    void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename, float eps = 1e-3){
         auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
         size_t fine_channel {0}, int_time {0};
         size_t n_nans {0};
@@ -57,7 +57,7 @@ namespace {
                         n_nans++;
                         continue;
                     }
-                    if(*p1 != *p2){
+                    if(std::abs(p1->real() - p2->real()) > eps || std::abs(p1->imag() - p2->imag()) > eps){
                         std::cerr << "xcorr differs from " << filename << "!!!!" << std::endl;
                         std::cerr << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
                         exit(1);
@@ -619,7 +619,6 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
     if(xcorr.on_gpu()) xcorr.to_cpu();
-    xcorr.to_fits_file("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/before_gridding.fits");
     size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size{n_pixels * n_pixels * n_images};
     if(!grids_counters) grids_counters.allocate(buffer_size);
@@ -627,10 +626,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     // Should be long long int, but keeping float now for compatibility reasons
     gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids,
                       grids_counters, delta_u, delta_v, n_pixels, min_uv, weighting);
-    
 
-    grids_counters.dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids_counters.bin");
-    grids.dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids.bin");
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
     PRINTF_INFO("PROGRESS : executing dirty image\n");
     dirty_image(grids, grids_counters, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
@@ -672,24 +668,21 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);
 
+    xcorr.to_gpu();
     if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 
     if (m_ImagerParameters.m_bApplyGeomCorr)
         ApplyGeometricCorrections(xcorr, m_W, frequencies);
-    // xcorr.to_cpu();
-    // ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/cpu_stages_dumps/after_geo_corrections.fits");
-    // xcorr.to_gpu();
+
     if (m_ImagerParameters.m_bApplyCableCorr){
         MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
         for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
             cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
         ApplyCableCorrections(xcorr, cable_lengths, frequencies);
     }
-    // xcorr.to_cpu();
-    // ::compare_xcorr_to_fits_file(xcorr, "/scratch/director2183/cdipietrantonio/cpu_stages_dumps/after_cable_corrections.fits");
-    // xcorr.to_gpu();
+
     printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
     fflush(stdout);
         //   // based on RTS : UV pixel size as function FOVtoGridsize in
