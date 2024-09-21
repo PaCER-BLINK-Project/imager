@@ -32,8 +32,9 @@ using namespace std::chrono;
 // level of saving intermediate and test files
 #define SAVE_FILES_NONE  0
 #define SAVE_FILES_FINAL 1
-#define SAVE_FILES_INFO  2 
-#define SAVE_FILES_DEBUG 3
+#define SAVE_FILES_FINAL_ALL 2 // all including Imaginary final image
+#define SAVE_FILES_INFO  3 
+#define SAVE_FILES_DEBUG 4
 #define SAVE_FILES_ALL   100
 
 #define PRINTF_DEBUG   if(CPacerImager::m_ImagerDebugLevel>=IMAGER_DEBUG_LEVEL)printf

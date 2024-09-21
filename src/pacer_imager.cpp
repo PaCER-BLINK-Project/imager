@@ -733,16 +733,18 @@ void CPacerImager::dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_im
       PRINTF_DEBUG("Saved read file to %s\n",outDirtyImageReal);
    
       if( bSaveImaginary ){
-         if( szBaseOutFitsName && strlen(szBaseOutFitsName) ){
-            sprintf(outDirtyImageImag,"%s/%s_imag.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
-         }else{
-            // sprintf(outDirtyImageImag,"dirty_test_imag_fftshift_%dx%d.fits",width,height);
-            get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageImag, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_imag" );
-         }
+         if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_FINAL_ALL ){
+            if( szBaseOutFitsName && strlen(szBaseOutFitsName) ){
+               sprintf(outDirtyImageImag,"%s/%s_imag.fits",m_ImagerParameters.m_szOutputDirectory.c_str(),szBaseOutFitsName);
+            }else{
+               // sprintf(outDirtyImageImag,"dirty_test_imag_fftshift_%dx%d.fits",width,height);
+               get_filename( m_ImagerParameters.m_fUnixTime, outDirtyImageImag, m_ImagerParameters.m_szOutputDirectory.c_str(), "dirty_image_", "_imag" );
+            }
 
-         m_pSkyImageImag->SetFileName( outDirtyImageImag );      
-         m_pSkyImageImag->WriteFits( outDirtyImageImag );
-         PRINTF_DEBUG("Saved imaginary file to %s\n",outDirtyImageImag);
+            m_pSkyImageImag->SetFileName( outDirtyImageImag );      
+            m_pSkyImageImag->WriteFits( outDirtyImageImag );
+            printf("Saved imaginary file to %s\n",outDirtyImageImag);
+         }
       }
    }
 
@@ -2354,15 +2356,17 @@ bool CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits
          fits_vis_real.setXY(ant2,ant1,re_prim);
          fits_vis_imag.setXY(ant2,ant1,im_prim);
          
-         printf("\t%d-%d : w = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> %.4f + j%.4f, freq = %.8f Hz\n",ant1,ant2,w,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
+         PRINTF_DEBUG("\t%d-%d : w = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> %.4f + j%.4f, freq = %.8f Hz\n",ant1,ant2,w,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
       }
    }
    
-   char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
-   sprintf(szOutPutFitsRE,"%s/vis_re_geom_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   sprintf(szOutPutFitsIM,"%s/vis_im_geom_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
-   fits_vis_real.WriteFits( szOutPutFitsRE );
-   fits_vis_imag.WriteFits( szOutPutFitsIM );
+   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+      char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
+      sprintf(szOutPutFitsRE,"%s/vis_re_geom_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
+      sprintf(szOutPutFitsIM,"%s/vis_im_geom_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
+      fits_vis_real.WriteFits( szOutPutFitsRE );
+      fits_vis_imag.WriteFits( szOutPutFitsIM );
+   }
 
    return true;
 }
@@ -2393,7 +2397,7 @@ bool CPacerImager::ApplyGeometricCorrections( CBgFits& fits_vis_real, CBgFits& f
             printf("CPU : (%d,%d) , angle = %.8f , w = %.8f\n",ant1,ant2,angle,w);
          }
          
-         printf("\t%d-%d : w = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> %.4f + j%.4f, freq = %.8f Hz\n",ant1,ant2,w,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
+         PRINTF_DEBUG("\t%d-%d : w = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> %.4f + j%.4f, freq = %.8f Hz\n",ant1,ant2,w,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
       }
    }
 
@@ -2431,7 +2435,7 @@ bool CPacerImager::ApplyCableCorrections( CBgFits& fits_vis_real, CBgFits& fits_
          double im_prim = im*cos_angle + re*sin_angle;
          
          if( ant2 == 0 ){
-            printf("\t%d-%d : cable = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> corrected re_prim/im_prim = %.8f/%.8f\n",ant1,ant2,cableDeltaLen,angle,sin_angle,cos_angle,re,im,re_prim,im_prim);
+            PRINTF_DEBUG("\t%d-%d : cable = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> corrected re_prim/im_prim = %.8f/%.8f\n",ant1,ant2,cableDeltaLen,angle,sin_angle,cos_angle,re,im,re_prim,im_prim);
          }
 
          
@@ -2440,11 +2444,13 @@ bool CPacerImager::ApplyCableCorrections( CBgFits& fits_vis_real, CBgFits& fits_
       }
    }
    
-   char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
-   sprintf(szOutPutFitsRE,"%s/vis_re_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   sprintf(szOutPutFitsIM,"%s/vis_im_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   fits_vis_real.WriteFits( szOutPutFitsRE );
-   fits_vis_imag.WriteFits( szOutPutFitsIM );
+   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+      char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
+      sprintf(szOutPutFitsRE,"%s/vis_re_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
+      sprintf(szOutPutFitsIM,"%s/vis_im_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
+      fits_vis_real.WriteFits( szOutPutFitsRE );
+      fits_vis_imag.WriteFits( szOutPutFitsIM );
+   }
 
    return true;
 }
@@ -2484,7 +2490,7 @@ bool CPacerImager::ApplyCableCorrections( Visibilities& xcorr, double frequency_
          double im_prim = im*cos_angle + re*sin_angle;
          
          if( ant2 == 0 ){
-            printf("\t%d-%d : cable = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> corrected re/im = %.8f / %.8f for %.8f [Hz]\n",ant1,ant2,cableDeltaLen,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
+            PRINTF_DEBUG("\t%d-%d : cable = %.4f [m] -> angle = %.8f (sin = %.8f , cos = %.8f) * re=%.8f im=%.8f -> corrected re/im = %.8f / %.8f for %.8f [Hz]\n",ant1,ant2,cableDeltaLen,angle,sin_angle,cos_angle,re,im,re_prim,im_prim,frequency_hz);
          }
 
          
@@ -2501,11 +2507,13 @@ bool CPacerImager::ApplyCableCorrections( Visibilities& xcorr, double frequency_
       }
    }
    
-   char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
-   sprintf(szOutPutFitsRE,"%s/vis_re_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   sprintf(szOutPutFitsIM,"%s/vis_im_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
-   fits_vis_real.WriteFits( szOutPutFitsRE );
-   fits_vis_imag.WriteFits( szOutPutFitsIM );
+   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+      char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
+      sprintf(szOutPutFitsRE,"%s/vis_re_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
+      sprintf(szOutPutFitsIM,"%s/vis_im_cable_corr.fits",m_ImagerParameters.m_szOutputDirectory.c_str());   
+      fits_vis_real.WriteFits( szOutPutFitsRE );
+      fits_vis_imag.WriteFits( szOutPutFitsIM );
+   }
    
    return true;
 }
@@ -2570,12 +2578,14 @@ bool CPacerImager::ApplySolutions(  Visibilities& xcorr, double frequency_mhz, C
    }
 
    // may be temporary :
-   char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
-   sprintf(szOutPutFitsRE,"%s/xcorr_re.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   fits_vis_real.WriteFits( szOutPutFitsRE );
-   sprintf(szOutPutFitsIM,"%s/xcorr_im.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
-   fits_vis_imag.WriteFits( szOutPutFitsIM );
-   printf("DEBUG : saved %s and %s\n",szOutPutFitsRE,szOutPutFitsIM);
+   if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+      char szOutPutFitsRE[1024],szOutPutFitsIM[1024];
+      sprintf(szOutPutFitsRE,"%s/xcorr_re.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
+      fits_vis_real.WriteFits( szOutPutFitsRE );
+      sprintf(szOutPutFitsIM,"%s/xcorr_im.fits",m_ImagerParameters.m_szOutputDirectory.c_str());
+      fits_vis_imag.WriteFits( szOutPutFitsIM );
+      printf("DEBUG : saved %s and %s\n",szOutPutFitsRE,szOutPutFitsIM);
+   }
    
    return true;
    
@@ -3332,16 +3342,20 @@ bool CPacerImager::run_imager( Visibilities& xcorr,
   }
   
   if( IsGPU() ){
-     printf("DEBUG : this is object CPacerImagerHIP -> cable/geo. corrections not executed here -> not saving control corr. matrix imager_test_vis_re.fits / imager_test_vis_im.fits\n");
-     CBgFits re( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas) ,im( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas );
-     ConvertXCorr2Fits( xcorr, re, im, time_step, fine_channel, "corrmatrix_before_run_imager_nocorrections_gpu" );
+     PRINTF_DEBUG("DEBUG : this is object CPacerImagerHIP -> cable/geo. corrections not executed here -> not saving control corr. matrix imager_test_vis_re.fits / imager_test_vis_im.fits\n");
+     if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+        CBgFits re( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas) ,im( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas );
+        ConvertXCorr2Fits( xcorr, re, im, time_step, fine_channel, "corrmatrix_before_run_imager_nocorrections_gpu" );
+     }
   }else{
-     printf("DEBUG : saving control corr-matrix just before imaging and after applying (or not) corrections and cal (if required)\n");
-     CBgFits re( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas) ,im( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas );
-     ConvertXCorr2Fits( xcorr, re, im, time_step, fine_channel, "corrmatrix_after_cable_and_geo_corr_cpu" );
+     PRINTF_DEBUG("DEBUG : saving control corr-matrix just before imaging and after applying (or not) corrections and cal (if required)\n");
+     if( CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG ){
+        CBgFits re( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas) ,im( xcorr.obsInfo.nAntennas, xcorr.obsInfo.nAntennas );
+        ConvertXCorr2Fits( xcorr, re, im, time_step, fine_channel, "corrmatrix_after_cable_and_geo_corr_cpu" );
+     }
   }
 
-  printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n",time_step, fine_channel);fflush(stdout);  
+  PRINTF_DEBUG("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n",time_step, fine_channel);fflush(stdout);  
   bool ret = // run_imager( fits_vis_real, fits_vis_imag, m_U, m_V, m_W,
              run_imager( xcorr, time_step, fine_channel, 
                          m_U, m_V, m_W,
