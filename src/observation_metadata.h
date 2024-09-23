@@ -101,10 +101,10 @@ public :
    bool ReadMetaDataTxt( const char* filename );
 
    // if obsid > 0 is passed RA,DEC and other metadata are updated automatically    
-   bool ReadMetaFitsFile( const char* filename, double obsid=-1 );
+   bool ReadMetaFitsFile( const char* filename, double obsid=-1 , double integrationTime=1.00 );
 
    // if obsid > 0 is passed RA,DEC and other metadata are updated automatically    
-   bool ReadMetaData( const char* filename, double obsid=-1 );
+   bool ReadMetaData( const char* filename, double obsid=-1, double integrationTime=1.00 );
    
    // reading of antenna positions :
    int ReadAntPositions();

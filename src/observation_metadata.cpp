@@ -102,7 +102,7 @@ CObsMetadata::CObsMetadata( const char* filename ) :
 }
 
 
-bool CObsMetadata::ReadMetaData( const char* filename, double obsid /*=-1*/ )
+bool CObsMetadata::ReadMetaData( const char* filename, double obsid /*=-1*/, double integrationTime /*=1.00*/ )
 {
    if( strlen(m_filename.c_str())<=0 || strcmp(m_filename.c_str(),filename) ){
       m_filename = filename;
@@ -113,7 +113,7 @@ bool CObsMetadata::ReadMetaData( const char* filename, double obsid /*=-1*/ )
          return ReadMetaDataTxt( m_filename.c_str() );
       }
       if( strstr(m_filename.c_str(),".metafits") ){
-         return ReadMetaFitsFile( m_filename.c_str(), obsid );
+         return ReadMetaFitsFile( m_filename.c_str(), obsid, integrationTime );
       }
    }
    
@@ -176,7 +176,7 @@ bool CObsMetadata::ReadMetaDataTxt( const char* filename )
    return true;
 }
 
-bool CObsMetadata::ReadMetaFitsFile( const char* filename, double obsid /*=-1*/ )
+bool CObsMetadata::ReadMetaFitsFile( const char* filename, double obsid /*=-1*/, double integrationTime /*=1.00*/ )
 {
 //   fitsfile *_fptr = NULL; 
    int status = 0;
@@ -307,7 +307,7 @@ bool CObsMetadata::ReadMetaFitsFile( const char* filename, double obsid /*=-1*/ 
    
    if( obsid > 0 ){
       // fix_metafits( long int obsid, double inttime_sec /*=1.00*/ )
-      fix_metafits( obsid, 1.00 ); // TODO : implement other integration times than 1-second !!!
+      fix_metafits( obsid, integrationTime ); // TODO : implement other integration times than 1-second !!!
    }
    
    return true;
@@ -464,18 +464,30 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    integrationTime = inttime_sec;
    nChannels = 768;
    
+   // WARNING : libnova has azimuth from the South !!!
+   double azim = AzimDeg + 180.00;
+   if (azim > 360){
+      azim = azim - 360;
+   }
+   
    // ( ra_deg, dec_deg ) = azh2radec.azh2radec( uxtime, azim, alt, site=site, frame=frame )
    // void azh2radec( double az, double alt, time_t unix_time, double geo_long_deg, double geo_lat_deg, double& out_ra, double& out_dec );      
    double out_ra_deg, out_dec_deg;
-   azh2radec( AzimDeg, ElevDeg, uxtime, geo_long, geo_lat, out_ra_deg, out_dec_deg );
+   printf("DEBUG : (CObsMetadata::fix_metafits) : azh2radec( %.6f , %.6f , %.6f , %.6f, %.6f , OUTPUT )\n",azim, ElevDeg, uxtime, geo_long, geo_lat);
+   azh2radec( azim, ElevDeg, uxtime, geo_long, geo_lat, out_ra_deg, out_dec_deg );
    
-   raHrs = out_ra_deg/15.00;
-   tilePointingRARad = out_ra_deg*180.00/M_PI;
+   // keep RA PHASE CENTRE AS IT IS IN THE METAFITS !!! DO NOT CHANGE THIS , just pointing direction 
+   // raHrs = out_ra_deg/15.00;
+   tilePointingRARad = out_ra_deg*(M_PI/180.00);
    
-   decDegs = out_dec_deg;
-   tilePointingDecRad = out_dec_deg*180.00/M_PI;
-   
-   printf("DEBUG (CObsMetadata::fix_metafits) : meta data updated to n_scans = %ld, n_channels = %ld , integrationTime = %.6f [sec], raHrs = %.6f [h] , decDegs = %.6f [deg]\n",nScans,nChannels,integrationTime,raHrs,decDegs);
+   // keep PHASE CENTRE AS IT IS IN THE METAFITS !!! DO NOT CHANGE THIS , just pointing direction
+   // decDegs = out_dec_deg;
+   tilePointingDecRad = out_dec_deg*(M_PI/180.00);
+
+   // update HA as this is pointing (not desired phase centre)   
+   haHrs = hour_angle( out_ra_deg, uxtime );
+      
+   printf("DEBUG (CObsMetadata::fix_metafits) : meta data updated to n_scans = %ld, n_channels = %ld , integrationTime = %.6f [sec], raHrs = %.6f [h] , decDegs = %.6f [deg] , haHrs = %.6f [deg]\n",nScans,nChannels,integrationTime,raHrs,decDegs,haHrs);
     
    return true;
 }
