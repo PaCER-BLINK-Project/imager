@@ -198,13 +198,13 @@ __global__ void averaging_kernel(const std::complex<float> *data, size_t n_pixel
    size_t i {blockIdx.x * blockDim.x + threadIdx.x};
    if(i >= n_pixels) return;
    std::complex<float> tmp = data[i];
-   for(size_t t {i + n_pixels}; t < n_pixels * n_images; t += n_pixels) tmp += data[i];
+   for(size_t t {i + n_pixels}; t < n_pixels * n_images; t += n_pixels) tmp += data[t];
    tmp  /= n_images;
    out[i] = tmp;
 }
 
 
- Images image_averaging(const Images& images){
+ Images image_averaging_gpu(const Images& images){
    size_t image_size = images.image_size();
    size_t n_images = images.integration_intervals() * images.nFrequencies;
    MemoryBuffer<std::complex<float>> avg_image {image_size, true};
