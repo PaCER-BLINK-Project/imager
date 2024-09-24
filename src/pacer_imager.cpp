@@ -237,17 +237,17 @@ void CPacerImager::Initialise(double frequency_hz)
                            "exist\n",
                            m_ImagerParameters.m_AntennaPositionsFile.c_str());
         }
-
-        // read all information from metadata
-        if (strlen(m_ImagerParameters.m_MetaDataFile.c_str()) &&
-            MyFile::DoesFileExist(m_ImagerParameters.m_MetaDataFile.c_str()))
-        {
-            PRINTF_INFO("INFO : reading meta data from file %s\n", m_ImagerParameters.m_MetaDataFile.c_str());
-            if (!m_MetaData.ReadMetaData(m_ImagerParameters.m_MetaDataFile.c_str()))
-            {
-                PRINTF_ERROR("ERROR : could not read meta data from file %s\n",
-                             m_ImagerParameters.m_MetaDataFile.c_str());
-            }
+    }
+    // read all information from metadata
+    if (strlen(m_ImagerParameters.m_MetaDataFile.c_str()) &&
+        MyFile::DoesFileExist(m_ImagerParameters.m_MetaDataFile.c_str())) {
+        PRINTF_INFO("INFO : reading meta data from file %s\n", m_ImagerParameters.m_MetaDataFile.c_str());
+        double obsid = -1;
+        if(CImagerParameters::m_bAutoFixMetaData ){
+            obsid = CObsMetadata::ux2gps( m_ImagerParameters.m_fUnixTime );
+        }
+        if( !m_MetaData.ReadMetaData( m_ImagerParameters.m_MetaDataFile.c_str(), obsid, 1.0 ) ){
+            PRINTF_ERROR("ERROR : could not read meta data from file %s\n",m_ImagerParameters.m_MetaDataFile.c_str() );
         }
     }
 }
@@ -651,7 +651,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // TODO Cristian: time_step, fine_channel will be used in the to select a
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
-    
+    m_ImagerParameters.m_fUnixTime = xcorr.obsInfo.startTime;
     double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
     Initialise(initial_frequency_hz);
     int n_ant = xcorr.obsInfo.nAntennas;
