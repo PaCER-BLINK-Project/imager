@@ -12,6 +12,9 @@ else
    echo "INFO : variable PAWSEY_CLUSTER is not defined not using -> modules (desktop/server like environment)"
 fi
 
+# overwrite BLINK_TEST_DATADIR with ../data/ to use local test data from ../data/eda2/20200209 :
+BLINK_TEST_DATADIR=../data/
+
 cp ${BLINK_TEST_DATADIR}/eda2/20200209/chan_204_20200209T034646_vis_????.fits .
 cp ${BLINK_TEST_DATADIR}/eda2/20200209/antenna_locations.txt .
 cp ${BLINK_TEST_DATADIR}/eda2/20200209/calsol_merged.txt .

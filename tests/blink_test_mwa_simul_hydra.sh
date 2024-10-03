@@ -12,6 +12,8 @@ else
    echo "INFO : variable PAWSEY_CLUSTER is not defined not using -> modules (desktop/server like environment)"
 fi
 
+# overwrite BLINK_TEST_DATADIR with ../data/ to use local test data from ../data/mwa/simul/hydra/ :
+BLINK_TEST_DATADIR=../data/
 
 ln -s $BLINK_TEST_DATADIR/mwa/simul/hydra/HydA_154MHz.mwa_ant_vis_real_channel000_time000000_pol0.fits
 ln -s $BLINK_TEST_DATADIR/mwa/simul/hydra/HydA_154MHz.mwa_ant_vis_imag_channel000_time000000_pol0.fits
