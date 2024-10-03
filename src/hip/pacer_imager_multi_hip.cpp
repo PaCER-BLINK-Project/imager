@@ -669,7 +669,7 @@ void CPacerImagerMultiFreqHip::gridding_imaging_multi_freq(
     }
 
     std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-    gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_FORWARD);
+    gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_BACKWARD);
     gpuDeviceSynchronize();
 
     // END: gpufftPlanMany() 
