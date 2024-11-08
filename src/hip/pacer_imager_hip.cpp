@@ -711,7 +711,7 @@ void CPacerImagerHip::gridding_imaging( CBgFits& fits_vis_real, CBgFits& fits_vi
      gpufftPlan2d((gpufftHandle*)(&m_FFTPlan), uv_grid_counter_xSize, uv_grid_counter_ySize, GPUFFT_C2C);
      PRINTF_INFO("INFO : gpufftPlan2d created\n");
   }
-  gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_FORWARD);
+  gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_BACKWARD);
 
   // End of cuFFT 
   PACER_PROFILER_SHOW("cuFFT execution took")
@@ -1070,7 +1070,7 @@ void CPacerImagerHip::gridding_imaging( Visibilities& xcorr,
      gpufftPlan2d((gpufftHandle*)(&m_FFTPlan), uv_grid_counter_xSize, uv_grid_counter_ySize, GPUFFT_C2C);
      PRINTF_INFO("INFO : gpufftPlan2d created\n");
   }
-  gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_FORWARD);
+  gpufftExecC2C(((gpufftHandle)m_FFTPlan), (gpufftComplex*)m_in_buffer_gpu, (gpufftComplex*)m_out_buffer_gpu, GPUFFT_BACKWARD);
 
   // End of cuFFT 
   clock_t end_time6 = clock();

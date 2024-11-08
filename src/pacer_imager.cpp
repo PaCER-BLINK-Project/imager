@@ -650,7 +650,7 @@ void CPacerImager::dirty_image( CBgFits& uv_grid_real_param, CBgFits& uv_grid_im
    // WARNING : did not work OK:  ant2-ant1 in CalculateUVW in antenna_positions.cpp and this works OK with FFT_BACKWARD :
    //           Correct orientation is with V -> -V and FFTW_FORWARD - not clear why it is like this , see ::gridding (  double v = -fits_vis_v.getXY(ant1,ant2) / wavelength_m; )   
    // ???? Is there any good reaons for this - see also gridder.c and 	imagefromuv.c , LM_CopyFromFFT in RTS, especially the latter does some totally crazy re-shuffling from FFT output to image ...            
-   fftw_plan pFwd = fftw_plan_dft_2d( width, height, (fftw_complex*)m_in_buffer, (fftw_complex*)m_out_buffer, FFTW_FORWARD, FFTW_ESTIMATE); // TODO : FFTW_BACKWARD -> change all test cases !!!
+   fftw_plan pFwd = fftw_plan_dft_2d( width, height, (fftw_complex*)m_in_buffer, (fftw_complex*)m_out_buffer, FFTW_BACKWARD, FFTW_ESTIMATE); // TODO : FFTW_BACKWARD -> change all test cases !!!
 //   printf("WARNING : fftw BACKWARD\n");
   
    // neither agrees with MIRIAD :
