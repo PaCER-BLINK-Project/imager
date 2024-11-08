@@ -154,6 +154,14 @@ public :
    //-------------------------------------------------------------------------------------------------------------
    int      m_SkyImageCounter;
    
+
+   //-------------------------------------------------------------------------------------------------------------
+   // Anti-aliasing and kernel convolution member variables. Currently taken from WSCLEAN code - to be re-implemented 
+   //-------------------------------------------------------------------------------------------------------------
+   static std::vector<double> _1dKernel;
+   static std::vector<std::vector<double>> _griddingKernels;
+   static GridMode _gridMode;
+
    
 
 
@@ -483,6 +491,18 @@ public :
    // IsGPU() - returns true if CPacerImagerHip object and false here:
    //-----------------------------------------------------------------------------------------------------------------------------
    virtual inline bool IsGPU(){ return false; }
+   
+   //-------------------------------------------------------------------------------------------------------------
+   // Anti-aliasing and kernel convolution member functions. Currently taken from WSCLEAN code - to be re-implemented 
+   //-------------------------------------------------------------------------------------------------------------
+   static void calc_xy_grid2( double u_pix, double v_pix, double delta_u, double delta_v, int n_pixels, int& x_grid, int& y_grid, int im_sign, int is_odd_x, int is_odd_y );
+   
+   void makeKernels( int _kernelSize, int _overSamplingFactor=1023 );
+   
+   static void makeKaiserBesselKernel( std::vector<double> &kernel, double alpha, size_t overSamplingFactor, bool withSinc);
+   static double bessel0(double x, double precision);
+
+
                   
 };
 

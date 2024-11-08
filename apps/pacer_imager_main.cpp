@@ -131,6 +131,7 @@ void usage( CPacerImager& imager )
    printf("\t-X : test option to use antenna positions in XYZ (WG54) format rather than local coordinates (default disabled, i.e. local XYZ), for testing only\n");      
    printf("\t-U unixtime : unix time of the start of the data [default none -> use current time]\n");
    printf("\t-L : apply cable correction based on cable lengths in the .metafits file [default disabled]\n");
+   printf("\t-K CONVOLITION_KERNEL_SIZE : size of convolution kernel in pixels [default %d], <=0 -> no convolution kernel (no anti-aliasing)\n",imager.m_ImagerParameters.m_nConvolvingKernelSize);
    printf("\t-o OPTION  : additional options specified by name, such as:\n");
    printf("\t             miriad : uses the exact settings of MIRIAD natural weighting for validation\n");
    printf("\t             min_w  : minimum limint on W\n");
@@ -141,7 +142,7 @@ void usage( CPacerImager& imager )
 }
 
 void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
-   char optstring[] = "hp:n:g:r:i:f:F:w:m:a:ZP:v:V:A:sS:o:O:c:IM:XEU:J:L";
+   char optstring[] = "hp:n:g:r:i:f:F:w:m:a:ZP:v:V:A:sS:o:O:c:IM:XEU:J:LK:";
    int opt;
         
    while ((opt = getopt(argc, argv, optstring)) != -1) {
@@ -189,6 +190,12 @@ void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
                gBaseOutFitsName = optarg;
             }
             break;   
+
+         case 'K':
+            if( optarg && strlen(optarg) ){
+               imager.m_ImagerParameters.m_nConvolvingKernelSize = atol(optarg);
+            }
+            break;
 
          case 'L':
             imager.m_ImagerParameters.m_bApplyCableCorr = true;
@@ -364,6 +371,7 @@ void print_parameters( CPacerImager& imager )
     printf("Antenna positions XYZ      = %d\n",imager.m_ImagerParameters.m_bAntennaPositionsXYZ);
     printf("Data start time            = %.8f\n",imager.m_ImagerParameters.m_fUnixTime);   
     printf("Cable correction           = %d\n",imager.m_ImagerParameters.m_bApplyCableCorr);
+    printf("Size of convolution kernel = %d (<=0 anti-aliasing convolution disabled)\n",imager.m_ImagerParameters.m_nConvolvingKernelSize);
     printf("############################################################################################\n");
 }
 
