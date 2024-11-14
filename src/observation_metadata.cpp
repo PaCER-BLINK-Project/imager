@@ -453,6 +453,32 @@ bool CObsMetadata::parseKeyword( const std::string& keyName, const std::string& 
         return true;
 }
 
+void CObsMetadata::set_radec(  double obsid, double ra_deg, double dec_deg )
+{
+   double uxtime = gps2ux( obsid );
+   
+   startUnixTime = uxtime; 
+   // ???? startUnixTime += (refSecond-int(refSecond)); 
+
+   // update MJD in metadata to be actually for a specific second :
+   time_t ux_t = (time_t)uxtime;
+   double ux_frac = uxtime - (double)ux_t;   
+   dateRequestedMJD = ux2mjd( ux_t, ux_frac );
+   
+   // keep RA PHASE CENTRE AS IT IS IN THE METAFITS !!! DO NOT CHANGE THIS , just pointing direction 
+   raHrs = ra_deg/15.00; // TEMPORARY TEST
+   tilePointingRARad = ra_deg*(M_PI/180.00);
+   
+   // keep PHASE CENTRE AS IT IS IN THE METAFITS !!! DO NOT CHANGE THIS , just pointing direction
+   decDegs = dec_deg; // TEMPORARY TEST
+   tilePointingDecRad = dec_deg*(M_PI/180.00);
+
+   // update HA as this is pointing (not desired phase centre)   
+   haHrs = hour_angle( ra_deg, uxtime );
+
+   printf("DEBUG : setting phase centre to (RA,DEC) = (%.8f,%.8f) [deg] , HA = %.8f [deg]\n",ra_deg,dec_deg,haHrs*15.00);
+}
+
 bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
 {
    double uxtime = gps2ux( obsid );
