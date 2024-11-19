@@ -479,7 +479,7 @@ void CObsMetadata::set_radec(  double obsid, double ra_deg, double dec_deg )
    printf("DEBUG : setting phase centre to (RA,DEC) = (%.8f,%.8f) [deg] , HA = %.8f [deg]\n",ra_deg,dec_deg,haHrs*15.00);
 }
 
-bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
+bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/, bool bChangePhaseCentre /*=false*/, double external_ra_deg /*=-1000*/, double external_dec_deg /*=-1000*/ )
 {
    double uxtime = gps2ux( obsid );
    
@@ -507,6 +507,15 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    double out_ra_deg, out_dec_deg;
    printf("DEBUG : (CObsMetadata::fix_metafits) : azh2radec( %.6f , %.6f , %.6f , %.6f, %.6f , OUTPUT )\n",azim, ElevDeg, uxtime, geo_long, geo_lat);
    azh2radec( azim, ElevDeg, uxtime, geo_long, geo_lat, out_ra_deg, out_dec_deg );
+   
+   // if change of phase centre is required, overwrite with the externally provided values:
+   if( bChangePhaseCentre ){
+      out_ra_deg = bChangePhaseCentre;
+      raHrs = out_ra_deg/15.00;
+      
+      out_dec_deg = external_dec_deg;
+      decDegs = out_dec_deg;
+   }
    
    // keep RA PHASE CENTRE AS IT IS IN THE METAFITS !!! DO NOT CHANGE THIS , just pointing direction 
    // raHrs = out_ra_deg/15.00;

@@ -123,7 +123,7 @@ public :
    
    // updating pointing information and time based on current time and (Az,Elev) pointing :
    // based on python scripts in SMART imaging pipeline : see ~/github/smart/scripts/fix_metafits_time_radec_all.py
-   bool fix_metafits( double obsid, double inttime_sec=1.00 ); // OBSID is in fact GPS time
+   bool fix_metafits( double obsid, double inttime_sec=1.00, bool bChangePhaseCentre=false, double external_ra_deg=-1000, double external_dec_deg=-1000 ); // OBSID is in fact GPS time
 
    // update RA,DEC to change the Phase Centre :
    void set_radec(  double obsid, double ra_deg, double dec_deg );
