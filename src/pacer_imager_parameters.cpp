@@ -13,6 +13,7 @@ bool   CImagerParameters::m_bAntennaPositionsXYZ=false;
 bool   CImagerParameters::m_bCalcEarthXYZ=false; // for the MWA we require conversion from local (x,y,z) to Earth's (X,Y,Z) coordinates , for EDA2 we can keep using local (x,y,z)
 bool   CImagerParameters::m_bApplyGeomCorr=false;
 bool   CImagerParameters::m_bApplyCableCorr=false;
+bool CImagerParameters::averageImages = false;
 
 CImagerParameters::CImagerParameters()
   : m_fUnixTime(0), m_ImageSize(0), m_fMinUV(-1000), m_ImageFOV_degrees(180.00)

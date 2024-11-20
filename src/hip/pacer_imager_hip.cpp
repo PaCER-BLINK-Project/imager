@@ -266,10 +266,13 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      vector_sum_gpu(grids_counters.data(), image_size, n_images, fnorm);
      fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
      Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
-     Images avg_images = image_averaging_gpu(imgs);
-     gpuEventDestroy(start);
+      gpuEventDestroy(start);
      gpuEventDestroy(stop);
-    return avg_images;
+     if(CImagerParameters::averageImages){
+          return image_averaging_gpu(imgs);
+     }else{
+          return imgs;
+     }
 }
 
 

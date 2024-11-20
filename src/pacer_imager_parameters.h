@@ -22,6 +22,7 @@ public :
    double m_fUnixTime;
    static bool   m_bApplyGeomCorr;
    static bool   m_bApplyCableCorr;
+   static bool averageImages;
    
    // UV range :
    double m_fMinUV;
