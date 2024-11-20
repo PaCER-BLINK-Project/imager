@@ -460,6 +460,11 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
    startUnixTime = uxtime; 
    // ???? startUnixTime += (refSecond-int(refSecond)); 
    
+   // update MJD in metadata to be actually for a specific second :
+   time_t ux_t = (time_t)uxtime;
+   double ux_frac = uxtime - (double)ux_t;
+   dateRequestedMJD = ux2mjd( ux_t, ux_frac );
+
    nScans = 1;
    integrationTime = inttime_sec;
    nChannels = 768;
