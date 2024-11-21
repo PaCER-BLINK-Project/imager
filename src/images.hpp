@@ -6,7 +6,7 @@
 #include <complex>
 #include <string>
 
-class Images : public MemoryBuffer<std::complex<float>> {
+class Images : public MemoryBuffer<float> {
     public:
     ObservationInfo obsInfo;
     unsigned int nIntegrationSteps;
@@ -14,7 +14,7 @@ class Images : public MemoryBuffer<std::complex<float>> {
     unsigned int nFrequencies;
     unsigned int side_size;
 
-   Images(MemoryBuffer<std::complex<float>>&& data, const ObservationInfo& obsInfo, unsigned int nIntegrationSteps,
+   Images(MemoryBuffer<float>&& data, const ObservationInfo& obsInfo, unsigned int nIntegrationSteps,
             unsigned int nAveragedChannels, unsigned int side_size) : MemoryBuffer {std::move(data)} {
         this->obsInfo = obsInfo;
         this->nIntegrationSteps = nIntegrationSteps;
@@ -62,9 +62,9 @@ class Images : public MemoryBuffer<std::complex<float>> {
     }
 
 
-    std::complex<float> *at(unsigned int interval, unsigned int frequency) {
+    float *at(unsigned int interval, unsigned int frequency) {
         const size_t nValuesInTimeInterval {image_size() * nFrequencies};
-        std::complex<float> *pData = this->data() + nValuesInTimeInterval * interval + image_size() * frequency;
+        float *pData = this->data() + nValuesInTimeInterval * interval + image_size() * frequency;
         return pData;
     }
 
@@ -90,10 +90,10 @@ class Images : public MemoryBuffer<std::complex<float>> {
      * 
      * @param filename name of the output file.
      */
-    void to_fits_file(const std::string& filename, bool save_as_complex = false, bool save_imaginary = false);
+    void to_fits_file(const std::string& filename);
 
 
-   void to_fits_files(const std::string& directory_path, bool save_as_complex = false, bool save_imaginary = false);
+   void to_fits_files(const std::string& directory_path);
 };
 
 

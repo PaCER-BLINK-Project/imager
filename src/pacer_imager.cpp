@@ -254,7 +254,7 @@ void CPacerImager::Initialise(double frequency_hz)
 
 
 
-void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side){
+void fft_shift(float* image, size_t image_x_side, size_t image_y_side){
     
     for (size_t y = 0; y < image_y_side; y++){
         for (size_t x = 0; x < image_x_side/2; x++){
@@ -279,7 +279,7 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
 void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters,
-    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer) {
+    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<float>& images_buffer) {
 
     // TODO CRISTIAN: add check for overflows!
     int width = grid_side;
@@ -292,8 +292,8 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryB
     fftwf_init_threads();
     std::cout << "dirty_image: n threads used = " << omp_get_max_threads() << std::endl;
     fftwf_plan_with_nthreads(omp_get_max_threads());
-    fftwf_plan pFwd = fftwf_plan_many_dft(2, n, n_images, reinterpret_cast<fftwf_complex*>(grids.data()), NULL,
-        1, grid_size, reinterpret_cast<fftwf_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftwf_plan pFwd = fftwf_plan_many_dft_c2r(2, n, n_images, reinterpret_cast<fftwf_complex*>(grids.data()), NULL,
+        1, grid_size, images_buffer.data(), NULL, 1, grid_size, FFTW_ESTIMATE); // c2r is always backward
     fftwf_execute(pFwd);
     fftwf_destroy_plan(pFwd);
     fftwf_cleanup_threads();
@@ -304,7 +304,7 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryB
         for (size_t fine_channel = 0; fine_channel < n_frequencies; fine_channel++)
         {
             std::complex<float>* current_grid = grids.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
-            std::complex<float>* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            float* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
             
             float* current_counter = grids_counters.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
            
@@ -627,7 +627,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids,
                       grids_counters, delta_u, delta_v, n_pixels, min_uv, weighting);
 
-    MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
+    MemoryBuffer<float> images_buffer_float(buffer_size, false, false);
     PRINTF_INFO("PROGRESS : executing dirty image\n");
     dirty_image(grids, grids_counters, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
     return {std::move(images_buffer_float), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};

@@ -146,7 +146,7 @@ public :
    // TODO : Test cases can be found in PaCER documentation 
    //-----------------------------------------------------------------------------------------------------------------------------
    void dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters,
-     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer);
+     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<float>& images_buffer);
 
    
    //-----------------------------------------------------------------------------------------------------------------------------

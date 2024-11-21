@@ -141,7 +141,7 @@ __device__ inline int calc_fft_shift(int pos, int side){
 
 //-------------------------------------------------------------------- FFT shift on complex data ---------------------------------------------------------------------------------------------------
 // FFT shift in X direction:
-__global__ void fft_shift_and_norm_x(gpufftComplex* data, size_t image_x_side, size_t image_y_side, int n_images ){
+__global__ void fft_shift_and_norm_x(gpufftReal* data, size_t image_x_side, size_t image_y_side, int n_images ){
    size_t tid {blockDim.x * blockIdx.x + threadIdx.x};
    if(tid >= image_x_side / 2 * image_y_side) return;
 
@@ -151,7 +151,7 @@ __global__ void fft_shift_and_norm_x(gpufftComplex* data, size_t image_x_side, s
    size_t dst_col = calc_fft_shift(src_col, image_x_side);
    size_t dst = src_row * image_x_side + dst_col;
    for(int img_id = 0; img_id < n_images; img_id++){
-      gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst];
+      gpufftReal tmp = data[img_id * image_x_side * image_y_side + dst];
       data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src];
       data[img_id * image_x_side * image_y_side + src] = tmp;
    }
@@ -159,7 +159,7 @@ __global__ void fft_shift_and_norm_x(gpufftComplex* data, size_t image_x_side, s
 
 
 
-__global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, size_t image_y_side, int n_images, float *fnorm ){
+__global__ void fft_shift_and_norm_y(gpufftReal* data, size_t image_x_side, size_t image_y_side, int n_images, float *fnorm ){
    size_t tid {blockDim.x * blockIdx.x + threadIdx.x};
    if(tid >= image_x_side * (image_y_side / 2)) return;
 
@@ -170,7 +170,7 @@ __global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, s
    size_t dst = dst_row * image_x_side + src_col;
 
    for(int img_id = 0; img_id < n_images; img_id++){
-      gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst] / fnorm[img_id];
+      gpufftReal tmp = data[img_id * image_x_side * image_y_side + dst] / fnorm[img_id];
       data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src] / fnorm[img_id];
       data[img_id * image_x_side * image_y_side + src] = tmp;
    }
@@ -179,11 +179,10 @@ __global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, s
 
 
 // fft shift on complex data :
-void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int n_images, MemoryBuffer<float>& fnorm){
+void fft_shift_and_norm_gpu( gpufftReal* data_gpu, int xSize, int ySize, int n_images, MemoryBuffer<float>& fnorm){
    if( (xSize % 2) != 0 ){
       throw std::invalid_argument {"function fft_shift_gpu currently only handles even image size"};
    }
-
    int size = xSize*ySize;
    int n_threads_needed {(xSize / 2) * ySize};
    int n_blocks {(n_threads_needed + NTHREADS - 1) / NTHREADS};
@@ -194,10 +193,10 @@ void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int 
 }
 
 
-__global__ void averaging_kernel(const std::complex<float> *data, size_t n_pixels, size_t n_images, std::complex<float> *out){
+__global__ void averaging_kernel(const float *data, size_t n_pixels, size_t n_images, float *out){
    size_t i {blockIdx.x * blockDim.x + threadIdx.x};
    if(i >= n_pixels) return;
-   std::complex<float> tmp = data[i];
+   float tmp = data[i];
    for(size_t t {i + n_pixels}; t < n_pixels * n_images; t += n_pixels) tmp += data[t];
    tmp  /= n_images;
    out[i] = tmp;
@@ -207,7 +206,7 @@ __global__ void averaging_kernel(const std::complex<float> *data, size_t n_pixel
  Images image_averaging_gpu(const Images& images){
    size_t image_size = images.image_size();
    size_t n_images = images.integration_intervals() * images.nFrequencies;
-   MemoryBuffer<std::complex<float>> avg_image {image_size, true};
+   MemoryBuffer<float> avg_image {image_size, true};
    unsigned int n_blocks {static_cast<unsigned int>((image_size + NTHREADS - 1) / NTHREADS)};
    averaging_kernel<<<n_blocks, NTHREADS>>>(images.data(), image_size, n_images, avg_image.data());
    gpuCheckLastError();

@@ -219,7 +219,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    size_t buffer_size {image_size * n_images};
    if(!grids_counters) grids_counters.allocate(buffer_size, true);
    if(!grids) grids.allocate(buffer_size, true);
-   MemoryBuffer<std::complex<float>> images_buffer(buffer_size, true);
+   MemoryBuffer<float> images_buffer(buffer_size, true);
   
   
 
@@ -250,21 +250,21 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
        n[0] = n_pixels; 
        n[1] = n_pixels;
        gpuEventRecord(start);
-       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2C, n_images );
+       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2R, n_images );
        gpuEventRecord(stop);
        gpuEventSynchronize(stop);
        gpuEventElapsedTime(&elapsed, start, stop);
        std::cout << "gpufftPlanMany took " << elapsed << "ms" << std::endl;
     }
      gpuEventRecord(start);
-     gpufftExecC2C(m_FFTPlan, (gpufftComplex*) grids.data(), (gpufftComplex*) images_buffer.data(), GPUFFT_BACKWARD);
+     gpufftExecC2R(m_FFTPlan, (gpufftComplex*) grids.data(), (gpufftReal*) images_buffer.data()); // No sign, C2R is always backward, GPUFFT_BACKWARD);
      gpuEventRecord(stop);
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
      MemoryBuffer<float> fnorm {n_images, true};
      vector_sum_gpu(grids_counters.data(), image_size, n_images, fnorm);
-     fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
+     fft_shift_and_norm_gpu( (gpufftReal*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
      Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
       gpuEventDestroy(start);
      gpuEventDestroy(stop);

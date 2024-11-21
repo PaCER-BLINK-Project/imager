@@ -58,18 +58,17 @@ void test_vector_sum(){
 
 
 void test_fft_shift_and_norm(){
-    std::complex<float> input_cpx_one[] {
-        {0, 0}, {1, 0}, {2, 0}, {3, 0},
-        {0, 0}, {1, 0}, {2, 0}, {3, 0},
-        {0, 0}, {1, 0}, {2, 0}, {3, 0}
+    float input_cpx_one[] {
+        0, 1, 2, 3,
+        0, 1, 2, 3,
+        0, 1, 2, 3,
     };
-    std::complex<float> ref_output_one[] {
-        {3, 0}, {2, 0}, {1, 0}, {0, 0},
-        {3, 0}, {2, 0}, {1, 0}, {0, 0},
-        {3, 0}, {2, 0}, {1, 0}, {0, 0}
-    
+    float ref_output_one[] {
+        3, 2, 1, 0,
+        3, 2, 1, 0,
+        3, 2, 1, 0,
     };
-    MemoryBuffer<std::complex<float>> input_gpu {12, false, false};
+    MemoryBuffer<float> input_gpu {12, false, false};
     for(int i {0}; i < 12; i++) input_gpu[i] = input_cpx_one[i];
     MemoryBuffer<float> fnorm {3, false, false};
     fnorm[0] = 1;
@@ -77,7 +76,7 @@ void test_fft_shift_and_norm(){
     fnorm[2] = 1;
     fnorm.to_gpu();
     input_gpu.to_gpu();
-    fft_shift_and_norm_gpu(reinterpret_cast<gpufftComplex*>(input_gpu.data()), 2, 2, 3, fnorm);
+    fft_shift_and_norm_gpu(input_gpu.data(), 2, 2, 3, fnorm);
     input_gpu.to_cpu();
     for(int x = 0; x < 12; x++)
         if(input_gpu[x] != ref_output_one[x])
@@ -94,15 +93,15 @@ void test_averaging_kernel(){
     const int image_side {512};
     const int n_pixels {image_side * image_side};
 
-    MemoryBuffer<std::complex<float>> input_images_data {n_images * n_pixels};
-    MemoryBuffer<std::complex<float>> reference_avg_data {n_pixels};
-    memset(reference_avg_data.data(), 0, sizeof(std::complex<float>) * n_pixels);
+    MemoryBuffer<float> input_images_data {n_images * n_pixels};
+    MemoryBuffer<float> reference_avg_data {n_pixels};
+    memset(reference_avg_data.data(), 0, sizeof(float) * n_pixels);
 
     for(int img_id {0}; img_id < n_images; img_id++){
         for(int i {0}; i < n_pixels; i++){
             float val = i % 100;
-            input_images_data[img_id * n_pixels + i].real(val);
-            reference_avg_data[i].real(reference_avg_data[i].real() + val);
+            input_images_data[img_id * n_pixels + i] = val;
+            reference_avg_data[i] += val;
         }
     }
     for(int i {0}; i < n_pixels; i++) reference_avg_data[i] /= n_images;
@@ -112,7 +111,7 @@ void test_averaging_kernel(){
     std::cerr << "Invocation over." << std::endl;
     avg_image.to_cpu();
     gpuDeviceSynchronize();
-    std::complex<float> *out_avg_data {avg_image.data()};
+    float *out_avg_data {avg_image.data()};
     for(int i {0}; i < n_pixels; i++){
         if(out_avg_data[i] != reference_avg_data[i]){
             std::cout << "'test_averaging_kernel' error: output differs at position " << i << \
