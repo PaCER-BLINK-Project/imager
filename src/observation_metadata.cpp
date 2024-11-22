@@ -510,7 +510,7 @@ bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/, boo
    
    // if change of phase centre is required, overwrite with the externally provided values:
    if( bChangePhaseCentre ){
-      out_ra_deg = bChangePhaseCentre;
+      out_ra_deg = external_ra_deg;
       raHrs = out_ra_deg/15.00;
       
       out_dec_deg = external_dec_deg;
