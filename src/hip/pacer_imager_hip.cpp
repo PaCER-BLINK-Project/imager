@@ -237,8 +237,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    // compare_buffers(ref_grids_counters, grids_counters);
    // std::cout << "Comparing grids..." << std::endl;
    // compare_buffers(ref_grids, grids);
-   // grids_counters.to_gpu();
-   // grids.to_gpu();
+   grids_counters.to_cpu();
+   grids.to_cpu();
    gpuEvent_t start, stop;
    gpuEventCreate(&start);
    gpuEventCreate(&stop);
@@ -262,6 +262,12 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
+     MemoryBuffer<std::complex<float>> dump_images = MemoryBuffer<std::complex<float>>::from_dump("/scratch/director2183/cdipietrantonio/after_fft_c2c.bin");
+     for(size_t i {0}; i < images_buffer.size(); i++){
+      if(std::abs(images_buffer.data()[i] - dump_images.data()[i].real()) > 1e-6){
+         std::cout << "images_buffer[" << i << "] != dump_images[" << i << "].real(): " << images_buffer.data()[i] << " != " << dump_images.data()[i].real() << std::endl;
+      }
+     }
      MemoryBuffer<float> fnorm {n_images, true};
      vector_sum_gpu(grids_counters.data(), image_size, n_images, fnorm);
      fft_shift_and_norm_gpu( (gpufftReal*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
