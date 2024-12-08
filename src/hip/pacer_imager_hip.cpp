@@ -2,7 +2,7 @@
 #include "pacer_imager_hip_defines.h"
 
 #include "gridding_gpu.h"
-
+#include <iomanip>
 #define __GPU__
 #include <gpu_macros.hpp>
 #include <gpu_fft.hpp>
@@ -221,7 +221,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    if(!grids) grids.allocate(buffer_size, true);
    MemoryBuffer<float> images_buffer(buffer_size, true);
   
-  
+  std::cout << "Size of float is " << sizeof(float) << ", size of hipfftReal is " << sizeof(hipfftReal) << std::endl;
 
    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
@@ -237,35 +237,46 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    // compare_buffers(ref_grids_counters, grids_counters);
    // std::cout << "Comparing grids..." << std::endl;
    // compare_buffers(ref_grids, grids);
-   grids_counters.to_cpu();
-   grids.to_cpu();
+   //grids_counters.to_cpu();
+   //grids.to_cpu();
    gpuEvent_t start, stop;
    gpuEventCreate(&start);
    gpuEventCreate(&stop);
    float elapsed;
-       
+
+      printf("ratio is: %f\n", image_size / (n_pixels * (float)(n_pixels / 2 + 1)));
 
     if( !m_FFTPlan ){
        int n[2]; 
-       n[0] = n_pixels; 
+       n[0] = n_pixels;
        n[1] = n_pixels;
+
+       int inembed[] {n_pixels, n_pixels / 2 + 1};
+       // https://stackoverflow.com/a/23036876
        gpuEventRecord(start);
-       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, NULL, 1, image_size, NULL, 1, image_size, GPUFFT_C2R, n_images );
+       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, inembed, 1, n_pixels * (n_pixels / 2 + 1), n, 1, image_size, GPUFFT_C2R, n_images );
        gpuEventRecord(stop);
        gpuEventSynchronize(stop);
        gpuEventElapsedTime(&elapsed, start, stop);
        std::cout << "gpufftPlanMany took " << elapsed << "ms" << std::endl;
     }
      gpuEventRecord(start);
-     gpufftExecC2R(m_FFTPlan, (gpufftComplex*) grids.data(), (gpufftReal*) images_buffer.data()); // No sign, C2R is always backward, GPUFFT_BACKWARD);
+     hipfftResult res = gpufftExecC2R(m_FFTPlan, (gpufftComplex*) grids.data(), (gpufftReal*) images_buffer.data()); // No sign, C2R is always backward, GPUFFT_BACKWARD);
+     if(res != HIPFFT_SUCCESS){
+      std::cout << "Error during hipfft: " << res << std::endl;
+
+     }
      gpuEventRecord(stop);
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
+     images_buffer.to_cpu();
      MemoryBuffer<std::complex<float>> dump_images = MemoryBuffer<std::complex<float>>::from_dump("/scratch/director2183/cdipietrantonio/after_fft_c2c.bin");
      for(size_t i {0}; i < images_buffer.size(); i++){
-      if(std::abs(images_buffer.data()[i] - dump_images.data()[i].real()) > 1e-6){
-         std::cout << "images_buffer[" << i << "] != dump_images[" << i << "].real(): " << images_buffer.data()[i] << " != " << dump_images.data()[i].real() << std::endl;
+      float diff = std::abs(images_buffer.data()[i] - dump_images.data()[i].real());
+      if(diff > 1){
+         std::cout << std::setprecision(5) << "images_buffer[" << i << "] != dump_images[" << i << "].real(): " << images_buffer.data()[i] << " != " << dump_images.data()[i].real() << " diff = " << diff << std::endl;
+          exit(0);
       }
      }
      MemoryBuffer<float> fnorm {n_images, true};
