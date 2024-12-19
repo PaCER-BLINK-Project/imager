@@ -85,20 +85,20 @@ __global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, u
          int pos = calculate_pos( u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
          if(pos>=0 && pos<image_size) {
             // Allocating in uv_grid                
-            atomicAdd(&uv_grid_counter[image_size * m_idx + pos],1);
+            atomicAdd(&uv_grid_counter[pos],1);
 
             // Allocating inside m_in_buffer as well 
-            atomicAdd(&m_in_buffer[image_size * m_idx + pos].x,re);
-            atomicAdd(&m_in_buffer[image_size * m_idx + pos].y,im);
+            atomicAdd(&m_in_buffer[pos].x,re);
+            atomicAdd(&m_in_buffer[pos].y,im);
          }   
 
          int pos2 = calculate_pos(u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
          if(pos2>=0 && pos2<image_size)
          {
-            atomicAdd(&uv_grid_counter[image_size * m_idx + pos2],1);
+            atomicAdd(&uv_grid_counter[pos2],1);
             // Allocating inside m_in_buffer as well 
-            atomicAdd(&m_in_buffer[image_size * m_idx + pos2].x,re);
-            atomicAdd(&m_in_buffer[image_size * m_idx + pos2].y,-im);
+            atomicAdd(&m_in_buffer[pos2].x,re);
+            atomicAdd(&m_in_buffer[pos2].y,-im);
          }        
       }
    }
@@ -133,11 +133,8 @@ void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
 
 
    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
-   size_t buffer_size {image_size * n_images};
-   
-   gpuMemset(grids_counters.data(), 0, n_images * image_size * sizeof(float));
-   gpuMemset(grids.data(), 0, n_images * image_size * sizeof(std::complex<float>));
-   
+   size_t buffer_size { static_cast<size_t>(image_size)};
+      
    int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
    struct gpuDeviceProp_t props;
    int gpu_id = -1;

@@ -75,7 +75,7 @@ protected :
 
 
 public :
-
+Images final_image(const Voltages& xcorr, size_t n_pixels);
 
    CPacerImagerHip();
    ~CPacerImagerHip();

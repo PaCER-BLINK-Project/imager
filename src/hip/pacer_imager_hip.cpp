@@ -215,11 +215,15 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
   // update antenna flags before gridding which uses these flags or weights:
   UpdateAntennaFlags( n_ant );
 
-   size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
-   size_t buffer_size {image_size * n_images};
-   if(!grids_counters) grids_counters.allocate(buffer_size, true);
-   if(!grids) grids.allocate(buffer_size, true);
-   MemoryBuffer<std::complex<float>> images_buffer(buffer_size, true);
+   size_t n_images{1}; //xcorr.integration_intervals() * xcorr.nFrequencies};
+   size_t buffer_size {static_cast<size_t>(image_size)};
+   if(!grids_counters) {
+      grids.allocate(buffer_size, true);
+      grids_counters.allocate(buffer_size, true);
+      gpuMemset(grids_counters.data(), 0, buffer_size * sizeof(float));
+      gpuMemset(grids.data(), 0, buffer_size * sizeof(std::complex<float>));
+   }
+   
   
   
 
@@ -239,12 +243,18 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    // compare_buffers(ref_grids, grids);
    // grids_counters.to_gpu();
    // grids.to_gpu();
-   gpuEvent_t start, stop;
-   gpuEventCreate(&start);
-   gpuEventCreate(&stop);
-   float elapsed;
-       
-
+   // the following is garbage
+     MemoryBuffer<std::complex<float>> images_buffer(1, true);
+   return {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
+}
+Images CPacerImagerHip::final_image(const Voltages& xcorr, size_t n_pixels){
+   size_t image_size = n_pixels * n_pixels;
+   size_t n_images = 1;
+   MemoryBuffer<std::complex<float>> images_buffer(image_size, true);
+      gpuEvent_t start, stop;
+    gpuEventCreate(&start);
+    gpuEventCreate(&stop);
+    float elapsed;
     if( !m_FFTPlan ){
        int n[2]; 
        n[0] = n_pixels; 
@@ -265,14 +275,12 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      MemoryBuffer<float> fnorm {n_images, true};
      vector_sum_gpu(grids_counters.data(), image_size, n_images, fnorm);
      fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
-     Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
+     Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, 128, static_cast<unsigned int>(n_pixels)};
       gpuEventDestroy(start);
      gpuEventDestroy(stop);
-     if(CImagerParameters::averageImages){
-          return image_averaging_gpu(imgs);
-     }else{
+    
           return imgs;
-     }
+     
 }
 
 
