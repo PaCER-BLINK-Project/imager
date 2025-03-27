@@ -45,8 +45,8 @@ __device__ int calculate_pos(float u,
       v_pix = round(v_lambda/delta_v);
       int u_index = wrap_index(uv_sign*u_pix, n_pixels); 
       int v_index = wrap_index(uv_sign*v_pix, n_pixels);
-      if(u_index > (n_pixels / 2)) return -1;
-      return ((n_pixels / 2 + 1)*v_index) + u_index; 
+      if(v_index > (n_pixels / 2)) return -1;
+      return ((n_pixels)*v_index) + u_index; 
    }
 
    // same as else :   
@@ -136,8 +136,8 @@ void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
    
-   gpuMemset(grids_counters.data(), 0, n_images * image_size * sizeof(float));
-   gpuMemset(grids.data(), 0, n_images * image_size * sizeof(std::complex<float>) / 2);
+   gpuMemset(grids_counters.data(), 0, n_images * n_pixels * (n_pixels / 2 + 1) * sizeof(float));
+   gpuMemset(grids.data(), 0, n_images * n_pixels * (n_pixels / 2 + 1) * sizeof(std::complex<float>));
    
    int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
    struct gpuDeviceProp_t props;

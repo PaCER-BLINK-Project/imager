@@ -217,8 +217,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
    size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
-   if(!grids_counters) grids_counters.allocate(buffer_size, true);
-   if(!grids) grids.allocate(buffer_size, true);
+   if(!grids_counters) grids_counters.allocate(n_images * n_pixels * (n_pixels / 2 + 1), true);
+   if(!grids) grids.allocate(n_images * n_pixels * (n_pixels / 2 + 1), true);
    MemoryBuffer<float> images_buffer(buffer_size, true);
   
   std::cout << "Size of float is " << sizeof(float) << ", size of hipfftReal is " << sizeof(hipfftReal) << std::endl;
@@ -252,9 +252,10 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
        n[1] = n_pixels;
 
        int inembed[] {n_pixels, n_pixels / 2 + 1};
+       int onembed[] {n_pixels, n_pixels};
        // https://stackoverflow.com/a/23036876
        gpuEventRecord(start);
-       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, inembed, 1, n_pixels * (n_pixels / 2 + 1), n, 1, image_size, GPUFFT_C2R, n_images );
+       gpufftPlanMany((gpufftHandle*)(&m_FFTPlan), 2, n, inembed, 1, n_pixels * (n_pixels / 2 + 1), onembed, 1, image_size, GPUFFT_C2R, n_images );
        gpuEventRecord(stop);
        gpuEventSynchronize(stop);
        gpuEventElapsedTime(&elapsed, start, stop);
@@ -270,17 +271,18 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
-     images_buffer.to_cpu();
-     MemoryBuffer<std::complex<float>> dump_images = MemoryBuffer<std::complex<float>>::from_dump("/scratch/director2183/cdipietrantonio/after_fft_c2c.bin");
+     MemoryBuffer<std::complex<float>> dump_images = MemoryBuffer<std::complex<float>>::from_dump("/scratch/pawsey1154/cdipietrantonio/after_fft_c2c.bin");
      for(size_t i {0}; i < images_buffer.size(); i++){
+         // std::cout <<  dump_images.data()[i] << std::endl;
       float diff = std::abs(images_buffer.data()[i] - dump_images.data()[i].real());
       if(diff > 1){
          std::cout << std::setprecision(5) << "images_buffer[" << i << "] != dump_images[" << i << "].real(): " << images_buffer.data()[i] << " != " << dump_images.data()[i].real() << " diff = " << diff << std::endl;
           exit(0);
       }
      }
+   //   exit(0);
      MemoryBuffer<float> fnorm {n_images, true};
-     vector_sum_gpu(grids_counters.data(), image_size, n_images, fnorm);
+     vector_sum_gpu(grids_counters.data(), n_pixels * (n_pixels / 2 + 1), n_images, fnorm);
      fft_shift_and_norm_gpu( (gpufftReal*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
      Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
       gpuEventDestroy(start);
