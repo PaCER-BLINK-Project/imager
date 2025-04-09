@@ -51,6 +51,7 @@ void test_geometric_correction_gpu(){
     gpuMalloc((void**)&w_gpu, xySize*sizeof(float));
     gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
     MemoryBuffer<double> frequencies {MemoryBuffer<double>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/frequencies.bin")};
+    xcorr.to_gpu();
     apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies);
     xcorr.to_cpu();
     gpuFree(w_gpu);
