@@ -668,7 +668,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // calculate UVW (if required)
     CalculateUVW(initial_frequency_hz);
 
-    xcorr.to_gpu();
+    xcorr.to_gpu(); // TODO: this should be gone!!
     if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
@@ -750,8 +750,18 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     {
         // virtual function calls gridding and imaging in GPU/HIP version it is
         // overwritten and both gridding and imaging are performed on GPU memory :
-        return gridding_imaging(xcorr, time_step, fine_channel, m_U, m_V, m_W, delta_u, delta_v, n_pixels,
+        auto images = gridding_imaging(xcorr, time_step, fine_channel, m_U, m_V, m_W, delta_u, delta_v, n_pixels,
                          min_uv, weighting, szBaseOutFitsName);
+        
+        images.ra_deg = m_MetaData.raHrs*15.00;
+        images.dec_deg = m_MetaData.decDegs;
+        images.pixscale.resize(images.nFrequencies);
+        for(size_t f {0}; f < images.nFrequencies; f++){
+            double wavelength_m = VEL_LIGHT / frequencies[f];
+            images.pixscale[f] = 1.00/(2.00*(u_max/wavelength_m));
+        }
+        return images;
+        
     }
 
 }

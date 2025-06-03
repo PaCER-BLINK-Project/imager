@@ -13,6 +13,8 @@ class Images : public MemoryBuffer<std::complex<float>> {
     unsigned int nAveragedChannels;
     unsigned int nFrequencies;
     unsigned int side_size;
+    double ra_deg, dec_deg;
+    std::vector<double> pixscale;
 
    Images(MemoryBuffer<std::complex<float>>&& data, const ObservationInfo& obsInfo, unsigned int nIntegrationSteps,
             unsigned int nAveragedChannels, unsigned int side_size) : MemoryBuffer {std::move(data)} {
