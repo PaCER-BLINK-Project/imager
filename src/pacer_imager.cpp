@@ -759,7 +759,8 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
 double CPacerImager::get_frequency_hz(const Visibilities &vis, int fine_channel, bool cotter_compatible)
 {
     // TODO: remove hardcoded values!!
-    double fine_ch_bw = 0.04, coarse_ch_bw = 1.28;
+    double fine_ch_bw = vis.obsInfo.frequencyResolution * vis.nAveragedChannels;
+    double coarse_ch_bw = vis.obsInfo.coarseChannelBandwidth;
     double coarse_channel_central_freq_MHz = vis.obsInfo.coarseChannel * coarse_ch_bw;
     double channel_frequency_MHz;
     if (cotter_compatible)
