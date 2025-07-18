@@ -3,7 +3,7 @@
 
 #include <gpu_fft.hpp>
 #include <memory_buffer.hpp>
-#include "../images.hpp"
+#include <images.hpp>
 
 __global__ void mult_by_const( float *data, int size, double mult_value );
 
@@ -16,6 +16,6 @@ void vector_sum_gpu( float* data_gpu, int image_size, int n_images, MemoryBuffer
 
 void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int n_images,  MemoryBuffer<float>& fnorm);
 
- Images image_averaging_gpu(const Images& images);
+Images image_averaging_gpu(const Images& images);
 
 #endif

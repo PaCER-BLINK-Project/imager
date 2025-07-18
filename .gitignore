@@ -3,7 +3,9 @@ bin-debug/
 bin-release/
 [Oo]bj/
 [Bb]in/
-
+.vscode/
+build/
+build_gpu/
 # Other files and folders
 .settings/
 
