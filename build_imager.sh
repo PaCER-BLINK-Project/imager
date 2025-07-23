@@ -87,8 +87,8 @@ echo "Loading modules for PAWSEY_CLUSTER = $PAWSEY_CLUSTER"
    module reset
    # 12.1.0 -> 12.2.0
    # was msfitslib/master-b37lvzx -> msfitslib/devel
-   
-  module_load blink_test_data/devel cfitsio/4.1.0  msfitslib/master-ddop32m  blink-astroio/master fftw/3.3.10 pal/0.9.8-yyskiux libnova/0.15.0-pnwjlam rocm/5.7.3 # lfile2corrmatrix/devel
+   module use /software/setonix/unsupported
+  module_load blink_test_data/devel cfitsio/4.1.0  msfitslib/master-ddop32m  blink-astroio/master fftw/3.3.10 pal/0.9.8-yyskiux libnova/0.15.0-pnwjlam rocm/6.2.4 # lfile2corrmatrix/devel
    
    # cmake is only required at build time, so we use the normal module load
    module load cmake/3.27.7
@@ -97,7 +97,7 @@ echo "Building the software.."
 
 [ -d ${build_dir} ] || mkdir ${build_dir}
 cd ${build_dir}
-cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DUSE_HIP=ON  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-O0 ${cmake_options}
+cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DUSE_HIP=ON  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-O1 ${cmake_options}
 make VERBOSE=1
 
 # Install the software

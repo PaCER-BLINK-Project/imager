@@ -653,7 +653,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     // TODO: this init function must be modified
     m_ImagerParameters.m_fUnixTime = xcorr.obsInfo.startTime;
     double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
-    Initialise(initial_frequency_hz);
+    // Initialise(initial_frequency_hz);
     int n_ant = xcorr.obsInfo.nAntennas;
     int n_pol = xcorr.obsInfo.nPolarizations;
     // Why not set in constructor?
@@ -666,9 +666,9 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     }
 
     // calculate UVW (if required)
-    CalculateUVW(initial_frequency_hz);
+    CalculateUVW(initial_frequency_hz, false, false);
 
-    xcorr.to_gpu(); // TODO: this should be gone!!
+    // xcorr.to_gpu(); // TODO: this should be gone!!
     if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
@@ -745,25 +745,19 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         // %d\n",delta_u,delta_v,u_max,n_pixels);
     }
 
-
-    if (do_gridding || do_dirty_image)
-    {
-        // virtual function calls gridding and imaging in GPU/HIP version it is
-        // overwritten and both gridding and imaging are performed on GPU memory :
-        auto images = gridding_imaging(xcorr, time_step, fine_channel, m_U, m_V, m_W, delta_u, delta_v, n_pixels,
-                         min_uv, weighting, szBaseOutFitsName);
-        
-        images.ra_deg = m_MetaData.raHrs*15.00;
-        images.dec_deg = m_MetaData.decDegs;
-        images.pixscale.resize(images.nFrequencies);
-        for(size_t f {0}; f < images.nFrequencies; f++){
-            double wavelength_m = VEL_LIGHT / frequencies[f];
-            images.pixscale[f] = 1.00/(2.00*(u_max/wavelength_m));
-        }
-        return images;
-        
+    // virtual function calls gridding and imaging in GPU/HIP version it is
+    // overwritten and both gridding and imaging are performed on GPU memory :
+    auto images = gridding_imaging(xcorr, time_step, fine_channel, m_U, m_V, m_W, delta_u, delta_v, n_pixels,
+                        min_uv, weighting, szBaseOutFitsName);
+    
+    images.ra_deg = m_MetaData.raHrs*15.00;
+    images.dec_deg = m_MetaData.decDegs;
+    images.pixscale.resize(images.nFrequencies);
+    for(size_t f {0}; f < images.nFrequencies; f++){
+        double wavelength_m = VEL_LIGHT / frequencies[f];
+        images.pixscale[f] = 1.00/(2.00*(u_max/wavelength_m));
     }
-
+    return images;
 }
 
 double CPacerImager::get_frequency_hz(const Visibilities &vis, int fine_channel, bool cotter_compatible)
