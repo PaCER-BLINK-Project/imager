@@ -23,17 +23,6 @@
 #include <fstream>
 #include <omp.h>
 
-void memdump(char *ptr, size_t nbytes, std::string filename){
-    std::ofstream outfile;
-    outfile.open(filename, std::ofstream::binary);
-    outfile.write(ptr, nbytes);
-    if(!outfile){
-        std::cerr << "Error while dumping data to " << filename << std::endl;
-        exit(1);
-    }
-    outfile.close();
-}
-
 
 namespace {
     int calc_fft_shift(int pos, int side){
@@ -281,19 +270,12 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryB
             for(size_t i {0}; i < grid_size; i++) counter_sum += current_counter[i];
             
             double fnorm = 1.00 / counter_sum; // see RTS :
-                                            // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
-                                            // SumVisibilityWeights and gridKernel.c:650 also
-                                            // read TMS (Thomson, Moran, Swenson) about this
-            PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm,
-                        counter_sum);
+            // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
+            // SumVisibilityWeights and gridKernel.c:650 also
+            // read TMS (Thomson, Moran, Swenson) about this
+            PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm, counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
-
-            // TODO: CRISTIAN: is this needed?
-            // if(fine_channel == 0)
-            // memdump((char *) current_image, grid_size * sizeof(std::complex<double>), "image_before_shift.bin");
             fft_shift(current_image, grid_side, grid_side);
-            // if(fine_channel == 0)
-            // memdump((char *) current_image, grid_size * sizeof(std::complex<double>), "image_after_shift.bin");
         }
     }
 

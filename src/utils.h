@@ -27,4 +27,6 @@ inline void compare_buffers(MemoryBuffer<std::complex<float>>& a, MemoryBuffer<s
       }
    }
 }
+
+void memdump(char *ptr, size_t nbytes, std::string filename);
 #endif 
