@@ -15,29 +15,14 @@ protected :
    MemoryBuffer<float> v_gpu;
    MemoryBuffer<float> w_gpu;
    MemoryBuffer<float> cable_length_gpu;
-   
+
    // CUDA / HIP FFT plan:
-   gpufftHandle m_FFTPlan; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
+   gpufftHandle m_FFTPlan {0}; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
 
-   // Additional GPU Input variables 
-   // GPU Input variables 
-   VISIBILITY_TYPE* vis_gpu;
-   float *cable_lengths_gpu;
-   float *cable_lengths_cpu;
-  
+
    // antenna flags (0-ok, 1-flagged) and weights (1-ok, 0-remove)
-   int *antenna_flags_gpu;
-   int *antenna_flags_cpu;
-   float *antenna_weights_gpu;
-   float *antenna_weights_cpu;
-   
-   // int m_AllocatedXYSize;    // size of allocated correlation matrix or UVW 
-   // int m_AllocatedImageSize; // size of memory allocated for images 
-   
-
-   // Clean GPU Memory 
-   void CleanGPUMemory(); 
-   
+   MemoryBuffer<int> antenna_flags_gpu;
+   MemoryBuffer<float> antenna_weights_gpu;
    
    // update antenna flags:
    void UpdateAntennaFlags( int n_ant );
@@ -70,13 +55,6 @@ protected :
     virtual void ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies);
    
     virtual void ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies);
-
-
-public :
-
-
-   CPacerImagerHip();
-   ~CPacerImagerHip();
 };
 
 

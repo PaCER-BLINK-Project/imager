@@ -28,6 +28,7 @@ void test_gridding_gpu(){
     MemoryBuffer<float> antenna_weights {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_weights.bin")};
     antenna_flags.to_gpu();
     antenna_weights.to_gpu();
+    frequencies.to_gpu();
     double delta_u = 39.10328674, delta_v = 35.32881927;
     int n_pixels = 256;
     int min_uv = -1000;
@@ -36,7 +37,7 @@ void test_gridding_gpu(){
     size_t buffer_size {n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters(buffer_size, true);
     MemoryBuffer<std::complex<float>> grids(buffer_size,  true);
-    gridding_gpu(xcorr, -1, -1, u_buff, v_buff, antenna_flags.data(), antenna_weights.data(), frequencies,
+    gridding_gpu(xcorr, -1, -1, u_buff, v_buff, antenna_flags, antenna_weights, frequencies,
       delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
 
     grids_counters.to_cpu();

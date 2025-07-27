@@ -53,11 +53,11 @@ __device__ int calculate_pos(float u,
 
 
 
-__global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
+__global__ void gridding_kernel(const float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
                                       int n_ant,
-                                      float *u, float *v, 
-                                      int* antenna_flags, float* antenna_weights,
-                                      double *frequencies, int image_size, double delta_u, double delta_v, 
+                                      const float *u, const float *v, 
+                                      const int* antenna_flags, const float* antenna_weights,
+                                      const double *frequencies, int image_size, double delta_u, double delta_v, 
                                       int n_pixels,
                                       float *uv_grid_counter, double min_uv, 
                                       gpufftComplex *m_in_buffer) {
@@ -109,10 +109,10 @@ __global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, u
 
 
 
-void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
-      MemoryBuffer<float>& u_gpu,  MemoryBuffer<float>& v_gpu, 
-      int* antenna_flags, float* antenna_weights,
-      MemoryBuffer<double>& frequencies,
+void gridding_gpu(const Visibilities& xcorr, int time_step, int fine_channel,
+      const MemoryBuffer<float>& u_gpu,  const MemoryBuffer<float>& v_gpu, 
+      const MemoryBuffer<int>& antenna_flags, const MemoryBuffer<float>& antenna_weights,
+      const MemoryBuffer<double>& frequencies,
       double delta_u, double delta_v,
       int n_pixels, double min_uv, MemoryBuffer<float>& grids_counters,
       MemoryBuffer<std::complex<float>>& grids){
@@ -133,10 +133,8 @@ void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
    gpuGetDevice(&gpu_id);
    gpuGetDeviceProperties(&props, gpu_id);
    unsigned int n_blocks = props.multiProcessorCount * 2;
-
-   frequencies.to_gpu();
-   gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
-      n_ant, u_gpu.data(), v_gpu.data(), antenna_flags, antenna_weights, frequencies.data(), image_size,
+   gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
+      n_ant, u_gpu.data(), v_gpu.data(), antenna_flags.data(), antenna_weights.data(), frequencies.data(), image_size,
       delta_u, delta_v, n_pixels, grids_counters.data(), min_uv, (gpufftComplex*) grids.data());
    gpuGetLastError();
 }

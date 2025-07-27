@@ -1,4 +1,4 @@
- #include "pacer_imager_hip.h"
+#include "pacer_imager_hip.h"
 #include "pacer_imager_hip_defines.h"
 
 #include "gridding_gpu.h"
@@ -48,139 +48,25 @@ namespace {
 }
 
 
-CPacerImagerHip::CPacerImagerHip()
-: CPacerImager(),
-  m_FFTPlan(0), vis_gpu(NULL), cable_lengths_gpu(NULL), cable_lengths_cpu(NULL),
-  antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL)
-{
-
-}
-
-CPacerImagerHip::~CPacerImagerHip()
-{
-   CleanGPUMemory();
-}
-
-
-
-void CPacerImagerHip::CleanGPUMemory()
-{   
-   if( vis_gpu )
-   {
-      (gpuFree( vis_gpu)); 
-      vis_gpu = NULL;
-   }
-
-   if( cable_lengths_gpu ){
-      (gpuFree( cable_lengths_gpu )); 
-      cable_lengths_gpu = NULL;
-   }
-   
-   if( cable_lengths_cpu ){
-      delete [] cable_lengths_cpu;
-      cable_lengths_cpu = NULL;
-   }
-   
-
-   
-   // antenna flags and weights :
-   if( antenna_flags_gpu ){
-      gpuFree( antenna_flags_gpu );
-      antenna_flags_gpu = NULL;
-   }
-   if( antenna_weights_gpu ){
-      gpuFree( antenna_weights_gpu );
-      antenna_weights_gpu = NULL;
-   }
-   if( antenna_flags_cpu ){
-      delete [] antenna_flags_cpu;
-      antenna_flags_cpu = NULL;
-   }
-   if( antenna_weights_cpu ){
-      delete [] antenna_weights_cpu;
-      antenna_weights_cpu = NULL;
-   }
-   
-
-
-// TODO : why it is commented out - does it cause memory leak ???    
-//   if( m_in_buffer_gpu )
-//   {
-//      (gpuFree( m_in_buffer_gpu)); 
-//      m_in_buffer_gpu = NULL;
-//   }
-//   if( m_out_buffer_gpu )
-//   {
-//      (gpuFree( m_out_buffer_gpu)); 
-//      m_out_buffer_gpu = NULL;
-//   }
-}
-
-
-void CPacerImagerHip::UpdateAntennaFlags( int n_ant )
-{
-   if(!antenna_flags_cpu){
-      antenna_flags_cpu = new int[n_ant];      
-   }
-
-   if(!antenna_weights_cpu){
-      antenna_weights_cpu = new float[n_ant];
-   }
-   
-   // antenna flags and weights:
-   if( !antenna_flags_gpu )
-   {
-      (gpuMalloc((void**)&antenna_flags_gpu, n_ant*sizeof(int)));
-      (gpuMemset((int*)antenna_flags_gpu, 0, n_ant*sizeof(int)));
-   }
-
-   if( !antenna_weights_gpu )
-   {
-      (gpuMalloc((void**)&antenna_weights_gpu, n_ant*sizeof(float)));
-      (gpuMemset((float*)antenna_weights_gpu, 0, n_ant*sizeof(float)));
-   }
-
-
-   int n_flagged=0;   
-   for(int ant=0;ant<n_ant;ant++){
-      InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
-      
-      antenna_flags_cpu[ant] = ant1_info.flag;
-      antenna_weights_cpu[ant] = 1.00;
-      if( ant1_info.flag ){
-         antenna_weights_cpu[ant] = 0.00;
-         n_flagged++;
+void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
+   if(!antenna_flags_gpu){
+       antenna_flags_gpu.allocate(n_ant);      
+      antenna_weights_gpu.allocate(n_ant);
+      int n_flagged=0;   
+      for(int ant=0;ant<n_ant;ant++){
+         InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
+         antenna_flags_gpu[ant] = ant1_info.flag;
+         antenna_weights_gpu[ant] = 1.00;
+         if( ant1_info.flag ){
+            antenna_weights_gpu[ant] = 0.00;
+            n_flagged++;
+         }
       }
-   }
-   
-   PRINTF_INFO("INFO : CPacerImagerHip::UpdateAntennaFlags there are %d flagged antennas passed to GPU imager\n",n_flagged);
-
-   // copy to device:
-   (gpuMemcpy((int*)antenna_flags_gpu, (int*)antenna_flags_cpu, sizeof(int)*n_ant, gpuMemcpyHostToDevice));
-   (gpuMemcpy((float*)antenna_weights_gpu, (float*)antenna_weights_cpu, sizeof(float)*n_ant, gpuMemcpyHostToDevice));
-
-}
-
-template <typename T>
-inline void compare_buffers(MemoryBuffer<T>& a, MemoryBuffer<T>&b ){
-   for(size_t i {0}; i < a.size(); i++){
-      if(std::abs(a[i] - b[i]) >= 1e-4) {
-         std::cout << "Elements differ at position " << i << ": a[i] = " << a[i] << ", b[i] = " << b[i] << std::endl;
-         throw std::exception{};
-      }
+      antenna_flags_gpu.to_gpu();
+      antenna_weights_gpu.to_gpu();
+   PRINTF_INFO("INFO : CPacerImagerHip::UpdateAntennaFlags there are %d flagged antennas passed to GPU imager\n", n_flagged);
    }
 }
-
-template <>
-inline void compare_buffers(MemoryBuffer<std::complex<float>>& a, MemoryBuffer<std::complex<float>>&b ){
-   for(size_t i {0}; i < a.size(); i++){
-      if(std::abs(a[i].real() - b[i].real()) >= 1e-4 || std::abs(a[i].imag() - b[i].imag()) >= 1e-4) {
-         std::cout << "Elements differ at position " << i << ": a[i] = " << a[i] << ", b[i] = " << b[i] << std::endl;
-         //throw std::exception{};
-      }
-   }
-}
-
 
 
 // TODO : 
@@ -277,7 +163,7 @@ void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuff
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
    if(!w_gpu) w_gpu.allocate(xySize, true);
-   gpuMemcpy(w_gpu.data(), w_cpu.data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
+   gpuMemcpy(w_gpu.data(), w_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies_gpu);
 }
 
