@@ -95,13 +95,13 @@ public :
    
 
    bool     m_bLocalAllocation;
+  std::string metadata_file;
 
-
-   CPacerImager(double unixTime, const std::string metadata_file);
+   CPacerImager(const std::string metadata_file);
    ~CPacerImager();
    void Initialise(double frequency_hz);
    
-   void update_metadata(const std::string& metadata_file); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
+   void update_metadata(); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
  
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------

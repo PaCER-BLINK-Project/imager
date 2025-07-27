@@ -149,16 +149,17 @@ void CPacerImager::SetFlaggedAntennas(vector<int> &flagged_antennas)
     UpdateFlags();
 }
 
-CPacerImager::CPacerImager(double unixTime, const std::string metadata_file)
+CPacerImager::CPacerImager(const std::string metadata_file)
     : m_bInitialised(false), m_Baselines(0),
      m_bIncludeAutos(false),
       m_nAntennas(0), u_mean(0.00), u_rms(0.00), u_min(0.00), u_max(0.00), v_mean(0.00),
       v_rms(0.00), v_min(0.00), v_max(0.00), w_mean(0.00), w_rms(0.00), w_min(0.00), w_max(0.00)
 {
     m_PixscaleAtZenith = 0.70312500; // deg for ch=204 (159.375 MHz) EDA2
-    m_ImagerParameters.m_fUnixTime = unixTime;
+    this->metadata_file = metadata_file;
     Initialise(0);
-    update_metadata(metadata_file);
+    // update_metadata(metadata_file);
+    
 }
 
 CPacerImager::~CPacerImager()
@@ -166,7 +167,7 @@ CPacerImager::~CPacerImager()
 
 }
 
-void CPacerImager::update_metadata(const std::string& metadata_file) {
+void CPacerImager::update_metadata() {
     // read all information from metadata
     if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
         PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
