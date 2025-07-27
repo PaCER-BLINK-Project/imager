@@ -4,14 +4,13 @@
 #include <gpu_macros.hpp>
 #include <gpu_fft.hpp>
 #include <astroio.hpp>
-#include <bg_fits.h>
 #include <memory_buffer.hpp>
 
 
 
 
 void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
-      CBgFits& fits_vis_u, CBgFits& fits_vis_v,
+      MemoryBuffer<float>& u_gpu,  MemoryBuffer<float>& v_gpu, 
       int* antenna_flags, float* antenna_weights,
        MemoryBuffer<double>& frequencies,
       double delta_u, double delta_v,

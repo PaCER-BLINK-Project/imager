@@ -19,11 +19,10 @@ void test_gridding_gpu(){
     ObservationInfo obs_info {VCS_OBSERVATION_INFO};
     Visibilities xcorr = Visibilities::from_fits_file(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/03_after_geo_corrections.fits", obs_info);
     xcorr.to_gpu();
-    CBgFits fits_vis_u, fits_vis_v;
-    fits_vis_u.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/U.fits").c_str(), 0, 1, 1 );
-    fits_vis_v.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/V.fits").c_str(), 0, 1, 1 );
-  
-    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
+    MemoryBuffer<float> u_buff {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/u_buff.bin")};
+    MemoryBuffer<float> v_buff {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/v_buff.bin")};    
+    u_buff.to_gpu();
+    v_buff.to_gpu();
     MemoryBuffer<double> frequencies {MemoryBuffer<double>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/frequencies.bin")};
     MemoryBuffer<int> antenna_flags {MemoryBuffer<int>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_flags.bin")};
     MemoryBuffer<float> antenna_weights {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/antenna_weights.bin")};
@@ -37,7 +36,7 @@ void test_gridding_gpu(){
     size_t buffer_size {n_pixels * n_pixels * n_images};
     MemoryBuffer<float> grids_counters(buffer_size, true);
     MemoryBuffer<std::complex<float>> grids(buffer_size,  true);
-    gridding_gpu(xcorr, -1, -1, fits_vis_u, fits_vis_v, antenna_flags.data(), antenna_weights.data(), frequencies,
+    gridding_gpu(xcorr, -1, -1, u_buff, v_buff, antenna_flags.data(), antenna_weights.data(), frequencies,
       delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
 
     grids_counters.to_cpu();

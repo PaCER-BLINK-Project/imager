@@ -10,30 +10,29 @@
 class CPacerImagerHip : public CPacerImager {
 protected :
    MemoryBuffer<double> frequencies_gpu;
+   MemoryBuffer<float> fnorm;
+   MemoryBuffer<float> u_gpu;
+   MemoryBuffer<float> v_gpu;
+   MemoryBuffer<float> w_gpu;
+   MemoryBuffer<float> cable_length_gpu;
+   
    // CUDA / HIP FFT plan:
    gpufftHandle m_FFTPlan; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
 
    // Additional GPU Input variables 
    // GPU Input variables 
-   float *u_gpu; 
-   float *v_gpu;
-   float *w_gpu;
    VISIBILITY_TYPE* vis_gpu;
    float *cable_lengths_gpu;
    float *cable_lengths_cpu;
   
-   // GPU Output variables
-   float *uv_grid_counter_gpu; 
-   float *uv_grid_counter_cpu; // temporarily counter is on CPU to be able to save and calculat Sum -> later paralllel reduction on GPU 
-   
    // antenna flags (0-ok, 1-flagged) and weights (1-ok, 0-remove)
    int *antenna_flags_gpu;
    int *antenna_flags_cpu;
    float *antenna_weights_gpu;
    float *antenna_weights_cpu;
    
-   int m_AllocatedXYSize;    // size of allocated correlation matrix or UVW 
-   int m_AllocatedImageSize; // size of memory allocated for images 
+   // int m_AllocatedXYSize;    // size of allocated correlation matrix or UVW 
+   // int m_AllocatedImageSize; // size of memory allocated for images 
    
 
    // Clean GPU Memory 

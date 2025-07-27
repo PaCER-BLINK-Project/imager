@@ -50,8 +50,6 @@ namespace {
 
 CPacerImagerHip::CPacerImagerHip()
 : CPacerImager(),
-  u_gpu(NULL), v_gpu(NULL), w_gpu(NULL),
-  m_AllocatedXYSize(0), m_AllocatedImageSize(0),
   m_FFTPlan(0), vis_gpu(NULL), cable_lengths_gpu(NULL), cable_lengths_cpu(NULL),
   antenna_flags_gpu(NULL), antenna_weights_gpu(NULL), antenna_flags_cpu(NULL), antenna_weights_cpu(NULL)
 {
@@ -71,13 +69,6 @@ void CPacerImagerHip::CleanGPUMemory()
    {
       (gpuFree( vis_gpu)); 
       vis_gpu = NULL;
-   }
-
-
-   if( w_gpu )
-   {
-      (gpuFree( w_gpu)); 
-      w_gpu = NULL;
    }
 
    if( cable_lengths_gpu ){
@@ -225,8 +216,14 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
-   
-   gridding_gpu(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
+   if(!u_gpu) {
+      u_gpu.allocate(xySize);
+      v_gpu.allocate(xySize);
+   }
+   gpuMemcpy(u_gpu.data(),  fits_vis_u.get_data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
+   gpuMemcpy(v_gpu.data(),  fits_vis_v.get_data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
+
+   gridding_gpu(xcorr, time_step, fine_channel, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
       delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
 
    // auto ref_grids_counters = MemoryBuffer<float>::from_dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids_counters.bin");
@@ -262,7 +259,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
-     MemoryBuffer<float> fnorm {xcorr.nFrequencies, true};
+     if(!fnorm) fnorm.allocate(xcorr.nFrequencies, true);
      vector_sum_gpu(grids_counters.data(), image_size, xcorr.nFrequencies, fnorm);
      fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
      Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
@@ -280,11 +277,9 @@ void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& f
    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
-   if(!w_gpu){
-      gpuMalloc((void**)&w_gpu, xySize*sizeof(float));
-   }
-   gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
-   apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies_gpu);
+   if(!w_gpu) w_gpu.allocate(xySize);
+   gpuMemcpy(w_gpu.data(), fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
+   apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies_gpu);
 }
 
 
