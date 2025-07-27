@@ -3,11 +3,17 @@
 #include "pacer_imager_hip_defines.h"
 #include <exception>
 #include <memory_buffer.hpp>
+#include <mycomplex.hpp>
 
 
 // SUM of array:
 #define NTHREADS 1024
-#define NWARPS (NTHREADS / warpSize)
+#ifdef __NVCC__
+#define WARPSIZE 32
+#else
+#define WARPSIZE 64
+#endif
+#define NWARPS (NTHREADS / WARPSIZE)
 
 
 __global__ void vector_sum_kernel(float *values, unsigned int nitems, int n_images, float* result){
@@ -24,7 +30,7 @@ __global__ void vector_sum_kernel(float *values, unsigned int nitems, int n_imag
       }
    
       for(unsigned int i = warpSize/2; i >= 1; i /= 2){
-         float up = __shfl_down(myvalue, i); 
+         float up = __gpu_shfl_down(myvalue, i); 
          if(laneId < i){
                myvalue += up; 
          }
@@ -39,7 +45,7 @@ __global__ void vector_sum_kernel(float *values, unsigned int nitems, int n_imag
       if(warpId == 0){
          if(laneId > 0 && laneId < NWARPS) myvalue = partial_sums[laneId];
          for(unsigned int i = NWARPS/2; i >= 1; i >>= 1){
-               float up = __shfl_down(myvalue, i, NWARPS); 
+               float up = __gpu_shfl_down(myvalue, i, NWARPS); 
                if(laneId < i){
                   myvalue += up; 
                }
@@ -100,9 +106,19 @@ __global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, s
    size_t dst = dst_row * image_x_side + src_col;
 
    for(int img_id = 0; img_id < n_images; img_id++){
+#ifdef __HIPCC__
       gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst] / fnorm[img_id % fnorm_size];
       data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src] / fnorm[img_id % fnorm_size];
       data[img_id * image_x_side * image_y_side + src] = tmp;
+#else
+      gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst];
+      tmp.x /= fnorm[img_id % fnorm_size];
+      tmp.y /= fnorm[img_id % fnorm_size];
+      data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src];
+      data[img_id * image_x_side * image_y_side + dst].x /= fnorm[img_id % fnorm_size];
+      data[img_id * image_x_side * image_y_side + dst].y /= fnorm[img_id % fnorm_size];
+      data[img_id * image_x_side * image_y_side + src] = tmp;
+#endif
    }
 }
 
@@ -124,12 +140,12 @@ void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int 
 }
 
 
-__global__ void averaging_kernel(const std::complex<float> *data, size_t n_pixels, size_t n_images, std::complex<float> *out){
+__global__ void averaging_kernel(const Complex<float> *data, size_t n_pixels, size_t n_images, Complex<float> *out){
    size_t i {blockIdx.x * blockDim.x + threadIdx.x};
    if(i >= n_pixels) return;
-   std::complex<float> tmp = data[i];
+   Complex<float> tmp = data[i];
    for(size_t t {i + n_pixels}; t < n_pixels * n_images; t += n_pixels) tmp += data[t];
-   tmp  /= n_images;
+   tmp  = tmp / n_images;
    out[i] = tmp;
 }
 
@@ -139,7 +155,7 @@ __global__ void averaging_kernel(const std::complex<float> *data, size_t n_pixel
    size_t n_images = images.integration_intervals() * images.nFrequencies;
    MemoryBuffer<std::complex<float>> avg_image {image_size, true};
    unsigned int n_blocks {static_cast<unsigned int>((image_size + NTHREADS - 1) / NTHREADS)};
-   averaging_kernel<<<n_blocks, NTHREADS>>>(images.data(), image_size, n_images, avg_image.data());
+   averaging_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const Complex<float>*>(images.data()), image_size, n_images, reinterpret_cast<Complex<float>*>(avg_image.data()));
    gpuCheckLastError();
    return {std::move(avg_image), images.obsInfo, images.obsInfo.nTimesteps, images.obsInfo.nFrequencies, images.side_size};
  }
