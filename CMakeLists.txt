@@ -37,9 +37,8 @@ file(GLOB apps "apps/*.cpp")
 file(GLOB tests "tests/*.cpp")
 
 if(USE_HIP OR USE_CUDA)
-    add_definitions("-DIMAGER_HIP")
-    file(GLOB gpu_sources "src/hip/*.cpp")
-    file(GLOB gpu_headers "src/hip/*.h")
+    file(GLOB gpu_sources "src/gpu/*.cpp")
+    file(GLOB gpu_headers "src/gpu/*.h")
 endif()
 
 if(USE_CUDA)
@@ -74,7 +73,7 @@ install(TARGETS imaging
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(FILES ${gpu_headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include/hip")
+install(FILES ${gpu_headers} DESTINATION "${CMAKE_INSTALL_PREFIX}/include/gpu")
 # This tries to install to /pkgconfig - ${CMAKE_INSTALL_DATAROOTDIR} not defined?
 # install(FILES ${CMAKE_BINARY_DIR}/pacerimagerlib.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
@@ -116,9 +115,9 @@ if(USE_OPENMP)
 endif()
 
 # TESTS
-# add_executable(imager_test tests/imager_test.cpp)
-# target_link_libraries(imager_test imaging)
-# add_test(NAME imager_test COMMAND imager_test)
+add_executable(imager_test tests/imager_test.cpp)
+target_link_libraries(imager_test imaging)
+add_test(NAME imager_test COMMAND imager_test)
 
 add_executable(corrections_test tests/corrections_test.cpp)
 target_link_libraries(corrections_test imaging)

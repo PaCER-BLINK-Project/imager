@@ -11,7 +11,7 @@
 #include <gpu_macros.hpp>
 #include "common.hpp"
 #include "../src/pacer_imager.h"
-#include "../src/hip/pacer_imager_hip.h"
+#include "../src/gpu/pacer_imager_hip.h"
 
 std::string dataRootDir;
 
@@ -46,7 +46,7 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::string antennaPositionsFile {""};
     std::string output_dir { is_cpu ? 
-        "/scratch/director2183/cdipietrantonio/test_imager_cpu" : "/scratch/director2183/cdipietrantonio/test_imager_gpu"};
+        "/scratch/pawsey1154/cdipietrantonio/test_imager_cpu" : "/scratch/pawsey1154/cdipietrantonio/test_imager_gpu"};
     std::string szWeighting {"N"};
     const int image_size = 256;
     bool bZenithImage {false};

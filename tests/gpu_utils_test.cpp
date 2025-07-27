@@ -12,7 +12,7 @@
 #include <memory_buffer.hpp>
 #include <gpu_macros.hpp>
 #include "common.hpp"
-#include "../src/hip/gpu_utils.h"
+#include "../src/gpu/gpu_utils.h"
 #include "../src/pacer_imager.h" // Just for the Images class. Then, we will move the class in AstroIO
 std::string dataRootDir;
 

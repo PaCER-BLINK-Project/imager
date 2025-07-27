@@ -54,7 +54,7 @@ if [[ -n "$6" && "$6" != "-" ]]; then
    PROGRAM_NAME="$6"
 fi
 
-PROGRAM_VERSION=cristian-dev
+PROGRAM_VERSION=cleanup
 if [[ -n "$7" && "$7" != "-" ]]; then
    PROGRAM_VERSION="$7"
 fi
@@ -97,7 +97,7 @@ echo "Building the software.."
 
 [ -d ${build_dir} ] || mkdir ${build_dir}
 cd ${build_dir}
-cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DUSE_HIP=ON  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-O1 ${cmake_options}
+cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DUSE_HIP=ON  -DCMAKE_BUILD_TYPE=Release-DCMAKE_CXX_FLAGS=-O3 ${cmake_options}
 make VERBOSE=1
 
 # Install the software

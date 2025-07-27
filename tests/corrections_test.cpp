@@ -11,7 +11,7 @@
 #include <gpu_macros.hpp>
 #include "common.hpp"
 #include "../src/corrections.h"
-#include "../src/hip/corrections_gpu.h"
+#include "../src/gpu/corrections_gpu.h"
 std::string dataRootDir;
 
 

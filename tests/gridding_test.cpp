@@ -11,7 +11,7 @@
 #include <gpu_macros.hpp>
 #include "common.hpp"
 
-#include "../src/hip/gridding_gpu.h"
+#include "../src/gpu/gridding_gpu.h"
 std::string dataRootDir;
 
 
