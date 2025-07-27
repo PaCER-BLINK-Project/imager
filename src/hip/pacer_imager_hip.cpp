@@ -16,37 +16,6 @@
 
 #include "../utils.h"
 
-void memdump(char *ptr, size_t nbytes, std::string filename);
-
-namespace {
-       void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename){
-        auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
-        size_t fine_channel {0}, int_time {0};
-        size_t n_nans {0};
-        size_t total {0};
-        for(size_t a1 {0}; a1 < xcorr.obsInfo.nAntennas; a1++){
-            for(size_t a2 {0}; a2 < a1; a2++){
-                std::complex<float> *p1 = xcorr.at(int_time, fine_channel, a1, a2);
-                std::complex<float> *p2 = vis2.at(int_time, fine_channel, a1, a2);
-                for(size_t p {0}; p < 4; p++){
-                    total++;
-                    if(isnan(p1->real()) && isnan(p2->real()) && isnan(p2->imag()) && isnan(p1->imag())){
-                        n_nans++;
-                        continue;
-                    }
-                    if(*p1 != *p2){
-                        std::cerr << "xcorr differs from " << filename << "!!!!" << std::endl;
-                        std::cerr << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
-                        exit(1);
-                    }
-                }
-            }
-        }
-        std::cout << "OKK comparison with " << filename << std::endl;
-        std::cout << "Percentage NaNs: " << (static_cast<double>(n_nans) / total * 100.0) << std::endl;
-    }
-}
-
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
    if(!antenna_flags_gpu){
@@ -111,16 +80,6 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    gridding_gpu(xcorr, time_step, fine_channel, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
       delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
 
-   // auto ref_grids_counters = MemoryBuffer<float>::from_dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids_counters.bin");
-   // auto ref_grids =  MemoryBuffer<std::complex<float>>::from_dump("/scratch/director2183/cdipietrantonio/cpu_stages_dumps/grids.bin");
-   // grids_counters.to_cpu();
-   // grids.to_cpu();
-   // std::cout << "Comparing counters..." << std::endl;
-   // compare_buffers(ref_grids_counters, grids_counters);
-   // std::cout << "Comparing grids..." << std::endl;
-   // compare_buffers(ref_grids, grids);
-   // grids_counters.to_gpu();
-   // grids.to_gpu();
    gpuEvent_t start, stop;
    gpuEventCreate(&start);
    gpuEventCreate(&stop);
