@@ -59,7 +59,6 @@ protected :
    virtual Images gridding_imaging( Visibilities& xcorr, 
                   int time_step, 
                   int fine_channel,
-                  CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                   double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
@@ -68,7 +67,7 @@ protected :
                 );
 
     // virtual function to NOT DO corrections in CPU but in GPU :
-    virtual void ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies);
+    virtual void ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies);
    
     virtual void ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies);
 

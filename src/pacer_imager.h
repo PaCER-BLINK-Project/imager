@@ -7,7 +7,6 @@
 #include "observation_metadata.h"
 #include "pacer_imager_defs.h"
 #include "images.hpp"
-#include <bg_fits.h>
 
 #include <string>
 using namespace std;
@@ -32,9 +31,13 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 class CPacerImager {
 
 protected:
+MemoryBuffer<double> cable_lengths;
     MemoryBuffer<double> frequencies;
     MemoryBuffer<float> grids_counters;
     MemoryBuffer<std::complex<float>> grids;
+    MemoryBuffer<float> u_cpu;
+   MemoryBuffer<float> v_cpu;
+   MemoryBuffer<float> w_cpu;
 
 public :
    // TODO: decide if this should be static or member variables
@@ -78,9 +81,6 @@ public :
    
    
    // UVW for SKA-Low station zenith phase-centered all-sky imaging :
-   CBgFits m_U;
-   CBgFits m_V;
-   CBgFits m_W;
    double  u_mean, u_rms, u_min, u_max;
    double  v_mean, v_rms, v_min, v_max;
    double  w_mean, w_rms, w_min, w_max;
@@ -171,7 +171,6 @@ public :
    void gridding_fast( Visibilities& xcorr, 
                   int time_step, 
                   int fine_channel,
-                  CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                   MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters, double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
@@ -183,8 +182,7 @@ public :
    // TODO : at some point this one should stay and the other one should be a wrapper using ConvertFits2XCorr and calling this one:
    virtual Images gridding_imaging( Visibilities& xcorr, 
                   int time_step, 
-                  int fine_channel,
-                  CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,                   
+                  int fine_channel,                
                   double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
@@ -211,14 +209,9 @@ public :
    //-----------------------------------------------------------------------------------------------------------------------------
    // Apply phase corrections : geometrical correction, cable correction etc   
    //-----------------------------------------------------------------------------------------------------------------------------
-   virtual void ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies);
+   virtual void ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w, MemoryBuffer<double>& frequencies);
    
    virtual void ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies);
-
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // Function saving output FITS files: 
-   //-----------------------------------------------------------------------------------------------------------------------------
-   bool SaveSkyImage( const char* outFitsName, CBgFits* pFits, double unixtime=0.00 );
 
    double get_frequency_hz(const Visibilities& xcorr, int fine_channel, bool cotter_compatible);           
 };

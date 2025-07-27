@@ -3,7 +3,6 @@
 
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
-#include <bg_fits.h>
 
 void apply_geometric_corrections_gpu(Visibilities &xcorr, float *w_gpu, MemoryBuffer<double>& frequencies);
 

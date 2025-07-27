@@ -3,7 +3,6 @@
 
 // #include "antenna_positions.h"
 // #include "apply_calibration.h"
-// #include <bg_fits.h>
 
 #include <string>
 

@@ -189,7 +189,6 @@ inline void compare_buffers(MemoryBuffer<std::complex<float>>& a, MemoryBuffer<s
 Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr, 
                                      int time_step, 
                                      int fine_channel,
-                                     CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                                      double delta_u, double delta_v,
                                      int    n_pixels,
                                      double min_uv /*=-1000*/,    // minimum UV 
@@ -220,8 +219,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
       u_gpu.allocate(xySize, true);
       v_gpu.allocate(xySize, true);
    }
-   gpuMemcpy(u_gpu.data(),  fits_vis_u.get_data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
-   gpuMemcpy(v_gpu.data(),  fits_vis_v.get_data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
+   gpuMemcpy(u_gpu.data(),  u_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
+   gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
 
    gridding_gpu(xcorr, time_step, fine_channel, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
       delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
@@ -273,12 +272,12 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 }
 
 
-void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
+void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies){
    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
    if(!w_gpu) w_gpu.allocate(xySize, true);
-   gpuMemcpy(w_gpu.data(), fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
+   gpuMemcpy(w_gpu.data(), w_cpu.data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies_gpu);
 }
 

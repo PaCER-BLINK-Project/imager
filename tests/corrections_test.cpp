@@ -19,10 +19,9 @@ void test_geometric_correction_cpu(){
     ObservationInfo obs_info {VCS_OBSERVATION_INFO};
     Visibilities xcorr = Visibilities::from_fits_file(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits", obs_info);
     std::cout << "n_integrations = " << xcorr.integration_intervals() << ", n_frequencies = " << xcorr.nFrequencies << std::endl;
-    CBgFits fits_vis_w;
-    fits_vis_w.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/m_W.fits").c_str(), 0, 1, 1 );
+    MemoryBuffer<float> w {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/m_W.bin")};
     MemoryBuffer<double> frequencies {MemoryBuffer<double>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/frequencies.bin")};
-    apply_geometric_corrections_cpu(xcorr, fits_vis_w, frequencies);
+    apply_geometric_corrections_cpu(xcorr, w, frequencies);
     compare_xcorr_to_fits_file(xcorr, dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_after_geo_corrections.fits");
     std::cout << "'test_geometric_correction_cpu' passed." << std::endl;
 }
@@ -44,16 +43,11 @@ void test_geometric_correction_gpu(){
     ObservationInfo obs_info {VCS_OBSERVATION_INFO};
     Visibilities xcorr = Visibilities::from_fits_file(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_before_geo_corrections.fits", obs_info);
     std::cout << "n_integrations = " << xcorr.integration_intervals() << ", n_frequencies = " << xcorr.nFrequencies << std::endl;
-    CBgFits fits_vis_w;
-    fits_vis_w.ReadFits((dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/m_W.fits").c_str(), 0, 1, 1 );
-    float *w_gpu;
-    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
-    gpuMalloc((void**)&w_gpu, xySize*sizeof(float));
-    gpuMemcpy(w_gpu, fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
+    MemoryBuffer<float> w_gpu {MemoryBuffer<float>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/m_W.bin")};
+    w_gpu.to_gpu();
     MemoryBuffer<double> frequencies {MemoryBuffer<double>::from_dump(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/frequencies.bin")};
-    apply_geometric_corrections_gpu(xcorr, w_gpu, frequencies);
+    apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies);
     xcorr.to_cpu();
-    gpuFree(w_gpu);
     compare_xcorr_to_fits_file(xcorr, dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/01_after_geo_corrections.fits");
     std::cout << "'test_geometric_correction_gpu' passed." << std::endl;
 }

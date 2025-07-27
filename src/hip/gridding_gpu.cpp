@@ -10,7 +10,6 @@ https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-c
 #include <gpu_fft.hpp>
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
-#include <bg_fits.h>
 
 #include "pacer_imager_hip_defines.h"
 

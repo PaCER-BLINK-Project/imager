@@ -7,8 +7,8 @@ using namespace std;
 
 // InputMapping in msfitslib now 
 #include <array_config_common.h>
+#include <memory_buffer.hpp>
 
-class CBgFits;
 class CObsMetadata;
 
 /*class InputMapping
@@ -42,7 +42,7 @@ public :
    
    // if pMetaData=NULL    -> meta data not provided -> calculate UVW assuming zenith pointing (i.e. SKA-Low station)
    // else pMetaData!=NULL -> meta data provided -> calculate UVW using these metadata (e.g. for the MWA)
-   int CalculateUVW( CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, bool bSaveFits=false, const char* szOutDir="./" , bool bIncludeAutos=false ); // , CObsMetadata* pMetaData=NULL ); // in meters for now 
+   int CalculateUVW(MemoryBuffer<float>& u_cpu, MemoryBuffer<float>& v_cpu, MemoryBuffer<float>& w_cpu, bool bIncludeAutos=false );
    
    // metadata information :
    CObsMetadata* m_pMetaData;
