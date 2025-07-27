@@ -90,27 +90,16 @@ int CPacerImager::UpdateFlags()
 
 CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images) {
     this->average_images = average_images;
-    this->metadata_file = metadata_file;
-    update_metadata();
-    m_FlaggedAntennas = flagged_antennas;
-    UpdateFlags();
-}
-
-
-void CPacerImager::update_metadata(double unix_time) {
-    // read all information from metadata
+     // read all information from metadata
     if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
         PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
-        double obsid = -1;
-        if(unix_time >=0 && autofix_metadata){
-            obsid = CObsMetadata::ux2gps(unix_time);
-        }
-        if( !m_MetaData.ReadMetaData( metadata_file.c_str(), obsid, 1.0 ) ){
+        if( !m_MetaData.ReadMetaData( metadata_file.c_str())){
             PRINTF_ERROR("ERROR : could not read meta data from file %s\n", metadata_file.c_str() );
         }
     }
+    m_FlaggedAntennas = flagged_antennas;
+    UpdateFlags();
 }
-
 
 void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side){
     
@@ -462,7 +451,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
 
-    update_metadata(xcorr.obsInfo.startTime);
+    m_MetaData.fix_metafits(CObsMetadata::ux2gps(xcorr.obsInfo.startTime), 1.0);
     int n_ant = xcorr.obsInfo.nAntennas;
     int n_pol = xcorr.obsInfo.nPolarizations;
     // calculate UVW (if required)

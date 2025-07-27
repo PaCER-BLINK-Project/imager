@@ -80,12 +80,9 @@ public :
    double m_PixscaleAtZenith;
    double pixsize_in_radians;
    
-  std::string metadata_file;
 
    CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false);
    
-   void update_metadata(double unix_time = -1.0); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
- 
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------
    // verbosity level 

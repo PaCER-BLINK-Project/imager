@@ -102,7 +102,7 @@ CObsMetadata::CObsMetadata( const char* filename ) :
 }
 
 
-bool CObsMetadata::ReadMetaData( const char* filename, double obsid /*=-1*/, double integrationTime /*=1.00*/ )
+bool CObsMetadata::ReadMetaData( const char* filename )
 {
    if( strlen(m_filename.c_str())<=0 || strcmp(m_filename.c_str(),filename) ){
       m_filename = filename;
@@ -113,7 +113,7 @@ bool CObsMetadata::ReadMetaData( const char* filename, double obsid /*=-1*/, dou
          return ReadMetaDataTxt( m_filename.c_str() );
       }
       if( strstr(m_filename.c_str(),".metafits") ){
-         return ReadMetaFitsFile( m_filename.c_str(), obsid, integrationTime );
+         return ReadMetaFitsFile( m_filename.c_str() );
       }
    }
    
@@ -176,7 +176,7 @@ bool CObsMetadata::ReadMetaDataTxt( const char* filename )
    return true;
 }
 
-bool CObsMetadata::ReadMetaFitsFile( const char* filename, double obsid /*=-1*/, double integrationTime /*=1.00*/ )
+bool CObsMetadata::ReadMetaFitsFile( const char* filename )
 {
 //   fitsfile *_fptr = NULL; 
    int status = 0;
@@ -304,11 +304,6 @@ bool CObsMetadata::ReadMetaFitsFile( const char* filename, double obsid /*=-1*/,
    printf("\traHrs = %.8f [h] , tilePointingRARad = %.8f [rad]\n",raHrs,tilePointingRARad);
    printf("\tdecDegs = %.8f [deg] , tilePointingDecRad = %.8f [rad]\n",decDegs,tilePointingDecRad);
    printf("\tstartUnixTime = %.8f [sec]\n",startUnixTime);
-   
-   if( obsid > 0 ){
-      // fix_metafits( long int obsid, double inttime_sec /*=1.00*/ )
-      fix_metafits( obsid, integrationTime ); // TODO : implement other integration times than 1-second !!!
-   }
    
    return true;
 }
