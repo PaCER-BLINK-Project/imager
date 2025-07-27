@@ -10,35 +10,19 @@
 class CPacerImagerHip : public CPacerImager {
 protected :
    MemoryBuffer<double> frequencies_gpu;
+   MemoryBuffer<float> fnorm;
+   MemoryBuffer<float> u_gpu;
+   MemoryBuffer<float> v_gpu;
+   MemoryBuffer<float> w_gpu;
+   MemoryBuffer<float> cable_length_gpu;
+
    // CUDA / HIP FFT plan:
-   gpufftHandle m_FFTPlan; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
+   gpufftHandle m_FFTPlan {0}; // initialised on the first usage , WARNING : on Setonix was void* , int is too small and causes CORE DUMP CRASH !!!
 
-   // Additional GPU Input variables 
-   // GPU Input variables 
-   float *u_gpu; 
-   float *v_gpu;
-   float *w_gpu;
-   VISIBILITY_TYPE* vis_gpu;
-   float *cable_lengths_gpu;
-   float *cable_lengths_cpu;
-  
-   // GPU Output variables
-   float *uv_grid_counter_gpu; 
-   float *uv_grid_counter_cpu; // temporarily counter is on CPU to be able to save and calculat Sum -> later paralllel reduction on GPU 
-   
+
    // antenna flags (0-ok, 1-flagged) and weights (1-ok, 0-remove)
-   int *antenna_flags_gpu;
-   int *antenna_flags_cpu;
-   float *antenna_weights_gpu;
-   float *antenna_weights_cpu;
-   
-   int m_AllocatedXYSize;    // size of allocated correlation matrix or UVW 
-   int m_AllocatedImageSize; // size of memory allocated for images 
-   
-
-   // Clean GPU Memory 
-   void CleanGPUMemory(); 
-   
+   MemoryBuffer<int> antenna_flags_gpu;
+   MemoryBuffer<float> antenna_weights_gpu;
    
    // update antenna flags:
    void UpdateAntennaFlags( int n_ant );
@@ -60,7 +44,6 @@ protected :
    virtual Images gridding_imaging( Visibilities& xcorr, 
                   int time_step, 
                   int fine_channel,
-                  CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w,
                   double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
@@ -69,16 +52,13 @@ protected :
                 );
 
     // virtual function to NOT DO corrections in CPU but in GPU :
-    virtual void ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies);
+    virtual void ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies);
    
     virtual void ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies);
 
 
 public :
-
-
    CPacerImagerHip(const std::string metadata_file);
-   ~CPacerImagerHip();
 };
 
 

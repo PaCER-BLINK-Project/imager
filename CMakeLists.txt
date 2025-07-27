@@ -3,7 +3,7 @@
 # set_target_properties(pacer_dirty_imager PROPERTIES OUTPUT_NAME pacer_dirty_imager_gpu)
 # install(TARGETS pacer_dirty_imager RUNTIME DESTINATION ${RUNTIME_DIR} RENAME pacer_dirty_imager_gpu)
 # but it can only create pacer_dirty_imager_gpu or pacer_dirty_imager not both so making it slower, uglier, but the only working way so far (double compilation)
-cmake_minimum_required(VERSION 3.1.0)
+cmake_minimum_required(VERSION 3.10.0)
 project(imaging VERSION 0.1 LANGUAGES CXX)
 include(CTest)
 set(CMAKE_CXX_STANDARD 14)

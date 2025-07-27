@@ -5,7 +5,6 @@
 #include <myparser.h>
 #include <myfile.h>
 #include <mystrtable.h>
-#include <bg_fits.h>
 #include "observation_metadata.h"
 #include <libnova_interface.h>
 
@@ -21,10 +20,7 @@ CAntennaPositions::CAntennaPositions( CObsMetadata* pMetaData )
 CAntennaPositions::~CAntennaPositions()
 {}
 
-int CAntennaPositions::CalculateUVW( CBgFits& fits_vis_u, CBgFits& fits_vis_v, CBgFits& fits_vis_w, 
-                                     bool bSaveFits /*=false*/ , 
-                                     const char* szOutDir /*="./"*/, 
-                                     bool bIncludeAutos /* = false */ )
+int CAntennaPositions::CalculateUVW( MemoryBuffer<float>& u_cpu, MemoryBuffer<float>& v_cpu, MemoryBuffer<float>& w_cpu, bool bIncludeAutos )
 //                                     CObsMetadata* pMetaData /* = NULL */ )
 {
    if( size() <= 0 ){
@@ -34,16 +30,9 @@ int CAntennaPositions::CalculateUVW( CBgFits& fits_vis_u, CBgFits& fits_vis_v, C
    int n_ant = size();
 
    // initialise UVW arrays according to number of antennas :
-   fits_vis_u.Realloc( n_ant , n_ant );
-   fits_vis_v.Realloc( n_ant , n_ant );
-   fits_vis_w.Realloc( n_ant , n_ant );
-
-   // initalise :
-   // set NaN to be consistent with CASA dump (was 0 but CASA dump script sets NaN for flagged antennas and upper half when option --conjugate is not used):
-   fits_vis_u.SetNaN();
-   fits_vis_v.SetNaN();
-   fits_vis_w.SetNaN();
-
+   if(!u_cpu) u_cpu.allocate(n_ant * n_ant);
+   if(!v_cpu) v_cpu.allocate(n_ant * n_ant);
+   if(!w_cpu) w_cpu.allocate(n_ant * n_ant);
 
    double uxtime = 0.0; // TODO fix this hardcoding 
    double jd;
@@ -98,35 +87,15 @@ int CAntennaPositions::CalculateUVW( CBgFits& fits_vis_u, CBgFits& fits_vis_v, C
          }
          
          // j,i (instead of i,j) to be consistent with CASA UVW array:
-         fits_vis_u.setXY( i, j, u );
-         fits_vis_v.setXY( i, j, v );
-         fits_vis_w.setXY( i, j, w );
-         
-         // fill the other half of the array with -UVW values:
-         fits_vis_u.setXY( j, i, -u );
-         fits_vis_v.setXY( j, i, -v );
-         fits_vis_w.setXY( j, i, -w );
-         
+         u_cpu[n_ant*j + i] = u;
+         v_cpu[n_ant*j + i] = v;
+         w_cpu[n_ant*j + i] = w;
+
+         u_cpu[n_ant*i + j] = -u;
+         v_cpu[n_ant*i + j] = -v;
+         w_cpu[n_ant*i + j] = -w;
+
          n_baselines++;
-      }
-   }
-   
-   if( bSaveFits ){
-      char szFullPath[128];
-      sprintf(szFullPath,"%s/u.fits",szOutDir);
-   
-      if( fits_vis_u.WriteFits( szFullPath ) ){
-        printf("ERROR : could not write output file u.fits\n");        
-      }
-      
-      sprintf(szFullPath,"%s/v.fits",szOutDir);
-      if( fits_vis_v.WriteFits( szFullPath ) ){
-        printf("ERROR : could not write output file v.fits\n");        
-      }
-      
-      sprintf(szFullPath,"%s/w.fits",szOutDir);
-      if( fits_vis_w.WriteFits( szFullPath ) ){
-        printf("ERROR : could not write output file w.fits\n");        
       }
    }
    

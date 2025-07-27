@@ -10,7 +10,6 @@ https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-c
 #include <gpu_fft.hpp>
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
-#include <bg_fits.h>
 
 #include "pacer_imager_hip_defines.h"
 
@@ -54,11 +53,11 @@ __device__ int calculate_pos(float u,
 
 
 
-__global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
+__global__ void gridding_kernel(const float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
                                       int n_ant,
-                                      float *u, float *v, 
-                                      int* antenna_flags, float* antenna_weights,
-                                      double *frequencies, int image_size, double delta_u, double delta_v, 
+                                      const float *u, const float *v, 
+                                      const int* antenna_flags, const float* antenna_weights,
+                                      const double *frequencies, int image_size, double delta_u, double delta_v, 
                                       int n_pixels,
                                       float *uv_grid_counter, double min_uv, 
                                       gpufftComplex *m_in_buffer) {
@@ -84,8 +83,10 @@ __global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, u
       if( !isnan(re) && !isnan(im) && antenna_flags[a2]<=0 && antenna_flags[a1]<=0 ) {
          int pos = calculate_pos( u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
          if(pos>=0 && pos<image_size) {
-            // Allocating in uv_grid                
-            atomicAdd(&uv_grid_counter[image_size * m_idx + pos],1);
+            // Allocating in uv_grid       
+            // WARNING: this might not give us the exact count for all time steps because of nan values, but it is a tradeoff for memory
+            // Maybe over time, if not uniform weighting          
+            if(m_idx / n_frequencies == 0) atomicAdd(&uv_grid_counter[image_size * m_idx + pos],1);
 
             // Allocating inside m_in_buffer as well 
             atomicAdd(&m_in_buffer[image_size * m_idx + pos].x,re);
@@ -95,7 +96,7 @@ __global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, u
          int pos2 = calculate_pos(u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
          if(pos2>=0 && pos2<image_size)
          {
-            atomicAdd(&uv_grid_counter[image_size * m_idx + pos2],1);
+            if(m_idx / n_frequencies == 0) atomicAdd(&uv_grid_counter[image_size * m_idx + pos2],1);
             // Allocating inside m_in_buffer as well 
             atomicAdd(&m_in_buffer[image_size * m_idx + pos2].x,re);
             atomicAdd(&m_in_buffer[image_size * m_idx + pos2].y,-im);
@@ -108,35 +109,23 @@ __global__ void gridding_kernel(float *visibilities, unsigned int n_baselines, u
 
 
 
-void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
-      CBgFits& fits_vis_u, CBgFits& fits_vis_v,
-      int* antenna_flags, float* antenna_weights,
-      MemoryBuffer<double>& frequencies,
+void gridding_gpu(const Visibilities& xcorr, int time_step, int fine_channel,
+      const MemoryBuffer<float>& u_gpu,  const MemoryBuffer<float>& v_gpu, 
+      const MemoryBuffer<int>& antenna_flags, const MemoryBuffer<float>& antenna_weights,
+      const MemoryBuffer<double>& frequencies,
       double delta_u, double delta_v,
       int n_pixels, double min_uv, MemoryBuffer<float>& grids_counters,
       MemoryBuffer<std::complex<float>>& grids){
   std::cout << "Running 'gridding' on GPU.." << std::endl;
 
   int n_ant = xcorr.obsInfo.nAntennas;
-  int corr_size = n_ant * n_ant;
   int image_size {n_pixels * n_pixels}; 
-
-  float *u_cpu = fits_vis_u.get_data();
-  float *v_cpu = fits_vis_v.get_data();
-   float *u_gpu, *v_gpu;
-   gpuMalloc((void**)&u_gpu, corr_size*sizeof(float));
-   gpuMalloc((void**)&v_gpu, corr_size*sizeof(float));
-   
-   gpuMemcpy((float*)u_gpu, (float*)u_cpu, sizeof(float)*corr_size, gpuMemcpyHostToDevice); 
-   gpuMemcpy((float*)v_gpu, (float*)v_cpu, sizeof(float)*corr_size, gpuMemcpyHostToDevice);
-  
-
 
    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
    
-   gpuMemset(grids_counters.data(), 0, n_images * image_size * sizeof(float));
-   gpuMemset(grids.data(), 0, n_images * image_size * sizeof(std::complex<float>));
+   gpuMemset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
+   gpuMemset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
    
    int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
    struct gpuDeviceProp_t props;
@@ -144,12 +133,8 @@ void gridding_gpu(Visibilities& xcorr, int time_step, int fine_channel,
    gpuGetDevice(&gpu_id);
    gpuGetDeviceProperties(&props, gpu_id);
    unsigned int n_blocks = props.multiProcessorCount * 2;
-
-   frequencies.to_gpu();
-   gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
-      n_ant, u_gpu, v_gpu, antenna_flags, antenna_weights, frequencies.data(), image_size,
+   gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
+      n_ant, u_gpu.data(), v_gpu.data(), antenna_flags.data(), antenna_weights.data(), frequencies.data(), image_size,
       delta_u, delta_v, n_pixels, grids_counters.data(), min_uv, (gpufftComplex*) grids.data());
    gpuGetLastError();
-   gpuFree(u_gpu); 
-   gpuFree(v_gpu);
 }

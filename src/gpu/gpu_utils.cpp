@@ -4,76 +4,6 @@
 #include <exception>
 #include <memory_buffer.hpp>
 
-__global__ void mult_by_const( gpufftComplex *data, int size, double mult_value )
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    if( i >= size ){
-       return;
-    }
-
-    data[i].x = data[i].x*mult_value;
-    data[i].y = data[i].y*mult_value;
-}
-
-
-__global__ void mult_by_const( float *data, int size, double mult_value )
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    if( i >= size ){
-       return;
-    }
-
-    data[i] = data[i]*mult_value;
-}
-
-
-__global__ void mult_arrays( float* data, float* data2, int size )
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    if( i >= size ){
-       return;
-    }
-
-    data[i] = data[i]*data2[i];
-}
-
-__global__ void mult_arrays( float* data, float* data2, float* data_out, int size )
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    if( i >= size ){
-       return;
-    }
-
-    data_out[i] = data[i]*data2[i];
-}
-
-
-__global__ void div_arrays( float* data, float* data2, int size )
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    if( i >= size ){
-       return;
-    }
-
-    data[i] = data[i] / data2[i];
-}
-
-__global__ void div_arrays( float* data, float* data2, float* data_out, int size )
-{   
-    // Calculating the required id 
-    int i = blockDim.x * blockIdx.x + threadIdx.x;
-    if( i >= size ){
-       return;
-    }
-
-    data_out[i] = data[i] / data2[i];
-}
-
 
 // SUM of array:
 #define NTHREADS 1024
@@ -159,7 +89,7 @@ __global__ void fft_shift_and_norm_x(gpufftComplex* data, size_t image_x_side, s
 
 
 
-__global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, size_t image_y_side, int n_images, float *fnorm ){
+__global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, size_t image_y_side, int n_images, float *fnorm, size_t fnorm_size){
    size_t tid {blockDim.x * blockIdx.x + threadIdx.x};
    if(tid >= image_x_side * (image_y_side / 2)) return;
 
@@ -170,8 +100,8 @@ __global__ void fft_shift_and_norm_y(gpufftComplex* data, size_t image_x_side, s
    size_t dst = dst_row * image_x_side + src_col;
 
    for(int img_id = 0; img_id < n_images; img_id++){
-      gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst] / fnorm[img_id];
-      data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src] / fnorm[img_id];
+      gpufftComplex tmp = data[img_id * image_x_side * image_y_side + dst] / fnorm[img_id % fnorm_size];
+      data[img_id * image_x_side * image_y_side + dst] = data[img_id * image_x_side * image_y_side + src] / fnorm[img_id % fnorm_size];
       data[img_id * image_x_side * image_y_side + src] = tmp;
    }
 }
@@ -190,7 +120,7 @@ void fft_shift_and_norm_gpu( gpufftComplex* data_gpu, int xSize, int ySize, int 
    fft_shift_and_norm_x<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images);
    n_threads_needed = xSize * (ySize / 2);
    n_blocks = (n_threads_needed + NTHREADS - 1) / NTHREADS;
-   fft_shift_and_norm_y<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images, fnorm.data());
+   fft_shift_and_norm_y<<<n_blocks, NTHREADS>>>(data_gpu, xSize, ySize, n_images, fnorm.data(), fnorm.size());
 }
 
 

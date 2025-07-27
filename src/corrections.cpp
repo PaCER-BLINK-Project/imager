@@ -1,11 +1,10 @@
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
-#include <bg_fits.h>
 #include "corrections.h"
 #include "pacer_imager_defs.h"
 
 
-void apply_geometric_corrections_cpu(Visibilities &xcorr, CBgFits &fits_vis_w, const MemoryBuffer<double>& frequencies){
+void apply_geometric_corrections_cpu(Visibilities &xcorr, const MemoryBuffer<float>& fits_vis_w, const MemoryBuffer<double>& frequencies){
     if(xcorr.on_gpu()) xcorr.to_cpu();
     int n_ant = xcorr.obsInfo.nAntennas;
     #pragma omp parallel for collapse(2) schedule(static)
@@ -17,7 +16,7 @@ void apply_geometric_corrections_cpu(Visibilities &xcorr, CBgFits &fits_vis_w, c
             {
                 for (int ant2 = 0; ant2 <= ant1; ant2++)
                 {
-                    double w = fits_vis_w.getXY(ant2, ant1);
+                    double w = fits_vis_w[ant1 * n_ant + ant2];
                     double angle = 2.0 * M_PI * w * frequencies[fine_channel] / SPEED_OF_LIGHT;
                     double sin_angle, cos_angle;
                     sincos(angle, &sin_angle, &cos_angle);

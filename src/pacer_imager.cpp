@@ -1,9 +1,6 @@
 #include "pacer_imager.h"
-
-#include <bg_fits.h>
-
 #include "pacer_common.h"
-
+#include <bg_fits.h>
 // FFTW, math etc :
 #include <fftw3.h>
 #include <math.h>
@@ -26,50 +23,8 @@
 #include <fstream>
 #include <omp.h>
 
-void memdump(char *ptr, size_t nbytes, std::string filename){
-    std::ofstream outfile;
-    outfile.open(filename, std::ofstream::binary);
-    outfile.write(ptr, nbytes);
-    if(!outfile){
-        std::cerr << "Error while dumping data to " << filename << std::endl;
-        exit(1);
-    }
-    outfile.close();
-}
-
 
 namespace {
-    
-
-
-    void compare_xcorr_to_fits_file(Visibilities& xcorr, std::string filename, float eps = 1e-3){
-        auto vis2 = Visibilities::from_fits_file(filename, xcorr.obsInfo);
-        size_t fine_channel {0}, int_time {0};
-        size_t n_nans {0};
-        size_t total {0};
-        for(size_t a1 {0}; a1 < xcorr.obsInfo.nAntennas; a1++){
-            for(size_t a2 {0}; a2 < a1; a2++){
-                std::complex<float> *p1 = xcorr.at(int_time, fine_channel, a1, a2);
-                std::complex<float> *p2 = vis2.at(int_time, fine_channel, a1, a2);
-                for(size_t p {0}; p < 4; p++){
-                    total++;
-                    if(isnan(p1->real()) && isnan(p2->real()) && isnan(p2->imag()) && isnan(p1->imag())){
-                        n_nans++;
-                        continue;
-                    }
-                    if(std::abs(p1->real() - p2->real()) > eps || std::abs(p1->imag() - p2->imag()) > eps){
-                        std::cerr << "xcorr differs from " << filename << "!!!!" << std::endl;
-                        std::cerr << "[a1 = " << a1 << ", a2 = " << a2 << "] p1 = " << *p1 << ", p2 = " << *p2 << std::endl;
-                        exit(1);
-                    }
-                }
-            }
-        }
-        std::cout << "OKK comparison with " << filename << std::endl;
-        std::cout << "Percentage NaNs: " << (static_cast<double>(n_nans) / total * 100.0) << std::endl;
-    }
-
-
     int calc_fft_shift(int pos, int side){
         int is_odd = side % 2;
         return (pos + side/2 + is_odd) % (side);
@@ -102,7 +57,6 @@ bool CPacerImager::m_bPrintImageStatistics = false; // default disabled to make 
 void CPacerImager::SetDebugLevel(int debug_level)
 {
     CPacerImager::m_ImagerDebugLevel = debug_level;
-    gBGPrintfLevel = debug_level;
 }
 
 void CPacerImager::SetFileLevel(int filesave_level)
@@ -152,8 +106,7 @@ void CPacerImager::SetFlaggedAntennas(vector<int> &flagged_antennas)
 CPacerImager::CPacerImager(const std::string metadata_file)
     : m_bInitialised(false), m_Baselines(0),
      m_bIncludeAutos(false),
-      m_nAntennas(0), u_mean(0.00), u_rms(0.00), u_min(0.00), u_max(0.00), v_mean(0.00),
-      v_rms(0.00), v_min(0.00), v_max(0.00), w_mean(0.00), w_rms(0.00), w_min(0.00), w_max(0.00)
+      m_nAntennas(0)
 {
     m_PixscaleAtZenith = 0.70312500; // deg for ch=204 (159.375 MHz) EDA2
     this->metadata_file = metadata_file;
@@ -334,19 +287,12 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryB
             for(size_t i {0}; i < grid_size; i++) counter_sum += current_counter[i];
             
             double fnorm = 1.00 / counter_sum; // see RTS :
-                                            // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
-                                            // SumVisibilityWeights and gridKernel.c:650 also
-                                            // read TMS (Thomson, Moran, Swenson) about this
-            PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm,
-                        counter_sum);
+            // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
+            // SumVisibilityWeights and gridKernel.c:650 also
+            // read TMS (Thomson, Moran, Swenson) about this
+            PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm, counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
-
-            // TODO: CRISTIAN: is this needed?
-            // if(fine_channel == 0)
-            // memdump((char *) current_image, grid_size * sizeof(std::complex<double>), "image_before_shift.bin");
             fft_shift(current_image, grid_side, grid_side);
-            // if(fine_channel == 0)
-            // memdump((char *) current_image, grid_size * sizeof(std::complex<double>), "image_after_shift.bin");
         }
     }
 
@@ -371,19 +317,14 @@ bool CPacerImager::CalculateUVW(double frequency_hz, bool bForce /*=false*/, boo
 
     bool bRecalculationRequired = false;
 
-    if (m_Baselines <= 0 || m_U.GetXSize() <= 0 || m_V.GetXSize() <= 0 || m_W.GetXSize() <= 0 ||
-        !m_ImagerParameters.m_bConstantUVW || bForce)
-    {
+    if (m_Baselines <= 0 || u_cpu.size() == 0 || !m_ImagerParameters.m_bConstantUVW || bForce) {
         bRecalculationRequired = true;
     }
 
-    if (bRecalculationRequired)
-    {
+    if (bRecalculationRequired) {
         PRINTF_DEBUG("DEBUG : recalculation of UVW is required\n");
 
-        m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW(
-            m_U, m_V, m_W, (CPacerImager::m_SaveFilesLevel >= SAVE_FILES_DEBUG),
-            m_ImagerParameters.m_szOutputDirectory.c_str(), m_bIncludeAutos);
+        m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW(u_cpu, v_cpu, w_cpu, m_bIncludeAutos);
         PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines\n", m_Baselines);
 
         UpdateParameters(frequency_hz); // update parameters after change in UVW
@@ -395,20 +336,21 @@ bool CPacerImager::CalculateUVW(double frequency_hz, bool bForce /*=false*/, boo
 bool CPacerImager::UpdateParameters(double frequency_hz)
 {
     PRINTF_DEBUG("DEBUG : updating parameters (pixscale etc.) based on new UVW\n");
-    // U :
-    m_U.GetStat(u_mean, u_rms, u_min, u_max);
+    if(v_cpu){
+        u_max = u_cpu[0];
+        v_max = v_cpu[0];
 
-    // V :
-    m_V.GetStat(v_mean, v_rms, v_min, v_max);
-
-    // W :
-    m_W.GetStat(w_mean, w_rms, w_min, w_max);
-
-    // Bacause we are also including conjugates at (-u,-v) UV point in gridding
-    // u_min = -u_max and v_min = -v_max : was -35 / +35
-    u_min = -u_max;
-    //  u_max = +35;
-    v_min = -v_max;
+      for(int i {1}; i < u_cpu.size(); i++){
+        if(u_max < u_cpu[i]) u_max = u_cpu[i];
+        if(v_max < v_cpu[i]) v_max = v_cpu[i];
+      }
+      // Bacause we are also including conjugates at (-u,-v) UV point in gridding
+        // u_min = -u_max and v_min = -v_max : was -35 / +35
+        u_min = -u_max;
+        //  u_max = +35;
+        v_min = -v_max;
+        //  v_max = +35;
+    } 
     //  v_max = +35;
 
     // recalculate PIXSCALE at zenith :
@@ -430,8 +372,7 @@ inline int wrap_index(int i, int side){
     else return (side + i);
 }
 
-void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
-                                 CBgFits &fits_vis_v, CBgFits &fits_vis_w,
+void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_channel,
                                  MemoryBuffer<std::complex<float>> &grids,
                                  MemoryBuffer<float> &grids_counters, double delta_u, double delta_v, int n_pixels,
                                  double min_uv /*=-1000*/,
@@ -445,16 +386,21 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
     { // TODO : ? may require a separate flag in the
       // future, for now just using a single
       // Statistics switch ON/OFF flag
-        fits_vis_u.GetStat(u_mean, u_rms, u_min, u_max);
-        fits_vis_v.GetStat(v_mean, v_rms, v_min, v_max);
-        fits_vis_w.GetStat(w_mean, w_rms, w_min, w_max);
+    if(v_cpu){
+        u_max = u_cpu[0];
+        v_max = v_cpu[0];
 
-        // Bacause we are also including conjugates at (-u,-v) UV point in gridding
+      for(int i {1}; i < u_cpu.size(); i++){
+        if(u_max < u_cpu[i]) u_max = u_cpu[i];
+        if(v_max < v_cpu[i]) v_max = v_cpu[i];
+      }
+      // Bacause we are also including conjugates at (-u,-v) UV point in gridding
         // u_min = -u_max and v_min = -v_max : was -35 / +35
         u_min = -u_max;
         //  u_max = +35;
         v_min = -v_max;
         //  v_max = +35;
+    } 
 
         bStatisticsCalculated = true;
     }
@@ -533,7 +479,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                             if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
                             {
                                 // TODO convert [m] -> wavelength
-                                double u = fits_vis_u.getXY(ant2, ant1) / wavelength_m;
+                                double u = u_cpu[ant1 * n_ant + ant2] / wavelength_m;
 
                                 // 2022-09-24 : - removed for a test on MWA data
                                 // 2022-09-09 - for now sticking to - sign here to have back
@@ -541,7 +487,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                 //  but looks like this (-) should not be here at least does not
                                 //  match UV coverage from WSCEAN (it is flipped then see :
                                 //  /home/msok/Desktop/PAWSEY/PaCER/logbook/20220826_image_simulation_part3.odt
-                                double v = fits_vis_v.getXY(ant2, ant1) /
+                                double v = v_cpu[ant1 * n_ant + ant2] /
                                            wavelength_m; // the - sign here fixes the Y flip, but I am
                                                          // not sure why needed ??? check RTS :
                                                          // imagefromuv.c , LM_CopyFromFFT where some
@@ -550,7 +496,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
                                                          // data - it may be consistent once I start
                                                          // using TMS equation 4.1 consistently for
                                                          // both EDA2 and MWA
-                                double w = fits_vis_w.getXY(ant2, ant1) / wavelength_m;
+                               
                                 double uv_distance = sqrt(u * u + v * v);
 
                                 /* this is in WSCLEAN, but here seems to have no effect ...
@@ -625,8 +571,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
     }
 }
 
-Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine_channel, CBgFits &fits_vis_u,
-                                    CBgFits &fits_vis_v, CBgFits &fits_vis_w, double delta_u, double delta_v,
+Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine_channel, double delta_u, double delta_v,
                                     int n_pixels, double min_uv /*=-1000*/, // minimum UV
                                     const char *weighting /*=""*/,          // weighting : U for uniform (others not
                                                                             // implemented)
@@ -641,7 +586,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     if(!grids_counters) grids_counters.allocate(buffer_size);
     if(!grids) grids.allocate(buffer_size);
     // Should be long long int, but keeping float now for compatibility reasons
-    gridding_fast(xcorr, time_step, fine_channel, fits_vis_u, fits_vis_v, fits_vis_w, grids,
+    gridding_fast(xcorr, time_step, fine_channel, grids,
                       grids_counters, delta_u, delta_v, n_pixels, min_uv, weighting);
 
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
@@ -691,10 +636,10 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 
     if (m_ImagerParameters.m_bApplyGeomCorr)
-        ApplyGeometricCorrections(xcorr, m_W, frequencies);
+        ApplyGeometricCorrections(xcorr, w_cpu, frequencies);
 
     if (m_ImagerParameters.m_bApplyCableCorr){
-        MemoryBuffer<double> cable_lengths {xcorr.obsInfo.nAntennas, false, false};
+        if(!cable_lengths) cable_lengths.allocate(xcorr.obsInfo.nAntennas);
         for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
             cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
         ApplyCableCorrections(xcorr, cable_lengths, frequencies);
@@ -764,7 +709,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
 
     // virtual function calls gridding and imaging in GPU/HIP version it is
     // overwritten and both gridding and imaging are performed on GPU memory :
-    auto images = gridding_imaging(xcorr, time_step, fine_channel, m_U, m_V, m_W, delta_u, delta_v, n_pixels,
+    auto images = gridding_imaging(xcorr, time_step, fine_channel, delta_u, delta_v, n_pixels,
                         min_uv, weighting, szBaseOutFitsName);
     
     images.ra_deg = m_MetaData.raHrs*15.00;
@@ -806,8 +751,8 @@ double CPacerImager::get_frequency_hz(const Visibilities &vis, int fine_channel,
     return channel_frequency_MHz * 1e6;
 }
 
-void CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& fits_vis_w, MemoryBuffer<double>& frequencies){
-    apply_geometric_corrections_cpu(xcorr, fits_vis_w, frequencies);
+void CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w, MemoryBuffer<double>& frequencies){
+    apply_geometric_corrections_cpu(xcorr, w, frequencies);
 }
    
 void CPacerImager::ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
