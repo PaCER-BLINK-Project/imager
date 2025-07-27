@@ -48,8 +48,8 @@ namespace {
 }
 
 
-CPacerImagerHip::CPacerImagerHip()
-: CPacerImager(),
+CPacerImagerHip::CPacerImagerHip(double unixTime, const std::string metadata_file)
+: CPacerImager(unixTime, metadata_file),
   u_gpu(NULL), v_gpu(NULL), w_gpu(NULL),
   m_AllocatedXYSize(0), m_AllocatedImageSize(0),
   m_FFTPlan(0), vis_gpu(NULL), cable_lengths_gpu(NULL), cable_lengths_cpu(NULL),

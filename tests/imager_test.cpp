@@ -43,7 +43,6 @@ void test_fft_shift_simple(){
 void test_imager_common(CPacerImager& imager, bool is_cpu){
 
     std::string vis_file {dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/input_visibilities.fits"};
-    std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::string antennaPositionsFile {""};
     std::string output_dir { is_cpu ? 
         "/scratch/pawsey1154/cdipietrantonio/test_imager_cpu" : "/scratch/pawsey1154/cdipietrantonio/test_imager_gpu"};
@@ -55,21 +54,9 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
     double FOV_degrees = 30;
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
 
-    CImagerParameters::m_bApplyCableCorr = true;
-    CImagerParameters::m_bApplyGeomCorr = true;
-    imager.m_ImagerParameters.m_bConstantUVW = true; 
-    imager.m_ImagerParameters.SetGlobalParameters(antennaPositionsFile.c_str(), bZenithImage); // Constant UVW when zenith image (-Z)
     imager.m_ImagerParameters.m_szOutputDirectory = output_dir.c_str();
-
-
-    if(strlen(metadataFile.c_str())){
-        imager.m_ImagerParameters.m_MetaDataFile = metadataFile.c_str();
-        imager.m_ImagerParameters.m_bConstantUVW = false; // when Meta data file is provided it assumes that it will pointed observation (not all sky)
-    }
-    
     imager.m_ImagerParameters.m_fUnixTime = fUnixTime;
     
-   imager.Initialise(0);
    // setting flagged antennas must be called / done after reading METAFITS file:
    if( flagged_antennas.size() > 0 ){
        imager.SetFlaggedAntennas( flagged_antennas );
@@ -82,13 +69,27 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
 }
 
 void test_imager_cpu(){
-    CPacerImager imager;
+    CImagerParameters::m_bApplyCableCorr = true;
+    CImagerParameters::m_bApplyGeomCorr = true;
+    CImagerParameters::m_bConstantUVW = false;
+    CImagerParameters::SetGlobalParameters("", false); // Constant UVW when zenith image (-Z)
+    std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
+    double fUnixTime {1592584240};
+    CPacerImager imager {fUnixTime, metadataFile};
     test_imager_common(imager, true);
 }
 
 
 void test_imager_gpu(){
-    CPacerImagerHip imager;
+    CImagerParameters::m_bApplyCableCorr = true;
+    CImagerParameters::m_bApplyGeomCorr = true;
+    CImagerParameters::m_bApplyCableCorr = true;
+    CImagerParameters::m_bApplyGeomCorr = true;
+    CImagerParameters::m_bConstantUVW = false; 
+    CImagerParameters::SetGlobalParameters("", false); // Constant UVW when zenith image (-Z)
+    double fUnixTime {1592584240};
+    std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
+    CPacerImagerHip imager {fUnixTime, metadataFile};
     test_imager_common(imager, false);
 }
 

@@ -149,13 +149,16 @@ void CPacerImager::SetFlaggedAntennas(vector<int> &flagged_antennas)
     UpdateFlags();
 }
 
-CPacerImager::CPacerImager()
+CPacerImager::CPacerImager(double unixTime, const std::string metadata_file)
     : m_bInitialised(false), m_Baselines(0),
      m_bIncludeAutos(false),
       m_nAntennas(0), u_mean(0.00), u_rms(0.00), u_min(0.00), u_max(0.00), v_mean(0.00),
       v_rms(0.00), v_min(0.00), v_max(0.00), w_mean(0.00), w_rms(0.00), w_min(0.00), w_max(0.00)
 {
     m_PixscaleAtZenith = 0.70312500; // deg for ch=204 (159.375 MHz) EDA2
+    m_ImagerParameters.m_fUnixTime = unixTime;
+    Initialise(0);
+    update_metadata(metadata_file);
 }
 
 CPacerImager::~CPacerImager()
@@ -163,6 +166,19 @@ CPacerImager::~CPacerImager()
 
 }
 
+void CPacerImager::update_metadata(const std::string& metadata_file) {
+    // read all information from metadata
+    if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
+        PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
+        double obsid = -1;
+        if(CImagerParameters::m_bAutoFixMetaData ){
+            obsid = CObsMetadata::ux2gps( m_ImagerParameters.m_fUnixTime );
+        }
+        if( !m_MetaData.ReadMetaData( metadata_file.c_str(), obsid, 1.0 ) ){
+            PRINTF_ERROR("ERROR : could not read meta data from file %s\n", metadata_file.c_str() );
+        }
+    }
+}
 
 
 int CPacerImager::ReadAntennaPositions(bool bConvertToXYZ)
@@ -206,7 +222,7 @@ void CPacerImager::Initialise(double frequency_hz)
             // etc)
             ReadAntennaPositions(bConvertToXYZ);
 
-            if (/*true ||*/ strlen(m_ImagerParameters.m_MetaDataFile.c_str()) == 0)
+            if ( false &&  strlen(m_ImagerParameters.m_MetaDataFile.c_str()) == 0)
             { // only calculate UVW here when Metadata is not required
                 // initial recalculation of UVW at zenith (no metadata provided ->
                 // zenith): WARNING : bool CPacerImager::CalculateUVW() - could be used,
@@ -238,18 +254,18 @@ void CPacerImager::Initialise(double frequency_hz)
                            m_ImagerParameters.m_AntennaPositionsFile.c_str());
         }
     }
-    // read all information from metadata
-    if (strlen(m_ImagerParameters.m_MetaDataFile.c_str()) &&
-        MyFile::DoesFileExist(m_ImagerParameters.m_MetaDataFile.c_str())) {
-        PRINTF_INFO("INFO : reading meta data from file %s\n", m_ImagerParameters.m_MetaDataFile.c_str());
-        double obsid = -1;
-        if(CImagerParameters::m_bAutoFixMetaData ){
-            obsid = CObsMetadata::ux2gps( m_ImagerParameters.m_fUnixTime );
-        }
-        if( !m_MetaData.ReadMetaData( m_ImagerParameters.m_MetaDataFile.c_str(), obsid, 1.0 ) ){
-            PRINTF_ERROR("ERROR : could not read meta data from file %s\n",m_ImagerParameters.m_MetaDataFile.c_str() );
-        }
-    }
+    // // read all information from metadata
+    // if (strlen(m_ImagerParameters.m_MetaDataFile.c_str()) &&
+    //     MyFile::DoesFileExist(m_ImagerParameters.m_MetaDataFile.c_str())) {
+    //     PRINTF_INFO("INFO : reading meta data from file %s\n", m_ImagerParameters.m_MetaDataFile.c_str());
+    //     double obsid = -1;
+    //     if(CImagerParameters::m_bAutoFixMetaData ){
+    //         obsid = CObsMetadata::ux2gps( m_ImagerParameters.m_fUnixTime );
+    //     }
+    //     if( !m_MetaData.ReadMetaData( m_ImagerParameters.m_MetaDataFile.c_str(), obsid, 1.0 ) ){
+    //         PRINTF_ERROR("ERROR : could not read meta data from file %s\n",m_ImagerParameters.m_MetaDataFile.c_str() );
+    //     }
+    // }
 }
 
 
@@ -349,7 +365,7 @@ bool CPacerImager::CalculateUVW(double frequency_hz, bool bForce /*=false*/, boo
     if (bInitialise)
     { // is not required in one case of call from ::Initialise
       // itself -> to avoid recursive call
-        Initialise(frequency_hz);
+        // Initialise(frequency_hz);
     }
 
     bool bRecalculationRequired = false;

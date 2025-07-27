@@ -77,7 +77,7 @@ protected :
 public :
 
 
-   CPacerImagerHip();
+   CPacerImagerHip(double unixTime, const std::string metadata_file);
    ~CPacerImagerHip();
 };
 
