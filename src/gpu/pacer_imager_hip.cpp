@@ -16,7 +16,7 @@
 
 #include "../utils.h"
 
-CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas) : CPacerImager(metadata_file, flagged_antennas) {}
+CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images) : CPacerImager(metadata_file, flagged_antennas, average_images) {}
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
    if(!antenna_flags_gpu){
@@ -106,7 +106,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
       gpuEventDestroy(start);
      gpuEventDestroy(stop);
-     if(averageImages){
+     if(average_images){
           return image_averaging_gpu(imgs);
      }else{
           return imgs;

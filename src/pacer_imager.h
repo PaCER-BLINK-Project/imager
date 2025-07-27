@@ -53,14 +53,13 @@ public :
   static bool m_bPrintImageStatistics;
    
    // include auto-correlations in the imaging :
-   bool m_bIncludeAutos;
+   bool m_bIncludeAutos {false};
 
-  bool autofix_metadata;  // automatically recalculate RA,DEC,TIME using just standard METAFITS file (no need to create special METAFITS using fix_metafits_time_radec_all.py )
+  bool autofix_metadata {true};  // automatically recalculate RA,DEC,TIME using just standard METAFITS file (no need to create special METAFITS using fix_metafits_time_radec_all.py )
   bool constant_uvw; // default false and only true to zenith phase centered images (all-sky from EDA2)
-  double m_fUnixTime;
   bool apply_geom_correction {true};
   bool apply_cable_correction {true};
-  bool averageImages {false};
+  bool average_images {false};
 
    // meta data :
    CObsMetadata m_MetaData;
@@ -83,8 +82,7 @@ public :
    
   std::string metadata_file;
 
-   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas);
-
+   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false);
    
    void update_metadata(double unix_time = -1.0); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
  

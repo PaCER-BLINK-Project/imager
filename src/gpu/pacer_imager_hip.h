@@ -54,7 +54,7 @@ protected :
 
 
 public :
-   CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas);
+   CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false);
 };
 
 

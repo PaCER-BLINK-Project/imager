@@ -88,7 +88,8 @@ int CPacerImager::UpdateFlags()
 }
 
 
-CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas) {
+CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images) {
+    this->average_images = average_images;
     this->metadata_file = metadata_file;
     update_metadata();
     m_FlaggedAntennas = flagged_antennas;
