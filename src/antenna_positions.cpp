@@ -150,7 +150,7 @@ int CAntennaPositions::ReadAntennaPositions(const char* filename, bool bConvertT
             input.local_y = input.y;
             input.local_z = input.z;
             
-            if( CImagerParameters::m_bCalcEarthXYZ ){
+            if( true /*CImagerParameters::m_bCalcEarthXYZ*/ ){
                // for the MWA we require conversion from local (x,y,z) to Earth's (X,Y,Z) coordinates , for EDA2 we can keep using local (x,y,z)
                // TODO : in the future revise if this parameter is required or we can tell based on the data and other parameter (-Z option or -X ???)
                // see : /home/msok/bighorns/software/analysis/scripts/python/ant_local2earth.py

@@ -3,7 +3,6 @@
 
 #define COTTER_COMPATIBLE true
 
-#include "pacer_imager_parameters.h"
 #include "observation_metadata.h"
 #include "pacer_imager_defs.h"
 #include "images.hpp"
@@ -51,19 +50,18 @@ public :
    //   - final imags
    //   - uv gridded visibilities 
    // TODO : ? may require a separate flag in the future, for now just using a single Statistics switch ON/OFF flag
-   static bool m_bPrintImageStatistics;
+  static bool m_bPrintImageStatistics;
    
    // include auto-correlations in the imaging :
    bool m_bIncludeAutos;
 
-   // parameters :
-   // WARNING : I am assuming they are the same for all objects of this class.
-   //           we shall see and potentially remove "static"
-   CImagerParameters m_ImagerParameters;
+  bool autofix_metadata;  // automatically recalculate RA,DEC,TIME using just standard METAFITS file (no need to create special METAFITS using fix_metafits_time_radec_all.py )
+  bool constant_uvw; // default false and only true to zenith phase centered images (all-sky from EDA2)
+  double m_fUnixTime;
+  bool apply_geom_correction {true};
+  bool apply_cable_correction {true};
+  bool averageImages {false};
 
-   // Antenna positions :   
-//   CAntennaPositions m_AntennaPositions;
-   
    // meta data :
    CObsMetadata m_MetaData;
    
@@ -81,13 +79,14 @@ public :
    
    // values calculated for the current image :
    double m_PixscaleAtZenith;
+   double pixsize_in_radians;
    
   std::string metadata_file;
 
    CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas);
 
    
-   void update_metadata(); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
+   void update_metadata(double unix_time = -1.0); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
  
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------

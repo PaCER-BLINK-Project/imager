@@ -96,13 +96,13 @@ CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<in
 }
 
 
-void CPacerImager::update_metadata() {
+void CPacerImager::update_metadata(double unix_time) {
     // read all information from metadata
     if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
         PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
         double obsid = -1;
-        if(CImagerParameters::m_bAutoFixMetaData ){
-            obsid = CObsMetadata::ux2gps( m_ImagerParameters.m_fUnixTime );
+        if(unix_time >=0 && autofix_metadata){
+            obsid = CObsMetadata::ux2gps(unix_time);
         }
         if( !m_MetaData.ReadMetaData( metadata_file.c_str(), obsid, 1.0 ) ){
             PRINTF_ERROR("ERROR : could not read meta data from file %s\n", metadata_file.c_str() );
@@ -460,17 +460,10 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     // TODO Cristian: time_step, fine_channel will be used in the to select a
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
-    m_ImagerParameters.m_fUnixTime = xcorr.obsInfo.startTime;
-    update_metadata();
+
+    update_metadata(xcorr.obsInfo.startTime);
     int n_ant = xcorr.obsInfo.nAntennas;
     int n_pol = xcorr.obsInfo.nPolarizations;
-
-    if (m_ImagerParameters.m_fUnixTime <= 0.0001)
-    {
-        m_ImagerParameters.m_fUnixTime = get_dttm_decimal();
-        PRINTF_WARNING("Time of the data not specified -> setting current time %.6f\n", m_ImagerParameters.m_fUnixTime);
-    }
-
     // calculate UVW (if required)
     CalculateUVW();
 
@@ -479,10 +472,10 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
         frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
 
-    if (m_ImagerParameters.m_bApplyGeomCorr)
+    if (apply_geom_correction)
         ApplyGeometricCorrections(xcorr, w_cpu, frequencies);
 
-    if (m_ImagerParameters.m_bApplyCableCorr){
+    if (apply_cable_correction){
         if(!cable_lengths) cable_lengths.allocate(xcorr.obsInfo.nAntennas);
         for(size_t a {0}; a < xcorr.obsInfo.nAntennas;  a++)
             cable_lengths[a] = m_MetaData.m_AntennaPositions[a].cableLenDelta;
@@ -516,21 +509,20 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
 
     // automatic calculation of pixel size in radians 1/(2u_max) - see Rick
     // Perley or just Lambda/B_max divide by 2 for oversampling.
-    // m_ImagerParameters.m_PixsizeInRadians = 1.00 / (2.00 * u_max); // does this one need to be /wavelength or not ???
+    pixsize_in_radians = 1.00 / (2.00 * u_max); // does this one need to be /wavelength or not ???
 
     // NEW : based on desired image resolution
     // double delta_theta = (wavelength_m/35.0)/2.00; // 2 times oversampled
     // double delta_theta = ((230.0/300.00)/(2.00*35.00)); // use maximum
     // resolution oversampled by a factor of 2., at 230 MHz -> Lambda ~1.3043m
     // double delta_theta = m_ImagerParameters.m_PixsizeInRadians;
-    double delta_theta = m_ImagerParameters.m_PixsizeInRadians;
     // MWA TEST
     //     delta_u = 1.00/(n_pixels*delta_theta);
     //     delta_v = 1.00/(n_pixels*delta_theta);
     PRINTF_DEBUG("delta_u = %.8f (u_max = %.8f), delta_v = %.8f (v_max = %.8f), "
                     "calculated as 1/FoV = 1/(%d pixels * %.5f rad), delta_theta = %.5f "
                     "[deg]\n",
-                    delta_u, u_max, delta_v, v_max, n_pixels, delta_theta, delta_theta * (180.00 / M_PI));
+                    delta_u, u_max, delta_v, v_max, n_pixels, pixsize_in_radians, pixsize_in_radians * (180.00 / M_PI));
 
         // PRINTF_DEBUG("delta_u = %.8f , delta_v = %.8f , calculated
         // as 2.00*u_max/n_pixels, u_max = %.8f, n_pixels =

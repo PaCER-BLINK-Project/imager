@@ -61,10 +61,6 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
 }
 
 void test_imager_cpu(){
-    CImagerParameters::m_bApplyCableCorr = true;
-    CImagerParameters::m_bApplyGeomCorr = true;
-    CImagerParameters::m_bConstantUVW = false;
-    CImagerParameters::SetGlobalParameters("", false); // Constant UVW when zenith image (-Z)
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
     CPacerImager imager {metadataFile, flagged_antennas};
@@ -73,13 +69,6 @@ void test_imager_cpu(){
 
 
 void test_imager_gpu(){
-    CImagerParameters::m_bApplyCableCorr = true;
-    CImagerParameters::m_bApplyGeomCorr = true;
-    CImagerParameters::m_bApplyCableCorr = true;
-    CImagerParameters::m_bApplyGeomCorr = true;
-    CImagerParameters::m_bConstantUVW = false; 
-    CImagerParameters::SetGlobalParameters("", false); // Constant UVW when zenith image (-Z)
-    double fUnixTime {1592584200};
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
     CPacerImagerHip imager {metadataFile, flagged_antennas};
