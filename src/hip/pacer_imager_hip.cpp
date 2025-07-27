@@ -217,8 +217,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    if(!u_gpu) {
-      u_gpu.allocate(xySize);
-      v_gpu.allocate(xySize);
+      u_gpu.allocate(xySize, true);
+      v_gpu.allocate(xySize, true);
    }
    gpuMemcpy(u_gpu.data(),  fits_vis_u.get_data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
    gpuMemcpy(v_gpu.data(),  fits_vis_v.get_data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
@@ -277,7 +277,7 @@ void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, CBgFits& f
    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
-   if(!w_gpu) w_gpu.allocate(xySize);
+   if(!w_gpu) w_gpu.allocate(xySize, true);
    gpuMemcpy(w_gpu.data(), fits_vis_w.get_data(), sizeof(float)*xySize,  gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies_gpu);
 }
