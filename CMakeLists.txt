@@ -42,7 +42,7 @@ if(USE_HIP OR USE_CUDA)
 endif()
 
 if(USE_CUDA)
-    set_source_files_properties( ${gpu_sources} PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties( ${gpu_sources} ${tests} PROPERTIES LANGUAGE CUDA)
 endif()
 
 # ${gpu_sources} included into library imaging. This is required to link blink_pipeline on Setonix.

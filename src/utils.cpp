@@ -20,3 +20,15 @@ Images image_averaging_cpu(const Images& images){
     printf("avg = %f\n", avg_image[0].real());
    return {std::move(avg_image), images.obsInfo, images.obsInfo.nTimesteps, images.obsInfo.nFrequencies, images.side_size};
 }
+
+
+void memdump(char *ptr, size_t nbytes, std::string filename){
+    std::ofstream outfile;
+    outfile.open(filename, std::ofstream::binary);
+    outfile.write(ptr, nbytes);
+    if(!outfile){
+        std::cerr << "Error while dumping data to " << filename << std::endl;
+        exit(1);
+    }
+    outfile.close();
+}
