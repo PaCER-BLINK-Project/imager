@@ -109,7 +109,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
 
 
 
-void gridding_gpu(const Visibilities& xcorr, int time_step, int fine_channel,
+void gridding_gpu(const Visibilities& xcorr,
       const MemoryBuffer<float>& u_gpu,  const MemoryBuffer<float>& v_gpu, 
       const MemoryBuffer<int>& antenna_flags, const MemoryBuffer<float>& antenna_weights,
       const MemoryBuffer<double>& frequencies,

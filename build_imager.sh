@@ -107,6 +107,9 @@ make install
 if [[ $dotests -gt 0 ]]; then
    echo "make test"
    make test
+   cd $MYSCRATCH
+   calcfits_bg test_imager_gpu/start_time_1592584200_int_00_coarse_133_fine_ch00_image_real.fits = test_imager_gpu_ref/start_time_1592584200_int_00_coarse_133_fine_ch00_image_real.fits
+
 else
    echo "WARNING : tests are not required"
 fi   

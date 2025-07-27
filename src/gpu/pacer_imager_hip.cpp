@@ -42,15 +42,11 @@ void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
 // TODO : 
 //     - do more cleanup of this function as this is nearly "RAW" copy paste from Gayatri's code:
 //     - optimise (same in CPU version) uv_grid_counter, uv_grid_real, uv_grid_imag to become member variables.
-Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr, 
-                                     int time_step, 
-                                     int fine_channel,
+Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
                                      double delta_u, double delta_v,
                                      int    n_pixels,
                                      double min_uv /*=-1000*/,    // minimum UV 
-                                     const char* weighting /*=""*/, // weighting : U for uniform (others not implemented)
-                                     const char* szBaseOutFitsName /*=NULL*/
-                )
+                                     const char* weighting)
 {
   std::cout << "Running 'gridding_imaging' on GPU.." << std::endl;
 
@@ -78,7 +74,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    gpuMemcpy(u_gpu.data(),  u_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
    gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
 
-   gridding_gpu(xcorr, time_step, fine_channel, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
+   gridding_gpu(xcorr, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
       delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
 
    gpuEvent_t start, stop;

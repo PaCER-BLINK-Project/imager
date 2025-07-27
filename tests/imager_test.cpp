@@ -64,7 +64,7 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
    }
    ObservationInfo obs_info {VCS_OBSERVATION_INFO};
    auto xcorr = Visibilities::from_fits_file(vis_file, obs_info);
-   auto images = imager.run_imager(xcorr, -1, -1, image_size, FOV_degrees, MinUV, true, true, szWeighting.c_str(), output_dir.c_str(), false);
+   auto images = imager.run_imager(xcorr,image_size, MinUV, szWeighting.c_str());
    std::cout << "Saving images to disk..." << std::endl;
    images.to_fits_files(output_dir);
 }

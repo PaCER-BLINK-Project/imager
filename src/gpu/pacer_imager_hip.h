@@ -42,14 +42,10 @@ protected :
    //          - uv_grid_counter : visibility counter and 
    //-----------------------------------------------------------------------------------------------------------------------------
    virtual Images gridding_imaging( Visibilities& xcorr, 
-                  int time_step, 
-                  int fine_channel,
                   double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
-                  const char* weighting="", // weighting : U for uniform (others not implemented)
-                  const char* szBaseOutFitsName=NULL
-                );
+                  const char* weighting="");
 
     // virtual function to NOT DO corrections in CPU but in GPU :
     virtual void ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies);

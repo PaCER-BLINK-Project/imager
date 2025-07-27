@@ -47,17 +47,11 @@ public :
    // level of saving intermediate and test files , see pacer_imager_defs.h for defines SAVE_FILES_NONE
    static int m_SaveFilesLevel;
    
-   // can also save control files every N-th file 
-   static int m_SaveControlImageEveryNth;
-   
    // show statistics of :
    //   - final imags
    //   - uv gridded visibilities 
    // TODO : ? may require a separate flag in the future, for now just using a single Statistics switch ON/OFF flag
    static bool m_bPrintImageStatistics;
-   
-   // TESTING and VALIDATION :
-   static bool m_bCompareToMiriad; // should always be FALSE and set to TRUE only to test against MIRIAD 
    
    // include auto-correlations in the imaging :
    bool m_bIncludeAutos;
@@ -76,30 +70,22 @@ public :
    // Flagged antennas , if list m_AntennaPositions is filled it will also be updated (field flag)
    vector<int> m_FlaggedAntennas;
    
-   // flag if initialisation already performed
-   bool m_bInitialised;
-   
-   
    // UVW for SKA-Low station zenith phase-centered all-sky imaging :
-   double  u_mean, u_rms, u_min, u_max;
-   double  v_mean, v_rms, v_min, v_max;
-   double  w_mean, w_rms, w_min, w_max;
+   double u_min, u_max;
+   double v_min, v_max;
+   double w_min, w_max;
 
-   int m_Baselines; // number of calculated baselines, also indicator if m_U, m_V and m_W have been initialised 
-   int m_nAntennas;
+   int m_Baselines;
    
    // MemoryBuffer<double> frequencies;
    
    // values calculated for the current image :
    double m_PixscaleAtZenith;
    
-
-   bool     m_bLocalAllocation;
   std::string metadata_file;
 
    CPacerImager(const std::string metadata_file);
-   ~CPacerImager();
-   void Initialise(double frequency_hz);
+
    
    void update_metadata(); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
  
@@ -131,14 +117,8 @@ public :
    // calculates UVW and also checks if it is required at all 
    // U,V,W are calculated in meters (not wavelengths) -> have to be divided later by wavelength
    //-----------------------------------------------------------------------------------------------------------------------------
-   bool CalculateUVW(double frequency_hz, bool bForce=false, bool bInitialise=true);
+   bool CalculateUVW();
    
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // Re-calculate parameters based on new UVW :
-   //-----------------------------------------------------------------------------------------------------------------------------
-   bool UpdateParameters(double frequency_hz);
-   
-
    //-----------------------------------------------------------------------------------------------------------------------------
    // 1st version producing a dirty image (tested on both MWA and SKA-Low).
    // TODO : Test cases can be found in PaCER documentation 
@@ -166,9 +146,7 @@ public :
    // same as above 
    // TODO : only use the new one gridding_fast( Visibilities& xcorr, ... ) and use ConvertFits2XCorr in gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, ... ) to
    //        call this one :
-   void gridding_fast( Visibilities& xcorr, 
-                  int time_step, 
-                  int fine_channel,
+   void gridding_fast( Visibilities& xcorr,
                   MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters, double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
@@ -178,30 +156,22 @@ public :
    
    // same as above but using AstroIO Visibility as input
    // TODO : at some point this one should stay and the other one should be a wrapper using ConvertFits2XCorr and calling this one:
-   virtual Images gridding_imaging( Visibilities& xcorr, 
-                  int time_step, 
-                  int fine_channel,                
+   virtual Images gridding_imaging( Visibilities& xcorr,               
                   double delta_u, double delta_v,
                   int    n_pixels,
                   double min_uv=-1000,    // minimum UV 
-                  const char* weighting="", // weighting : U for uniform (others not implemented)
-                  const char* szBaseOutFitsName=NULL
-                );
+                  const char* weighting="");
 
 
-
-   Images run_imager( Visibilities& xcorr, 
-                    int time_step, 
-                    int fine_channel,
-                    int n_pixels,
-                    double FOV_degrees,
-                    double min_uv=-1000,      // minimum UV
-                    bool do_gridding=true,    // excute gridding  (?)
-                    bool do_dirty_image=true, // form dirty image (?)
-                    const char* weighting="", // weighting : U for uniform (others not implemented)
-                    const char* szBaseOutFitsName=NULL,
-                    bool bCornerTurnRequired=true // changes indexing of data "corner-turn" from xGPU structure to continues (FITS image-like)
-                  );
+/** 
+    @brief run the imager
+    
+    @param xcorr: Visibilities to be imaged.
+    @param n_pixels: Image side size.
+    @param min_uv: mimimum UV length (what unit??)
+    @param weighting: U for uniform or N for natural.
+*/
+   Images run_imager( Visibilities& xcorr, int n_pixels, double min_uv=-1000, const char* weighting="");
 
 
    //-----------------------------------------------------------------------------------------------------------------------------

@@ -33,14 +33,6 @@ namespace {
 
 
 
-// TEST OPTIONS to compare with MIRIAD image
-// see memos : PAWSEY/PaCER/logbook/20220305_pacer_imager_validation.odt, MIRIAD
-// natural weighting (sup=0) etc: invert vis=chan_204_20211116T203000_yx.uv
-// map=chan_204_20211116T203000_iyx.map imsize=180,180
-// beam=chan_204_20211116T203000_iyx.beam  sup=0 options=imaginary stokes=yx
-// select='uvrange(0.0,100000)'
-bool CPacerImager::m_bCompareToMiriad = false;
-
 // debug level : see pacer_imager_defs.h for SAVE_FILES_NONE etc
 int CPacerImager::m_ImagerDebugLevel = IMAGER_INFO_LEVEL; // IMAGER_ALL_MSG_LEVEL;
 
@@ -48,8 +40,6 @@ int CPacerImager::m_ImagerDebugLevel = IMAGER_INFO_LEVEL; // IMAGER_ALL_MSG_LEVE
 // defines SAVE_FILES_NONE
 int CPacerImager::m_SaveFilesLevel = SAVE_FILES_ALL;
 
-// can also save control files every N-th file
-int CPacerImager::m_SaveControlImageEveryNth = -1;
 
 // show final image statistics :
 bool CPacerImager::m_bPrintImageStatistics = false; // default disabled to make imaging as fast as possible
@@ -103,22 +93,10 @@ void CPacerImager::SetFlaggedAntennas(vector<int> &flagged_antennas)
     UpdateFlags();
 }
 
-CPacerImager::CPacerImager(const std::string metadata_file)
-    : m_bInitialised(false), m_Baselines(0),
-     m_bIncludeAutos(false),
-      m_nAntennas(0)
-{
-    m_PixscaleAtZenith = 0.70312500; // deg for ch=204 (159.375 MHz) EDA2
+CPacerImager::CPacerImager(const std::string metadata_file) {
     this->metadata_file = metadata_file;
-    Initialise(0);
-    // update_metadata(metadata_file);
-    
 }
 
-CPacerImager::~CPacerImager()
-{
-
-}
 
 void CPacerImager::update_metadata() {
     // read all information from metadata
@@ -133,95 +111,6 @@ void CPacerImager::update_metadata() {
         }
     }
 }
-
-
-int CPacerImager::ReadAntennaPositions(bool bConvertToXYZ)
-{
-    m_nAntennas = m_MetaData.m_AntennaPositions.ReadAntennaPositions(m_ImagerParameters.m_AntennaPositionsFile.c_str(),
-                                                                     bConvertToXYZ);
-    UpdateFlags(); // if antenna positions are read now for the first time, the
-                   // flags need to be updated
-    PRINTF_INFO("INFO : read %d antenna positions from file %s\n", m_nAntennas,
-                m_ImagerParameters.m_AntennaPositionsFile.c_str());
-
-    return m_nAntennas;
-}
-
-void CPacerImager::Initialise(double frequency_hz)
-{
-    if (!m_bInitialised)
-    {
-        m_bInitialised = true;
-
-        // test file with antenna positions can be used to overwrite whatever was in
-        // .metafits
-        if (strlen(m_ImagerParameters.m_AntennaPositionsFile.c_str()) &&
-            MyFile::DoesFileExist(m_ImagerParameters.m_AntennaPositionsFile.c_str()))
-        {
-            bool bConvertToXYZ = false;
-            if (!m_ImagerParameters.m_bConstantUVW)
-            { // if non-constant UVW -> non zenith phase
-              // centered all-sky image
-                bConvertToXYZ = true;
-            }
-            if (m_ImagerParameters.m_bAntennaPositionsXYZ)
-            { // text file already has XYZ in WG54
-              // system - for example CASA dump
-                printf("INFO : antenna positions already in XYZ coordinate system (WG54) "
-                       "no need to convert\n");
-                bConvertToXYZ = false;
-            }
-
-            // read antenna positions and do whatever else is necessary (update flags
-            // etc)
-            ReadAntennaPositions(bConvertToXYZ);
-
-            if ( false &&  strlen(m_ImagerParameters.m_MetaDataFile.c_str()) == 0)
-            { // only calculate UVW here when Metadata is not required
-                // initial recalculation of UVW at zenith (no metadata provided ->
-                // zenith): WARNING : bool CPacerImager::CalculateUVW() - could be used,
-                // but it also calls this function itself which may cause infinite
-                // recursise call m_Baselines =
-                // m_MetaData.m_AntennaPositions.CalculateUVW( m_U, m_V, m_W,
-                // (CPacerImager::m_SaveFilesLevel>=SAVE_FILES_DEBUG),
-                // m_ImagerParameters.m_szOutputDirectory.c_str(), m_bIncludeAutos );
-                // UpdateParameters();
-                CalculateUVW(frequency_hz, true,
-                             false); // bForce=true to force call of
-                                     // m_MetaData.m_AntennaPositions.CalculateUVW and ,
-                                     // bInitialise=false to avoid call to this
-                                     // (CPacerImager::Initialise) function in a recursive way !
-                PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines (include Autos "
-                            "= %d)\n",
-                            m_Baselines, m_bIncludeAutos);
-            }
-            else
-            {
-                printf("INFO : non-zenith pointing meta data is required to calculate "
-                       "UVW\n");
-            }
-        }
-        else
-        {
-            PRINTF_WARNING("WARNING : antenna position file %s not specified or does not "
-                           "exist\n",
-                           m_ImagerParameters.m_AntennaPositionsFile.c_str());
-        }
-    }
-    // // read all information from metadata
-    // if (strlen(m_ImagerParameters.m_MetaDataFile.c_str()) &&
-    //     MyFile::DoesFileExist(m_ImagerParameters.m_MetaDataFile.c_str())) {
-    //     PRINTF_INFO("INFO : reading meta data from file %s\n", m_ImagerParameters.m_MetaDataFile.c_str());
-    //     double obsid = -1;
-    //     if(CImagerParameters::m_bAutoFixMetaData ){
-    //         obsid = CObsMetadata::ux2gps( m_ImagerParameters.m_fUnixTime );
-    //     }
-    //     if( !m_MetaData.ReadMetaData( m_ImagerParameters.m_MetaDataFile.c_str(), obsid, 1.0 ) ){
-    //         PRINTF_ERROR("ERROR : could not read meta data from file %s\n",m_ImagerParameters.m_MetaDataFile.c_str() );
-    //     }
-    // }
-}
-
 
 
 void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side){
@@ -307,52 +196,26 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryB
 
 }
 
-bool CPacerImager::CalculateUVW(double frequency_hz, bool bForce /*=false*/, bool bInitialise /*=true*/)
-{
-    if (bInitialise)
-    { // is not required in one case of call from ::Initialise
-      // itself -> to avoid recursive call
-        // Initialise(frequency_hz);
+bool CPacerImager::CalculateUVW(){
+    m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW(u_cpu, v_cpu, w_cpu, m_bIncludeAutos);
+    PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines\n", m_Baselines);
+    u_max = u_cpu[0];
+    v_max = v_cpu[0];
+
+    for(int i {1}; i < u_cpu.size(); i++){
+    if(u_max < u_cpu[i]) u_max = u_cpu[i];
+    if(v_max < v_cpu[i]) v_max = v_cpu[i];
     }
-
-    bool bRecalculationRequired = false;
-
-    if (m_Baselines <= 0 || u_cpu.size() == 0 || !m_ImagerParameters.m_bConstantUVW || bForce) {
-        bRecalculationRequired = true;
-    }
-
-    if (bRecalculationRequired) {
-        PRINTF_DEBUG("DEBUG : recalculation of UVW is required\n");
-
-        m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW(u_cpu, v_cpu, w_cpu, m_bIncludeAutos);
-        PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines\n", m_Baselines);
-
-        UpdateParameters(frequency_hz); // update parameters after change in UVW
-    }
-
+    // Bacause we are also including conjugates at (-u,-v) UV point in gridding
+    // u_min = -u_max and v_min = -v_max : was -35 / +35
+    u_min = -u_max;
+    //  u_max = +35;
+    v_min = -v_max;
+    //  v_max = +35;
     return (m_Baselines > 0);
 }
 
-bool CPacerImager::UpdateParameters(double frequency_hz)
-{
-    PRINTF_DEBUG("DEBUG : updating parameters (pixscale etc.) based on new UVW\n");
-    if(v_cpu){
-        u_max = u_cpu[0];
-        v_max = v_cpu[0];
-
-      for(int i {1}; i < u_cpu.size(); i++){
-        if(u_max < u_cpu[i]) u_max = u_cpu[i];
-        if(v_max < v_cpu[i]) v_max = v_cpu[i];
-      }
-      // Bacause we are also including conjugates at (-u,-v) UV point in gridding
-        // u_min = -u_max and v_min = -v_max : was -35 / +35
-        u_min = -u_max;
-        //  u_max = +35;
-        v_min = -v_max;
-        //  v_max = +35;
-    } 
-    //  v_max = +35;
-
+/* this is useful logging code, find a good place for this 
     // recalculate PIXSCALE at zenith :
     double wavelength_m = VEL_LIGHT / frequency_hz;
     double u_max_lambda = u_max / wavelength_m;
@@ -363,22 +226,18 @@ bool CPacerImager::UpdateParameters(double frequency_hz)
                 "%.8f Hz\n",
                 u_min / wavelength_m, v_min / wavelength_m, u_max / wavelength_m, v_max / wavelength_m,
                 m_PixscaleAtZenith, m_PixscaleAtZenith * 60.00, frequency_hz);
+    */
 
-    return true;
-}
 
 inline int wrap_index(int i, int side){
     if(i >= 0) return i % side;
     else return (side + i);
 }
 
-void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_channel,
-                                 MemoryBuffer<std::complex<float>> &grids,
+void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<float>> &grids,
                                  MemoryBuffer<float> &grids_counters, double delta_u, double delta_v, int n_pixels,
                                  double min_uv /*=-1000*/,
-                                 const char *weighting /*="" weighting : U for uniform (others not implemented) */
-)
-{
+                                 const char *weighting) {
     PRINTF_DEBUG("DEBUG : gridding : min_uv = %.4f\n", min_uv);
 
     bool bStatisticsCalculated = false;
@@ -571,13 +430,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, int time_step, int fine_ch
     }
 }
 
-Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fine_channel, double delta_u, double delta_v,
-                                    int n_pixels, double min_uv /*=-1000*/, // minimum UV
-                                    const char *weighting /*=""*/,          // weighting : U for uniform (others not
-                                                                            // implemented)
-                                    const char *szBaseOutFitsName /*=NULL*/
-)
-{
+Images CPacerImager::gridding_imaging(Visibilities &xcorr, double delta_u, double delta_v, int n_pixels, double min_uv, const char *weighting) {
     printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
     // allocates data structures for gridded visibilities:
     if(xcorr.on_gpu()) xcorr.to_cpu();
@@ -586,8 +439,7 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
     if(!grids_counters) grids_counters.allocate(buffer_size);
     if(!grids) grids.allocate(buffer_size);
     // Should be long long int, but keeping float now for compatibility reasons
-    gridding_fast(xcorr, time_step, fine_channel, grids,
-                      grids_counters, delta_u, delta_v, n_pixels, min_uv, weighting);
+    gridding_fast(xcorr, grids, grids_counters, delta_u, delta_v, n_pixels, min_uv, weighting);
 
     MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
     PRINTF_INFO("PROGRESS : executing dirty image\n");
@@ -596,30 +448,23 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, int time_step, int fi
 }
 
 
-Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_channel, int n_pixels, double FOV_degrees,
-                              double min_uv /*=-1000*/,      // minimum UV
-                              bool do_gridding /*=true*/,    // excute gridding  (?)
-                              bool do_dirty_image /*=true*/, // form dirty image (?)
-                              const char *weighting /*=""*/, // weighting : U for uniform (others not
-                                                             // implemented)
-                              const char *szBaseOutFitsName /*=NULL*/,
-                              bool bCornerTurnRequired /*=true*/ // changes indexing of data
-                                                                 // "corner-turn" from xGPU structure to
-                                                                 // continues (FITS image-like)
-)
-{
+/** 
+    @brief run the imager
+    
+    @param xcorr: Visibilities to be imaged.
+    @param n_pixels: Image side size.
+    @param min_uv: mimimum UV length (what unit??)
+    @param weighting: U for uniform or N for natural.
+*/
+Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv, const char *weighting){
     // TODO: make sure the xcorr structure has the same parameters at each run call
     // This will avoid to reallocate memory
     // TODO Cristian: time_step, fine_channel will be used in the to select a
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
     m_ImagerParameters.m_fUnixTime = xcorr.obsInfo.startTime;
-    double initial_frequency_hz = this->get_frequency_hz(xcorr, fine_channel < 0 ? 0 : fine_channel, COTTER_COMPATIBLE);
-    // Initialise(initial_frequency_hz);
     int n_ant = xcorr.obsInfo.nAntennas;
     int n_pol = xcorr.obsInfo.nPolarizations;
-    // Why not set in constructor?
-    m_ImagerParameters.m_ImageFOV_degrees = FOV_degrees; // 2024-03-24 - reasons as above
 
     if (m_ImagerParameters.m_fUnixTime <= 0.0001)
     {
@@ -628,7 +473,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     }
 
     // calculate UVW (if required)
-    CalculateUVW(initial_frequency_hz, false, false);
+    CalculateUVW();
 
     // xcorr.to_gpu(); // TODO: this should be gone!!
     if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
@@ -645,12 +490,10 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
         ApplyCableCorrections(xcorr, cable_lengths, frequencies);
     }
 
-    printf("DEBUG : just before run_imager(time_step=%d, fine_channel=%d )\n", time_step, fine_channel);
-    fflush(stdout);
-        //   // based on RTS : UV pixel size as function FOVtoGridsize in
+    //   // based on RTS : UV pixel size as function FOVtoGridsize in
     //   /home/msok/mwa_software/RTS_128t/src/gridder.c double frequency_hz =
     //   frequency_mhz*1e6; double wavelength_m = VEL_LIGHT / frequency_hz;
-    double FoV_radians = FOV_degrees * M_PI / 180.;
+    // double FoV_radians = FOV_degrees * M_PI / 180.;
     // WARNING: it actually cancels out to end up being 1/PI :
     // TODO simplity + 1/(2FoV) !!! should be
     //  double delta_u = ( (VEL_LIGHT/frequency_hz)/(FOV_degrees*M_PI/180.) ) /
@@ -658,59 +501,45 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int time_step, int fine_cha
     //  (VEL_LIGHT/frequency_hz)/(FOV_degrees*M_PI/180.) ) / wavelength_m; // in
     //  meters (NOT WAVELENGHTS)
     // TODO :
-    double delta_u = 1.00 / (FoV_radians); // should be 2*FoV_radians - see TMS etc
-    double delta_v = 1.00 / (FoV_radians); // Rick Perley page 16 :
+    // double delta_u = 1.00 / (FoV_radians); // should be 2*FoV_radians - see TMS etc
+    // double delta_v = 1.00 / (FoV_radians); // Rick Perley page 16 :
                                            // /home/msok/Desktop/PAWSEY/PaCER/doc/Imaging_basics/ATNF2014Imaging.pdf
+    
+        // delta_u = 2.00*(u_max)/n_pixels; // Looks like this is
+    // what it should be NOT u_max/wavelength_m . So delta_u must
+    // be in meters here !!! It may all depend on calculation if
+    // u_index see discussion in
+    // /home/msok/Desktop/PAWSEY/PaCER/logbook/20240320_gridding_delta_u_meters_vs_wavelengths.odt
+    double delta_u = 2.00 * (u_max) / n_pixels; 
 
-    if (true)
-    {
-        // see : Rick Perley page 16 :
-        // /home/msok/Desktop/PAWSEY/PaCER/doc/Imaging_basics/ATNF2014Imaging.pdf
-        //       and
-        //       /home/msok/Desktop/PAWSEY/PaCER/logbook/20240315_Jishnu_test.odt
-
-        // WARNING : why this is not u_max/wavelength_m - when I use this the image
-        // because Frequency dependent. But it does not make sense to have
-        //           delta_u in meters and then UV grid in wavelengths ...
-        // MWA TEST:
-        delta_u =
-            2.00 * (u_max) /
-            n_pixels; // delta_u = 2.00*(u_max)/n_pixels; // Looks like this is
-                      // what it should be NOT u_max/wavelength_m . So delta_u must
-                      // be in meters here !!! It may all depend on calculation if
-                      // u_index see discussion in
-                      // /home/msok/Desktop/PAWSEY/PaCER/logbook/20240320_gridding_delta_u_meters_vs_wavelengths.odt
-        delta_v = 2.00 * (v_max) / n_pixels; // and it's not ok because then delta_u is different
+    double delta_v = 2.00 * (v_max) / n_pixels; // and it's not ok because then delta_u is different
                                              // for both of them, which causes exp/shrink with freq
 
-        // automatic calculation of pixel size in radians 1/(2u_max) - see Rick
-        // Perley or just Lambda/B_max divide by 2 for oversampling.
-        m_ImagerParameters.m_PixsizeInRadians =
-            1.00 / (2.00 * u_max); // does this one need to be /wavelength or not ???
+    // automatic calculation of pixel size in radians 1/(2u_max) - see Rick
+    // Perley or just Lambda/B_max divide by 2 for oversampling.
+    // m_ImagerParameters.m_PixsizeInRadians = 1.00 / (2.00 * u_max); // does this one need to be /wavelength or not ???
 
-        // NEW : based on desired image resolution
-        // double delta_theta = (wavelength_m/35.0)/2.00; // 2 times oversampled
-        // double delta_theta = ((230.0/300.00)/(2.00*35.00)); // use maximum
-        // resolution oversampled by a factor of 2., at 230 MHz -> Lambda ~1.3043m
-        // double delta_theta = m_ImagerParameters.m_PixsizeInRadians;
-        double delta_theta = m_ImagerParameters.m_PixsizeInRadians;
-        // MWA TEST
-        //     delta_u = 1.00/(n_pixels*delta_theta);
-        //     delta_v = 1.00/(n_pixels*delta_theta);
-        PRINTF_DEBUG("delta_u = %.8f (u_max = %.8f), delta_v = %.8f (v_max = %.8f), "
-                     "calculated as 1/FoV = 1/(%d pixels * %.5f rad), delta_theta = %.5f "
-                     "[deg]\n",
-                     delta_u, u_max, delta_v, v_max, n_pixels, delta_theta, delta_theta * (180.00 / M_PI));
+    // NEW : based on desired image resolution
+    // double delta_theta = (wavelength_m/35.0)/2.00; // 2 times oversampled
+    // double delta_theta = ((230.0/300.00)/(2.00*35.00)); // use maximum
+    // resolution oversampled by a factor of 2., at 230 MHz -> Lambda ~1.3043m
+    // double delta_theta = m_ImagerParameters.m_PixsizeInRadians;
+    double delta_theta = m_ImagerParameters.m_PixsizeInRadians;
+    // MWA TEST
+    //     delta_u = 1.00/(n_pixels*delta_theta);
+    //     delta_v = 1.00/(n_pixels*delta_theta);
+    PRINTF_DEBUG("delta_u = %.8f (u_max = %.8f), delta_v = %.8f (v_max = %.8f), "
+                    "calculated as 1/FoV = 1/(%d pixels * %.5f rad), delta_theta = %.5f "
+                    "[deg]\n",
+                    delta_u, u_max, delta_v, v_max, n_pixels, delta_theta, delta_theta * (180.00 / M_PI));
 
         // PRINTF_DEBUG("delta_u = %.8f , delta_v = %.8f , calculated
         // as 2.00*u_max/n_pixels, u_max = %.8f, n_pixels =
         // %d\n",delta_u,delta_v,u_max,n_pixels);
-    }
 
     // virtual function calls gridding and imaging in GPU/HIP version it is
     // overwritten and both gridding and imaging are performed on GPU memory :
-    auto images = gridding_imaging(xcorr, time_step, fine_channel, delta_u, delta_v, n_pixels,
-                        min_uv, weighting, szBaseOutFitsName);
+    auto images = gridding_imaging(xcorr, delta_u, delta_v, n_pixels, min_uv, weighting);
     
     images.ra_deg = m_MetaData.raHrs*15.00;
     images.dec_deg = m_MetaData.decDegs;
