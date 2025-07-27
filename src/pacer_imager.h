@@ -84,7 +84,7 @@ public :
    
   std::string metadata_file;
 
-   CPacerImager(const std::string metadata_file);
+   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas);
 
    
    void update_metadata(); // implement initialisation of object here, read antenna positions, calculate UVW if constant etc 
@@ -99,14 +99,6 @@ public :
    // File save level
    //-----------------------------------------------------------------------------------------------------------------------------
    static void SetFileLevel( int filesave_level );
-   
-   
-   void SetFlaggedAntennas( vector<int>& flagged_antennas);
-   
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // read antenna positions and do whatever else is necessary (update flags etc)
-   //-----------------------------------------------------------------------------------------------------------------------------
-   int ReadAntennaPositions( bool bConvertToXYZ );
    
    //-----------------------------------------------------------------------------------------------------------------------------
    // update antenna flags in m_MetaData.m_AntennaPositons object based on m_FlaggedAntennas list 

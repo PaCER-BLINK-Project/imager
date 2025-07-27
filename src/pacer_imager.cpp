@@ -87,14 +87,12 @@ int CPacerImager::UpdateFlags()
     return count_flagged;
 }
 
-void CPacerImager::SetFlaggedAntennas(vector<int> &flagged_antennas)
-{
+
+CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas) {
+    this->metadata_file = metadata_file;
+    update_metadata();
     m_FlaggedAntennas = flagged_antennas;
     UpdateFlags();
-}
-
-CPacerImager::CPacerImager(const std::string metadata_file) {
-    this->metadata_file = metadata_file;
 }
 
 
@@ -463,6 +461,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     // subset of data to be imaged. ensures initalisation of object structures
     // TODO: this init function must be modified
     m_ImagerParameters.m_fUnixTime = xcorr.obsInfo.startTime;
+    update_metadata();
     int n_ant = xcorr.obsInfo.nAntennas;
     int n_pol = xcorr.obsInfo.nPolarizations;
 

@@ -16,7 +16,7 @@
 
 #include "../utils.h"
 
-CPacerImagerHip::CPacerImagerHip(const std::string metadata_file) : CPacerImager(metadata_file) {}
+CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas) : CPacerImager(metadata_file, flagged_antennas) {}
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
    if(!antenna_flags_gpu){

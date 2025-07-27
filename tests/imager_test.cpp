@@ -52,16 +52,7 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
     double fUnixTime {1592584200};
     double MinUV = -1000;
     double FOV_degrees = 30;
-    std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
 
-    imager.m_ImagerParameters.m_szOutputDirectory = output_dir.c_str();
-    imager.m_ImagerParameters.m_fUnixTime = fUnixTime;
-    imager.update_metadata();
-    
-   // setting flagged antennas must be called / done after reading METAFITS file:
-   if( flagged_antennas.size() > 0 ){
-       imager.SetFlaggedAntennas( flagged_antennas );
-   }
    ObservationInfo obs_info {VCS_OBSERVATION_INFO};
    auto xcorr = Visibilities::from_fits_file(vis_file, obs_info);
    auto images = imager.run_imager(xcorr,image_size, MinUV, szWeighting.c_str());
@@ -75,7 +66,8 @@ void test_imager_cpu(){
     CImagerParameters::m_bConstantUVW = false;
     CImagerParameters::SetGlobalParameters("", false); // Constant UVW when zenith image (-Z)
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
-    CPacerImager imager { metadataFile};
+    std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
+    CPacerImager imager {metadataFile, flagged_antennas};
     test_imager_common(imager, true);
 }
 
@@ -89,7 +81,8 @@ void test_imager_gpu(){
     CImagerParameters::SetGlobalParameters("", false); // Constant UVW when zenith image (-Z)
     double fUnixTime {1592584200};
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
-    CPacerImagerHip imager {metadataFile};
+    std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
+    CPacerImagerHip imager {metadataFile, flagged_antennas};
     test_imager_common(imager, false);
 }
 
