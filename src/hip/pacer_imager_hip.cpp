@@ -217,7 +217,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
    size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
-   if(!grids_counters) grids_counters.allocate(buffer_size, true);
+   if(!grids_counters) grids_counters.allocate(image_size * xcorr.nFrequencies, true);
    if(!grids) grids.allocate(buffer_size, true);
    MemoryBuffer<std::complex<float>> images_buffer(buffer_size, true);
   
@@ -262,8 +262,8 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
      gpuEventSynchronize(stop);
      gpuEventElapsedTime(&elapsed, start, stop);
      std::cout << "gpufftExecC2C took " << elapsed << "ms" << std::endl;
-     MemoryBuffer<float> fnorm {n_images, true};
-     vector_sum_gpu(grids_counters.data(), image_size, n_images, fnorm);
+     MemoryBuffer<float> fnorm {xcorr.nFrequencies, true};
+     vector_sum_gpu(grids_counters.data(), image_size, xcorr.nFrequencies, fnorm);
      fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
      Images imgs {std::move(images_buffer), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
       gpuEventDestroy(start);
