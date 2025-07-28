@@ -42,7 +42,7 @@ if(USE_HIP OR USE_CUDA)
 endif()
 
 if(USE_CUDA)
-    set_source_files_properties( ${gpu_sources} ${tests} PROPERTIES LANGUAGE CUDA)
+    set_source_files_properties(${apps} ${sources} ${gpu_sources} ${tests} PROPERTIES LANGUAGE CUDA)
 endif()
 
 # ${gpu_sources} included into library imaging. This is required to link blink_pipeline on Setonix.
@@ -111,7 +111,7 @@ target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3
 
 if(USE_OPENMP)
     find_package(OpenMP REQUIRED)
-    target_link_libraries(imaging OpenMP::OpenMP_CXX fftw3f_omp) 
+    target_link_libraries(imaging OpenMP::OpenMP_CXX fftw3f_omp)
 endif()
 
 # TESTS
