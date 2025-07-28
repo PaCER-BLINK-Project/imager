@@ -5,7 +5,7 @@
 
 #include "observation_metadata.h"
 #include "pacer_imager_defs.h"
-#include "images.hpp"
+#include <images.hpp>
 
 #include <string>
 using namespace std;

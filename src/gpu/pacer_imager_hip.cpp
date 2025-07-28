@@ -1,9 +1,6 @@
 #include "pacer_imager_hip.h"
 #include "pacer_imager_hip_defines.h"
-
 #include "gridding_gpu.h"
-
-#define __GPU__
 #include <gpu_macros.hpp>
 #include <gpu_fft.hpp>
 
@@ -62,11 +59,10 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    if(!grids_counters) grids_counters.allocate(image_size * xcorr.nFrequencies, true);
    if(!grids) grids.allocate(buffer_size, true);
    MemoryBuffer<std::complex<float>> images_buffer(buffer_size, true);
-  
-  
-
-   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
-   gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
+   if(!frequencies_gpu) {
+        frequencies_gpu.allocate(xcorr.nFrequencies, true);
+        gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
+    }
    if(!u_gpu) {
       u_gpu.allocate(xySize, true);
       v_gpu.allocate(xySize, true);
@@ -115,9 +111,12 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
 
 
 void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies){
-   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
-   gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
+   if(!frequencies_gpu){
+        frequencies_gpu.allocate(xcorr.nFrequencies, true);
+        gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
+   }
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
+    // TODO: improve the following
    if(!w_gpu) w_gpu.allocate(xySize, true);
    gpuMemcpy(w_gpu.data(), w_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies_gpu);
@@ -125,7 +124,9 @@ void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuff
 
 
 void CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
-   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
-   gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
-   apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies_gpu);
+    if(!frequencies_gpu){
+        frequencies_gpu.allocate(xcorr.nFrequencies, true);
+        gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
+    }
+    apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies_gpu);
 }

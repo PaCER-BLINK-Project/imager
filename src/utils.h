@@ -3,7 +3,7 @@
 
 #include <memory_buffer.hpp>
 #include <complex>
-#include "images.hpp"
+#include <images.hpp>
 
 Images image_averaging_cpu(const Images& images);
 

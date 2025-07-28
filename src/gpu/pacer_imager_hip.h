@@ -2,10 +2,12 @@
 #define _PACER_IMAGER_GPU_H__
 
 #include <typeinfo>
-#include <gpu_fft.hpp>
 #include <astroio.hpp>
+#include <memory_buffer.hpp>
+#include <gpu_fft.hpp>
 
 #include "../pacer_imager.h"
+
 
 class CPacerImagerHip : public CPacerImager {
 protected :
