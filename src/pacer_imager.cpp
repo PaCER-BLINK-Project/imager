@@ -458,11 +458,10 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     CalculateUVW();
 
     // xcorr.to_gpu(); // TODO: this should be gone!!
-    if(!frequencies) {
-        frequencies.allocate(xcorr.nFrequencies);
-        for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
-            frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
-    }    
+    if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
+    for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
+        frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
+     
     if (apply_geom_correction)
         ApplyGeometricCorrections(xcorr, w_cpu, frequencies);
 
