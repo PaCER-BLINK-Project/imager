@@ -108,7 +108,7 @@ else()
 endif()
 
 target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${GPU_LIBS} ${BLINK_ASTROIO}  -lpthread -ldl)
-
+target_compile_options(imaging PUBLIC -munsafe-fp-atomics)
 if(USE_OPENMP)
     find_package(OpenMP REQUIRED)
     target_link_libraries(imaging OpenMP::OpenMP_CXX fftw3f_omp)
