@@ -25,7 +25,8 @@ using namespace std;
 void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side);
 
 
-
+// Temporary to test compilation in the convolution_kernel branch as otherwise CBgFits class is no longer used 
+class CBgFits;
 
 class CPacerImager {
 
@@ -168,6 +169,35 @@ public :
    virtual void ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies);
 
    double get_frequency_hz(const Visibilities& xcorr, int fine_channel, bool cotter_compatible);           
+
+
+   //-----------------------------------------------------------------------------------------------------------------------------
+   // START of functions and members for convolution kernel - taken from the msok_devel branch which still uses CBgFits class etc   
+   //-----------------------------------------------------------------------------------------------------------------------------
+   // GOAL : convolve with a specified 
+   //-----------------------------------------------------------------------------------------------------------------------------
+   void convolve_with_kernel( std::complex<float>* current_grid, int x_grid, int y_grid, double re, double im, double u, double v, double delta_u, double delta_v, int n_pixels, double im_sign, int oversampling=10 );
+//   void convolve_with_kernel( CBgFits& uv_grid_real, CBgFits& uv_grid_imag, int x_grid, int y_grid, double re, double im, double u, double v, double delta_u, double delta_v, int n_pixels, double im_sign, int oversampling=10 );
+   
+   //-------------------------------------------------------------------------------------------------------------
+   // Anti-aliasing and kernel convolution member functions. Currently taken from WSCLEAN code - to be re-implemented 
+   //-------------------------------------------------------------------------------------------------------------
+   static void calc_xy_grid2( double u_pix, double v_pix, double delta_u, double delta_v, int n_pixels, int& x_grid, int& y_grid, int im_sign, int is_odd_x, int is_odd_y );
+   
+   void makeKernels( int _kernelSize, int _overSamplingFactor=1023 );
+   
+   static void makeKaiserBesselKernel( std::vector<double> &kernel, double alpha, size_t overSamplingFactor, bool withSinc);
+   static double bessel0(double x, double precision);
+   
+   //-------------------------------------------------------------------------------------------------------------
+   // Anti-aliasing and kernel convolution member variables. Currently taken from WSCLEAN code - to be re-implemented 
+   //-------------------------------------------------------------------------------------------------------------
+   static std::vector<double> _1dKernel;
+   static std::vector<std::vector<double>> _griddingKernels;
+   static GridMode _gridMode;
+   static int m_nConvolvingKernelSize; // size of the gridding kernel (used to be a parameter in m_ImagerParameters but there is no such object anymore
+                                       // I have no clue where parameter are now 
+   // END OF functions and members for convolution kernel
 };
 
 #endif 
