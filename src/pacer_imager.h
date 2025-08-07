@@ -192,10 +192,10 @@ public :
    //-------------------------------------------------------------------------------------------------------------
    // Anti-aliasing and kernel convolution member variables. Currently taken from WSCLEAN code - to be re-implemented 
    //-------------------------------------------------------------------------------------------------------------
-   static std::vector<double> _1dKernel;
-   static std::vector<std::vector<double>> _griddingKernels;
-   static GridMode _gridMode;
-   static int m_nConvolvingKernelSize; // size of the gridding kernel (used to be a parameter in m_ImagerParameters but there is no such object anymore
+   std::vector<double> _1dKernel;
+   std::vector<std::vector<double>> _griddingKernels;
+   GridMode _gridMode {GridMode::KaiserBesselKernel};
+   int m_nConvolvingKernelSize {0}; // size of the gridding kernel (used to be a parameter in m_ImagerParameters but there is no such object anymore
                                        // I have no clue where parameter are now 
    // END OF functions and members for convolution kernel
 };

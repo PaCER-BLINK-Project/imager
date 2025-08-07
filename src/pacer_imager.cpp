@@ -24,12 +24,6 @@
 #include <omp.h>
 
 
-// convolution kernel code :
-std::vector<double> CPacerImager::_1dKernel;
-std::vector<std::vector<double>> CPacerImager::_griddingKernels;
-GridMode CPacerImager::_gridMode = GridMode::KaiserBesselKernel;
-int CPacerImager::m_nConvolvingKernelSize=-1; // put positive value to enable convolution kernel in CPU version, 7 to make it fast but alias removal is not perfect, 21 will be slower but much better
-
 namespace {
     int calc_fft_shift(int pos, int side){
         int is_odd = side % 2;
