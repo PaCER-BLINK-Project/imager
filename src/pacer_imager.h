@@ -25,9 +25,6 @@ using namespace std;
 void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_side);
 
 
-// Temporary to test compilation in the convolution_kernel branch as otherwise CBgFits class is no longer used 
-class CBgFits;
-
 class CPacerImager {
 
 protected:
@@ -187,7 +184,7 @@ public :
    void makeKernels( int _kernelSize, int _overSamplingFactor=1023 );
    
    static void makeKaiserBesselKernel( std::vector<double> &kernel, double alpha, size_t overSamplingFactor, bool withSinc);
-   static double bessel0(double x, double precision);
+//   static double bessel0(double x, double precision);
    
    //-------------------------------------------------------------------------------------------------------------
    // Anti-aliasing and kernel convolution member variables. Currently taken from WSCLEAN code - to be re-implemented 

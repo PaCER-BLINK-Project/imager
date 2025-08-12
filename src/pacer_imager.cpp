@@ -589,17 +589,19 @@ void CPacerImager::ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<doub
     apply_cable_lengths_corrections_cpu(xcorr, cable_lengths, frequencies);
 }
 
-double CPacerImager::bessel0(double x, double precision) {
-  // Calculate I_0 = SUM of m 0 -> inf [ (x/2)^(2m) ]
-  // This is the unnormalized bessel function of order 0.
-  double d = 0.0, ds = 1.0, sum = 1.0;
-  do {
-    d += 2.0;
-    ds *= x * x / (d * d);
-    sum += ds;
-  } while (ds > sum * precision);
-  return sum;
-}
+namespace {
+   double bessel0(double x, double precision) {
+     // Calculate I_0 = SUM of m 0 -> inf [ (x/2)^(2m) ]
+     // This is the unnormalized bessel function of order 0.
+     double d = 0.0, ds = 1.0, sum = 1.0;
+     do {
+       d += 2.0;
+       ds *= x * x / (d * d);
+       sum += ds;
+     } while (ds > sum * precision);
+     return sum;
+   }
+}   
 
 void CPacerImager::makeKaiserBesselKernel( std::vector<double> &kernel, double alpha, size_t overSamplingFactor, bool withSinc) {
   size_t n = kernel.size(), mid = n / 2;
