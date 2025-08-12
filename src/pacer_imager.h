@@ -184,7 +184,6 @@ public :
    void makeKernels( int _kernelSize, int _overSamplingFactor=1023 );
    
    static void makeKaiserBesselKernel( std::vector<double> &kernel, double alpha, size_t overSamplingFactor, bool withSinc);
-//   static double bessel0(double x, double precision);
    
    //-------------------------------------------------------------------------------------------------------------
    // Anti-aliasing and kernel convolution member variables. Currently taken from WSCLEAN code - to be re-implemented 
