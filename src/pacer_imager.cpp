@@ -376,10 +376,18 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
                                     // now fft shift
                                     //u_index = ::calc_fft_shift(u_index, n_pixels);
                                     //v_index = ::calc_fft_shift(v_index ,n_pixels);
-
-                                    // Using CELL averaging method or setXY ?
-                                    current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
-                                    current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im);
+                                    
+                                    // I believe that this is the gridding code (what used to be uv_grid_real.addXY( x_grid, y_grid, re );) 
+                                    // not sure how to translate convolution kernel into the current code now that everything is different
+                                    if( m_nConvolvingKernelSize > 0 ){
+                                       // convolve visibiity value with a kernel 
+                                       // original code : convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
+                                       convolve_with_kernel( current_grid, u_index, v_index, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
+                                    }else{ // normal code without convolution kernel
+                                       // Using CELL averaging method or setXY ?
+                                       current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
+                                       current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im);
+                                    }
                                     current_counter[v_index * n_pixels + u_index] += 1;
 
                                     // add conjugates :
@@ -389,8 +397,18 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
                                     //u_index = calc_fft_shift(u_index, n_pixels);
                                     //v_index = calc_fft_shift(v_index ,n_pixels);
                                     
-                                    current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
-                                    current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
+
+                                    // Same for conjugates:
+                                    // I believe that this is the gridding code (what used to be uv_grid_real.addXY( x_grid, y_grid, re );) 
+                                    // not sure how to translate convolution kernel into the current code now that everything is different
+                                    if( m_nConvolvingKernelSize > 0 ){
+                                       // convolve visibiity value with a kernel 
+                                       // original code : convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
+                                       convolve_with_kernel( current_grid, u_index, v_index, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
+                                    }else{
+                                       current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
+                                       current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
+                                    }
                                     current_counter[v_index * n_pixels + u_index] += 1;
                                 }
                             }
@@ -569,4 +587,191 @@ void CPacerImager::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<
    
 void CPacerImager::ApplyCableCorrections( Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
     apply_cable_lengths_corrections_cpu(xcorr, cable_lengths, frequencies);
+}
+
+namespace {
+   double bessel0(double x, double precision) {
+     // Calculate I_0 = SUM of m 0 -> inf [ (x/2)^(2m) ]
+     // This is the unnormalized bessel function of order 0.
+     double d = 0.0, ds = 1.0, sum = 1.0;
+     do {
+       d += 2.0;
+       ds *= x * x / (d * d);
+       sum += ds;
+     } while (ds > sum * precision);
+     return sum;
+   }
+}   
+
+void CPacerImager::makeKaiserBesselKernel( std::vector<double> &kernel, double alpha, size_t overSamplingFactor, bool withSinc) {
+  size_t n = kernel.size(), mid = n / 2;
+  std::vector<double> sincKernel(mid + 1);
+  const double filterRatio = 1.0 / double(overSamplingFactor);
+  sincKernel[0] = filterRatio;
+  for (size_t i = 1; i != mid + 1; i++) {
+    double x = i;
+    sincKernel[i] =
+        withSinc ? (sin(M_PI * filterRatio * x) / (M_PI * x)) : filterRatio;
+  }
+  const double normFactor = double(overSamplingFactor) / bessel0(alpha, 1e-8);
+  for (size_t i = 0; i != mid + 1; i++) {
+    double term = double(i) / mid;
+    kernel[mid + i] = sincKernel[i] *
+                      bessel0(alpha * sqrt(1.0 - (term * term)), 1e-8) *
+                      normFactor;
+  }
+  for (size_t i = 0; i != mid; i++) kernel[i] = kernel[n - 1 - i];
+}
+
+void CPacerImager::makeKernels( int _kernelSize, int _overSamplingFactor /*=1023*/ ) 
+{
+   if( _griddingKernels.size() > 0 ){
+      return;
+   }
+
+
+  _griddingKernels.resize(_overSamplingFactor);
+  _1dKernel.resize(_kernelSize * _overSamplingFactor);
+  const double alpha = 8.6;
+
+  switch (_gridMode) {
+    case GridMode::NearestNeighbourGridding:
+    case GridMode::KaiserBesselKernel:
+      makeKaiserBesselKernel(_1dKernel, alpha, _overSamplingFactor, true);
+      break;
+    case GridMode::KaiserBesselWithoutSinc:
+      makeKaiserBesselKernel(_1dKernel, alpha, _overSamplingFactor, false);
+      break;
+/*    case GridMode::RectangularKernel:
+      makeRectangularKernel(_1dKernel, _overSamplingFactor);
+      break;
+    case GridMode::GaussianKernel:
+      makeGaussianKernel(_1dKernel, _overSamplingFactor, true);
+      break;
+    case GridMode::GaussianKernelWithoutSinc:
+      makeGaussianKernel(_1dKernel, _overSamplingFactor, false);
+      break;
+    case GridMode::BlackmanNuttallKernel:
+      makeBlackmanNutallKernel(_1dKernel, _overSamplingFactor, true);
+      break;
+    case GridMode::BlackmanNuttallKernelWithoutSinc:
+      makeBlackmanNutallKernel(_1dKernel, _overSamplingFactor, false);
+      break;
+    case GridMode::BlackmanHarrisKernel:
+      throw std::runtime_error(
+          "Blackman-Harris kernel not supported by W-Stacking gridder");*/
+  }
+
+  typename std::vector<std::vector<double>>::iterator gridKernelIter = _griddingKernels.begin();
+  
+  // Why they are reversed ???
+  for (size_t i = 0; i != _overSamplingFactor; ++i) {
+    std::vector<double> &kernel = _griddingKernels[_overSamplingFactor - i - 1];
+    kernel.resize(_kernelSize);
+    typename std::vector<double>::iterator kernelValueIter = kernel.begin();
+    for (size_t x = 0; x != _kernelSize; ++x) {
+      size_t xIndex = x * _overSamplingFactor + i;
+      *kernelValueIter = _1dKernel[xIndex];
+      ++kernelValueIter;
+    }
+    ++gridKernelIter;
+  }
+}
+
+
+void CPacerImager::convolve_with_kernel( std::complex<float>* current_grid, int x_grid, int y_grid, double re, double im, double u, double v, double delta_u, double delta_v, 
+                                         int n_pixels,
+                                         double im_sign, // conjugate or normal point 
+                                         int oversampling )
+//void CPacerImager::convolve_with_kernel( CBgFits& uv_grid_real, CBgFits& uv_grid_imag, int x_grid, int y_grid, double re, double im, double u, double v, double delta_u, double delta_v, 
+//                                         int n_pixels,
+//                                         double im_sign, // conjugate or normal point 
+//                                         int oversampling )
+{
+//   int m_nConvolvingKernelSize = 11; // should be parameter in m_ImagerParameters but there is no such object now. So making it local variable for now
+   int _overSamplingFactor = 1023;
+   int _kernelSize = m_nConvolvingKernelSize;
+   
+   int width = n_pixels; // grid_side;
+   int height = n_pixels; // grid_side;
+   int grid_size = n_pixels*n_pixels; // grid_side * grid_side;
+   
+   makeKernels( _kernelSize );
+
+   int center_x = int( n_pixels / 2 );
+   int center_y = int( n_pixels / 2 );
+   
+   double u_pix_exact = u/delta_u;
+   double v_pix_exact = v/delta_v;
+   
+   double u_pix = round( u/delta_u );
+   double v_pix = round( v/delta_v );
+   
+   int xKernelIndex = round((u_pix_exact - double(u_pix)) * _overSamplingFactor);
+   int yKernelIndex = round((v_pix_exact - double(v_pix)) * _overSamplingFactor);
+   xKernelIndex = (xKernelIndex + (_overSamplingFactor * 3) / 2) % _overSamplingFactor;
+   yKernelIndex = (yKernelIndex + (_overSamplingFactor * 3) / 2) % _overSamplingFactor;
+   
+   const std::vector<double> &xKernel = _griddingKernels[xKernelIndex];
+   const std::vector<double> &yKernel = _griddingKernels[yKernelIndex];
+  
+   int mid = _kernelSize / 2;
+   
+   // go from (u_pix,v_pix) - (kernsize,kernsize) to (u_pix,v_pix) + (kernsize,kernsize)
+   int vv = v_pix - mid;
+   for (int j = 0; j != _kernelSize; ++j){   
+      const double yKernelValue = yKernel[j];
+
+      int uu = u_pix - mid;      
+      for (int i = 0; i != _kernelSize; ++i) {
+         const double kernelValue = yKernelValue * xKernel[i];
+         
+         double re_conv = re*kernelValue;
+         double im_conv = im_sign*im*kernelValue;
+         
+         int x_grid, y_grid;
+         calc_xy_grid2( uu, vv, delta_u, delta_v, n_pixels, x_grid, y_grid, im_sign, 0, 0 );
+         
+         if( x_grid>=0 && y_grid>=0 && x_grid<width && y_grid<height ){
+//            uv_grid_real.addXY( x_grid, y_grid, re_conv );
+//            uv_grid_imag.addXY( x_grid, y_grid, im_conv );
+             int u_index = x_grid;
+             int v_index = y_grid; 
+             current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re_conv);
+             current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im_conv);
+         }
+              
+         uu++;
+      }
+
+      
+      vv++;      
+   }
+}
+
+void CPacerImager::calc_xy_grid2( double u_pix, double v_pix, double delta_u, double delta_v, 
+                                 int n_pixels, 
+                                 int& x_grid, int& y_grid, 
+                                 int im_sign, 
+                                 int is_odd_x, int is_odd_y )
+{   
+   int center_x = int( n_pixels / 2 );
+   int center_y = int( n_pixels / 2 );
+
+   int u_index = im_sign*u_pix + n_pixels/2; // was u - u_center
+   int v_index = im_sign*v_pix + n_pixels/2; // was v - v_center                                       
+
+   // calculate position (x,y) on UV grid as expected by fftw (no fft_unshift required)
+   x_grid = 0;
+   y_grid = 0;
+   if( u_index < center_x ){
+      x_grid = center_x + u_index + is_odd_x;
+   }else{
+      x_grid = u_index - center_x;
+   }
+   if( v_index < center_y ){
+      y_grid = center_y + v_index + is_odd_y;
+   }else{
+      y_grid = v_index - center_y;
+   }
 }
