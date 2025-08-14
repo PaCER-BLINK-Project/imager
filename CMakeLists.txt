@@ -130,3 +130,6 @@ add_test(NAME gridding_test COMMAND gridding_test)
 add_executable(gpu_utils_test tests/gpu_utils_test.cpp)
 target_link_libraries(gpu_utils_test imaging)
 add_test(NAME gpu_utils_test COMMAND gpu_utils_test)
+
+add_executable(pacer_dirty_imager apps/pacer_imager_main.cpp)
+target_link_libraries(pacer_dirty_imager imaging)

@@ -277,6 +277,9 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
             //      frequency_mhz = gFrequencyMHz;
             //   }
             double frequency_hz = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
+            if( m_fFrequencyMHz > 0 ){
+               frequency_hz = m_fFrequencyMHz*1e6;
+            }
             double wavelength_m = VEL_LIGHT / frequency_hz;
 
             // is it ok to chose the UV plane center based on this:
@@ -477,8 +480,15 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
 
     // xcorr.to_gpu(); // TODO: this should be gone!!
     if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
-    for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++)
-        frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
+    for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++){
+        if( m_fFrequencyMHz > 0 ){
+           // optionally overwrite automatic calculation of frequencies when a single frequency channel is processed with pacer_imager_dirty standalone test program
+           frequencies[fine_channel] = m_fFrequencyMHz*1e6;
+           printf("DEBUG1 : setting external frequency to %.8f [Hz] (%.6f MHz)\n",frequencies[fine_channel],m_fFrequencyMHz);
+        }else{
+           frequencies[fine_channel] = this->get_frequency_hz(xcorr, fine_channel, COTTER_COMPATIBLE);
+        }
+    }
      
     if (apply_geom_correction)
         ApplyGeometricCorrections(xcorr, w_cpu, frequencies);

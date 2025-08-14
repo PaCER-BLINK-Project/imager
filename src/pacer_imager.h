@@ -78,6 +78,9 @@ public :
    double m_PixscaleAtZenith;
    double pixsize_in_radians;
    
+   // single frequency testing so that it is possible to pass frequency externally and do not calculate from channel (one channel per freq)
+   double m_fFrequencyMHz {-1};
+   
 
    CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false);
    
