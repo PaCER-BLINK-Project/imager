@@ -17,23 +17,24 @@ __global__ void apply_cable_corrections(float *visibilities, unsigned int n_base
       unsigned int m_idx = i / n_baselines;
       unsigned int fine_channel = m_idx % n_frequencies;
 
-      double re = visibilities[i * 2 * n_pols_prod];
-      double im = visibilities[i * 2 * n_pols_prod + 1];
+      for(int pol_idx {0}; pol_idx < n_pols_prod; pol_idx++){
+         double re = visibilities[i * 2 * n_pols_prod + 2*pol_idx];
+         double im = visibilities[i * 2 * n_pols_prod + 2*pol_idx + 1];
 
-      unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
-      unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
+         unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
+         unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
 
-      double cableDeltaLen = (cable_lengths[a2] - cable_lengths[a1]);
-      double angle = -2.0*M_PI*cableDeltaLen*frequencies[fine_channel] / speed_of_light;
-      double sin_angle,cos_angle;
-      sincos(angle, &sin_angle, &cos_angle);
-      
-      double re_prim = re*cos_angle - im*sin_angle;
-      double im_prim = im*cos_angle + re*sin_angle;
+         double cableDeltaLen = (cable_lengths[a2] - cable_lengths[a1]);
+         double angle = -2.0*M_PI*cableDeltaLen*frequencies[fine_channel] / speed_of_light;
+         double sin_angle,cos_angle;
+         sincos(angle, &sin_angle, &cos_angle);
+         
+         double re_prim = re*cos_angle - im*sin_angle;
+         double im_prim = im*cos_angle + re*sin_angle;
 
-      visibilities[i * 2 * n_pols_prod] = re_prim;
-      visibilities[i * 2 * n_pols_prod + 1] = im_prim;
-      
+         visibilities[i * 2 * n_pols_prod+ 2*pol_idx] = re_prim;
+         visibilities[i * 2 * n_pols_prod + 2*pol_idx + 1] = im_prim;
+      }
    }
 }
 
@@ -49,22 +50,24 @@ __global__ void apply_geometric_corrections(float *visibilities, unsigned int n_
       unsigned int baseline = i % n_baselines;
       unsigned int m_idx = i / n_baselines;
       unsigned int fine_channel = m_idx % n_frequencies;
-
-      double re = visibilities[i * 2 * n_pols_prod];
-      double im = visibilities[i * 2 * n_pols_prod + 1];
       
-      unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
-      unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
-      // TODO this will have to change once we save w on a lower triangular matrix basis
-      double angle = 2.0 * M_PI *  w[a1 * n_ant + a2] * frequencies[fine_channel] / speed_of_light;
-      double sin_angle,cos_angle;
-      sincos(angle, &sin_angle, &cos_angle);
-      
-      double re_prim = re*cos_angle - im*sin_angle;
-      double im_prim = im*cos_angle + re*sin_angle;
-      
-      visibilities[i * 2 * n_pols_prod] = re_prim;
-      visibilities[i * 2 * n_pols_prod + 1] = im_prim;
+      for(int pol_idx {0}; pol_idx < n_pols_prod; pol_idx++){
+         double re = visibilities[i * 2 * n_pols_prod + 2*pol_idx];
+         double im = visibilities[i * 2 * n_pols_prod + 2*pol_idx + 1];
+         
+         unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
+         unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
+         // TODO this will have to change once we save w on a lower triangular matrix basis
+         double angle = 2.0 * M_PI *  w[a1 * n_ant + a2] * frequencies[fine_channel] / speed_of_light;
+         double sin_angle,cos_angle;
+         sincos(angle, &sin_angle, &cos_angle);
+         
+         double re_prim = re*cos_angle - im*sin_angle;
+         double im_prim = im*cos_angle + re*sin_angle;
+         
+         visibilities[i * 2 * n_pols_prod + 2*pol_idx] = re_prim;
+         visibilities[i * 2 * n_pols_prod + 2*pol_idx + 1] = im_prim;
+      }
    }
 }
 
