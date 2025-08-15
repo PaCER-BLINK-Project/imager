@@ -95,7 +95,7 @@ echo "Building the software.."
 cd ${build_dir}
 cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DUSE_HIP=ON  -DCMAKE_BUILD_TYPE=Release-DCMAKE_CXX_FLAGS=-O3 ${cmake_options}
 make -j 12 VERBOSE=1
-
+make test
 # Install the software
 make install
 

@@ -88,8 +88,9 @@ int CPacerImager::UpdateFlags()
 }
 
 
-CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images) {
+CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images, Polarization pol_to_image) {
     this->average_images = average_images;
+    this->pol_to_image = pol_to_image;
      // read all information from metadata
     if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
         PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
