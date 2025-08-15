@@ -78,7 +78,9 @@ public :
    double m_PixscaleAtZenith;
    double pixsize_in_radians;
    
+   // TEMPORARY SOLUTION for imaging single frequency:
    // single frequency testing so that it is possible to pass frequency externally and do not calculate from channel (one channel per freq)
+   // TODO : later use array of frequencies in MHz instead of channels to avoid calculation of frequency inside imager (get list as parameter)
    double m_fFrequencyMHz {-1};
    
 
