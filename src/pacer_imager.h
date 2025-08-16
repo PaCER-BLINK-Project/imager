@@ -81,6 +81,11 @@ public :
    double pixsize_in_radians;
    
    Polarization pol_to_image;
+   // TEMPORARY SOLUTION for imaging single frequency:
+   // single frequency testing so that it is possible to pass frequency externally and do not calculate from channel (one channel per freq)
+   // TODO : later use array of frequencies in MHz instead of channels to avoid calculation of frequency inside imager (get list as parameter)
+   double m_fFrequencyMHz {-1};
+   
 
    CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false, Polarization pol_to_image = Polarization::XX);
    
