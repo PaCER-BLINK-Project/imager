@@ -88,8 +88,9 @@ int CPacerImager::UpdateFlags()
 }
 
 
-CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images) {
+CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images, Polarization pol_to_image) {
     this->average_images = average_images;
+    this->pol_to_image = pol_to_image;
      // read all information from metadata
     if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
         PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
@@ -315,11 +316,22 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
                             }
                         }
 
-                        std::complex<float> *vis = xcorr.at(time_step, fine_channel, ant1,
-                                                            ant2); // was ant1, ant2 , but ant2,ant1 does not fix
-                                                                   // the orientation of the final image either ...
-                        double re = vis->real();                   // fits_vis_real.getXY(ant1,ant2);
-                        double im = vis->imag();                   // fits_vis_imag.getXY(ant1,ant2);
+                        double re {0}, im {0};
+                        if(pol_to_image == Polarization::XX){
+                            std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
+                            re = vis_xx->real();
+                            im = vis_xx->imag();
+                        }else if(pol_to_image == Polarization::YY){
+                            std::complex<float> *vis_yy = xcorr.at(time_step, fine_channel, ant1, ant2) + 3;
+                            re =  vis_yy->real();
+                            im =  vis_yy->imag();
+                        }else {
+                            // Stokes I
+                            std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
+                            std::complex<float> *vis_yy = vis_xx + 3;
+                            re = vis_xx->real() + vis_yy->real();
+                            im = vis_xx->imag() + vis_yy->imag();
+                        }
 
                         if (!isnan(re) && !isnan(im))
                         {

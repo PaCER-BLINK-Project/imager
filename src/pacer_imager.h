@@ -16,6 +16,8 @@ using namespace std;
 // AstroIO for Visibilities class :
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
+
+#include "gridding.hpp"
 // #define VISIBILITY_TYPE double // visibility type currently double but may be float 
 // forward declaration of class  Visibilities, the header file is included in pacer_imager.cpp
 // class  Visibilities;
@@ -78,8 +80,9 @@ public :
    double m_PixscaleAtZenith;
    double pixsize_in_radians;
    
+   Polarization pol_to_image;
 
-   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false);
+   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false, Polarization pol_to_image = Polarization::XX);
    
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------

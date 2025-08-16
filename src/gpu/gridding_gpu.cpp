@@ -12,6 +12,8 @@ https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-c
 #include <memory_buffer.hpp>
 
 #include "pacer_imager_hip_defines.h"
+#include "../gridding.hpp"
+
 
 __device__ inline int wrap_index(int i, int side){
     if(i >= 0) return i % side;
@@ -59,7 +61,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
                                       const int* antenna_flags, const float* antenna_weights,
                                       const double *frequencies, int image_size, double delta_u, double delta_v, 
                                       int n_pixels,
-                                      float *uv_grid_counter, double min_uv, 
+                                      float *uv_grid_counter, double min_uv, Polarization pol,
                                       gpufftComplex *m_in_buffer) {
 
    unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -72,8 +74,19 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
       unsigned int m_idx = i / n_baselines;
       unsigned int fine_channel = m_idx % n_frequencies;
 
-      double re = visibilities[i * 2 * n_pols_prod];
-      double im = visibilities[i * 2 * n_pols_prod + 1];
+      double re {0}, im {0};
+
+      if(pol == Polarization::XX){
+         re = visibilities[i * 2 * n_pols_prod];
+         im = visibilities[i * 2 * n_pols_prod + 1];
+      }else if(pol == Polarization::YY){
+         re = visibilities[i * 2 * n_pols_prod + 6];
+         im = visibilities[i * 2 * n_pols_prod + 7];
+      }else {
+         // Stokes I
+         re = visibilities[i * 2 * n_pols_prod] + visibilities[i * 2 * n_pols_prod + 6];
+         im = visibilities[i * 2 * n_pols_prod + 1] + visibilities[i * 2 * n_pols_prod + 7];
+      }
       
       unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
       unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
@@ -114,7 +127,7 @@ void gridding_gpu(const Visibilities& xcorr,
       const MemoryBuffer<int>& antenna_flags, const MemoryBuffer<float>& antenna_weights,
       const MemoryBuffer<double>& frequencies,
       double delta_u, double delta_v,
-      int n_pixels, double min_uv, MemoryBuffer<float>& grids_counters,
+      int n_pixels, double min_uv, Polarization pol, MemoryBuffer<float>& grids_counters,
       MemoryBuffer<std::complex<float>>& grids){
   std::cout << "Running 'gridding' on GPU.." << std::endl;
 
@@ -135,6 +148,6 @@ void gridding_gpu(const Visibilities& xcorr,
    unsigned int n_blocks = props.multiProcessorCount * 2;
    gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
       n_ant, u_gpu.data(), v_gpu.data(), antenna_flags.data(), antenna_weights.data(), frequencies.data(), image_size,
-      delta_u, delta_v, n_pixels, grids_counters.data(), min_uv, (gpufftComplex*) grids.data());
+      delta_u, delta_v, n_pixels, grids_counters.data(), min_uv, pol, (gpufftComplex*) grids.data());
    gpuGetLastError();
 }

@@ -20,17 +20,18 @@ void apply_geometric_corrections_cpu(Visibilities &xcorr, const MemoryBuffer<flo
                     double angle = 2.0 * M_PI * w * frequencies[fine_channel] / SPEED_OF_LIGHT;
                     double sin_angle, cos_angle;
                     sincos(angle, &sin_angle, &cos_angle);
+                    for(int pol_idx {0}; pol_idx < 4; pol_idx++){ // TODO: avoid hardcoding 4 here..
+                        std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, ant1, ant2) + pol_idx;
 
-                    std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, ant1, ant2);
+                        double re = vis[0].real();
+                        double im = vis[0].imag();
 
-                    double re = vis[0].real();
-                    double im = vis[0].imag();
+                        double re_prim = re * cos_angle - im * sin_angle;
+                        double im_prim = im * cos_angle + re * sin_angle;
 
-                    double re_prim = re * cos_angle - im * sin_angle;
-                    double im_prim = im * cos_angle + re * sin_angle;
-
-                    std::complex<double> vis_new(re_prim, im_prim);
-                    *vis = vis_new;
+                        std::complex<double> vis_new(re_prim, im_prim);
+                        *vis = vis_new;
+                    }
                 }
             }
         }
@@ -55,16 +56,17 @@ void apply_cable_lengths_corrections_cpu(Visibilities &xcorr, const MemoryBuffer
 
                     double sin_angle, cos_angle;
                     sincos(angle, &sin_angle, &cos_angle);
+                    for(int pol_idx {0}; pol_idx < 4; pol_idx++){ // TODO: avoid hardcoding 4 here..
+                        std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, ant1, ant2) + pol_idx;
 
-                    std::complex<VISIBILITY_TYPE> *vis = xcorr.at(time_step, fine_channel, ant1, ant2);
+                        double re = vis[0].real();
+                        double im = vis[0].imag();
+                        double re_prim = re * cos_angle - im * sin_angle;
+                        double im_prim = im * cos_angle + re * sin_angle;
 
-                    double re = vis[0].real();
-                    double im = vis[0].imag();
-                    double re_prim = re * cos_angle - im * sin_angle;
-                    double im_prim = im * cos_angle + re * sin_angle;
-
-                    std::complex<double> vis_new(re_prim, im_prim);
-                    *vis = vis_new;
+                        std::complex<double> vis_new(re_prim, im_prim);
+                        *vis = vis_new;
+                    }
                 }
             }
         }

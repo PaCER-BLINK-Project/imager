@@ -13,7 +13,8 @@
 
 #include "../utils.h"
 
-CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images) : CPacerImager(metadata_file, flagged_antennas, average_images) {}
+CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas, 
+   bool average_images, Polarization pol_to_image) : CPacerImager(metadata_file, flagged_antennas, average_images, pol_to_image) {}
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
    if(!antenna_flags_gpu){
@@ -69,7 +70,7 @@ Images CPacerImagerHip::gridding_imaging(Visibilities& xcorr,
    gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
 
    gridding_gpu(xcorr, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
-      delta_u, delta_v, n_pixels, min_uv, grids_counters, grids);
+      delta_u, delta_v, n_pixels, min_uv, pol_to_image, grids_counters, grids);
 
    gpuEvent_t start, stop;
    gpuEventCreate(&start);
