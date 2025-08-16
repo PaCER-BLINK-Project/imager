@@ -448,6 +448,11 @@ bool CObsMetadata::parseKeyword( const std::string& keyName, const std::string& 
         return true;
 }
 
+void CObsMetadata::set_phase_centre(double ra_deg, double dec_deg){
+   raHrs = ra_deg/15.00;
+   decDegs = dec_deg;
+}
+
 bool CObsMetadata::fix_metafits( double obsid, double inttime_sec /*=1.00*/ )
 {
    double uxtime = gps2ux( obsid );
