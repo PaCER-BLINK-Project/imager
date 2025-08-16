@@ -11,8 +11,10 @@
 #include <gpu_macros.hpp>
 #include "common.hpp"
 #include "../src/pacer_imager.h"
-#include "../src/gpu/pacer_imager_hip.h"
 
+#ifdef __GPU__
+#include "../src/gpu/pacer_imager_hip.h"
+#endif
 std::string dataRootDir;
 
 
@@ -67,13 +69,14 @@ void test_imager_cpu(){
     test_imager_common(imager, true);
 }
 
-
+#ifdef __GPU__
 void test_imager_gpu(){
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
     CPacerImagerHip imager {metadataFile, flagged_antennas};
     test_imager_common(imager, false);
 }
+#endif
 
 int main(void){
     char *pathToData {std::getenv(ENV_DATA_ROOT_DIR)};
@@ -86,7 +89,9 @@ int main(void){
     try{
         test_fft_shift_simple();
         test_imager_cpu();
+#ifdef __GPU__
         test_imager_gpu();
+#endif
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;
         return 1;

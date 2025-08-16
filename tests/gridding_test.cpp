@@ -11,10 +11,12 @@
 #include <gpu_macros.hpp>
 #include "common.hpp"
 
+#ifdef __GPU__
 #include "../src/gpu/gridding_gpu.h"
+#endif
 std::string dataRootDir;
 
-
+#ifdef __GPU__
 void test_gridding_gpu(){
     ObservationInfo obs_info {VCS_OBSERVATION_INFO};
     Visibilities xcorr = Visibilities::from_fits_file(dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/03_after_geo_corrections.fits", obs_info);
@@ -59,7 +61,7 @@ void test_gridding_gpu(){
 
     std::cout << "'test_gridding_gpu' passed." << std::endl;
 }
-
+#endif
 
 
 

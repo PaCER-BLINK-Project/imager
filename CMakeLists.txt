@@ -108,10 +108,14 @@ else()
 endif()
 
 target_link_libraries(imaging ${MSFITSLIB} ${LIBNOVA_LIB} ${CFITSIO_LIB} ${FFTW3_LIB} ${LIBPAL_LIB} ${GPU_LIBS} ${BLINK_ASTROIO}  -lpthread -ldl)
-target_compile_options(imaging PUBLIC -munsafe-fp-atomics)
+
 if(USE_OPENMP)
     find_package(OpenMP REQUIRED)
     target_link_libraries(imaging OpenMP::OpenMP_CXX fftw3f_omp)
+endif()
+
+if(USE_HIP)
+    target_compile_options(imaging PUBLIC -munsafe-fp-atomics)
 endif()
 
 # TESTS
@@ -127,9 +131,11 @@ add_executable(gridding_test tests/gridding_test.cpp)
 target_link_libraries(gridding_test imaging)
 add_test(NAME gridding_test COMMAND gridding_test)
 
-add_executable(gpu_utils_test tests/gpu_utils_test.cpp)
-target_link_libraries(gpu_utils_test imaging)
-add_test(NAME gpu_utils_test COMMAND gpu_utils_test)
+if(USE_HIP OR USE_CUDA)
+    add_executable(gpu_utils_test tests/gpu_utils_test.cpp)
+    target_link_libraries(gpu_utils_test imaging)
+    add_test(NAME gpu_utils_test COMMAND gpu_utils_test)
+endif()
 
 add_executable(pacer_dirty_imager apps/pacer_imager_main.cpp)
 target_link_libraries(pacer_dirty_imager imaging)
