@@ -478,19 +478,12 @@ Images CPacerImager::gridding_imaging(Visibilities &xcorr, double delta_u, doubl
     @param weighting: U for uniform or N for natural.
 */
 Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv, const char *weighting){
-    // TODO: make sure the xcorr structure has the same parameters at each run call
-    // This will avoid to reallocate memory
-    // TODO Cristian: time_step, fine_channel will be used in the to select a
-    // subset of data to be imaged. ensures initalisation of object structures
-    // TODO: this init function must be modified
-
+    // TODO: verify that the following function call can be safely removed.
     m_MetaData.fix_metafits(CObsMetadata::ux2gps(xcorr.obsInfo.startTime), 1.0);
-    int n_ant = xcorr.obsInfo.nAntennas;
-    int n_pol = xcorr.obsInfo.nPolarizations;
+
     // calculate UVW (if required)
     CalculateUVW();
 
-    // xcorr.to_gpu(); // TODO: this should be gone!!
     if(!frequencies) frequencies.allocate(xcorr.nFrequencies);
     for(size_t fine_channel {0}; fine_channel < xcorr.nFrequencies; fine_channel++){
         if( m_fFrequencyMHz > 0 ){
