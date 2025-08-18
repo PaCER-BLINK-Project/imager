@@ -29,15 +29,33 @@ using namespace std;
 // FFTW :
 #include <fftw3.h>
 #include "../src/pacer_imager.h"
+#include "../src/gridding.hpp"
 #endif
 
 #ifdef _PACER_PROFILER_ON_
 #include <mydate.h>
 #endif
 
-bool read_corr_matrix( const char* basename, CBgFits& fits_vis_real, CBgFits& fits_vis_imag, const char* szPostfix );
+bool read_corr_matrix( const char* basename, CBgFits& fits_vis_real, CBgFits& fits_vis_imag, const char* szPostfix, int pol=0 );
 
-Visibilities* ConvertFits2XCorr( CBgFits& vis_re, CBgFits& vis_im, ObservationInfo& obsInfo );
+Visibilities* ConvertFits2XCorr( CBgFits& vis_re, CBgFits& vis_im, ObservationInfo& obsInfo, CBgFits* vis_re_yy=nullptr, CBgFits* vis_im_yy=nullptr );
+
+const char* PolarizationToString( Polarization pol )
+{
+   switch( pol ){
+      case Polarization::XX :
+         return "XX";
+      case Polarization::YY :
+         return "YY";
+      case Polarization::I :
+         return "I";
+         
+      default :
+         break;   
+   }
+   
+   return "XX";
+}
 
 class CImagerParameters
 {
@@ -58,6 +76,9 @@ public :
    // frequency and bandwidth 
    double m_fCenterFrequencyMHz;
    double m_fBandwidthMHz;
+   
+   // which polarisation to image:
+   Polarization pol_to_image { Polarization::XX };
    
    // UV range :
    double m_fMinUV;
@@ -160,7 +181,7 @@ double parse_input_filename( const char* szInBaseName )
    return unixtime;
 }
 
-void usage( CPacerImager& imager )
+void usage()
 {
    double default_pixsize_deg = gImagerParameters.m_PixsizeInRadians*(180.00/M_PI);
 
@@ -182,7 +203,8 @@ void usage( CPacerImager& imager )
    printf("\t-A flagged antennas list string (coma separated, e.g. 1,2,3,4) [default empty]\n");  
    printf("\t-n IMAGE_SIZE : single value N for image size N x N pixels [default %d]\n",gImageSize);
    printf("\t-Z : image phase centered at zenith, re-calculation of UVW is not required\n");
-   printf("\t-P N_TIMES : create the same image N times for profiling or other tests [default %d]\n",gProfilesNImages);
+   printf("\t-N N_TIMES : create the same image N times for profiling or other tests [default %d]\n",gProfilesNImages);
+   printf("\t-P POLARISATION_TO_IMAGE : XX, YY or I [default %s]\n",PolarizationToString(gImagerParameters.pol_to_image));
    printf("\t-v VERBOSITY/DEBUG level [default %d]\n",CPacerImager::m_ImagerDebugLevel);
    printf("\t-V FILE_SAVE_LEVEL : to control number of FITS files saved [default %d]\n",CPacerImager::m_SaveFilesLevel);
    printf("\t-s : print statistics of the final sky image (mean,median,rms,rms_iqr etc)\n");
@@ -204,8 +226,8 @@ void usage( CPacerImager& imager )
    exit(0);
 }
 
-void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
-   char optstring[] = "hp:n:g:r:i:f:F:w:m:a:ZP:v:V:A:sS:o:O:c:IM:XEU:J:LK:";
+void parse_cmdline(int argc, char * argv[] ) {
+   char optstring[] = "hp:n:g:r:i:f:F:w:m:a:ZP:v:V:A:sS:o:O:c:IM:XEU:J:LK:N:";
    int opt;
         
    while ((opt = getopt(argc, argv, optstring)) != -1) {
@@ -213,7 +235,7 @@ void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
       switch (opt) {
          case 'h':
             // antenna1 = atol( optarg );
-            usage( imager );
+            usage();
             break;
 
          case 'a':
@@ -245,7 +267,7 @@ void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
             break;
 
          case 'I':
-            imager.m_bIncludeAutos = true;
+//            imager.m_bIncludeAutos = true;
             break;
             
          case 'J':
@@ -274,7 +296,28 @@ void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
             gPostfix = optarg;
             break;
 
-         case 'P':
+         case 'P': // parse polarisation
+            if( optarg ){
+               switch( ::toupper(optarg[0]) ){
+                  case 'X' :
+                     gImagerParameters.pol_to_image = Polarization::XX;
+                     break;
+                  case 'Y' :
+                     gImagerParameters.pol_to_image = Polarization::YY;
+                     break;
+                  case 'I' :
+                     gImagerParameters.pol_to_image = Polarization::I;
+                     break;
+                     
+                  default :
+                     gImagerParameters.pol_to_image = Polarization::XX;   
+                     
+               }
+            }
+            break;
+            
+
+         case 'N':
             gProfilesNImages = atol( optarg );
             break;
 
@@ -368,7 +411,7 @@ void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
 
          default:   
             fprintf(stderr,"Unknown option %c\n",opt);
-            usage( imager );
+            usage();
       }
    }
    
@@ -386,7 +429,7 @@ void parse_cmdline(int argc, char * argv[], CPacerImager& imager) {
    }
 }
 
-void print_parameters( CPacerImager& imager )
+void print_parameters()
 {
     double pixsize_deg = gImagerParameters.m_PixsizeInRadians*(180.00/M_PI);
     printf("############################################################################################\n");
@@ -397,11 +440,12 @@ void print_parameters( CPacerImager& imager )
     printf("Output FITS base name = %s\n",gBaseOutFitsName.c_str());
     printf("Postfix      = %s\n",gPostfix.c_str());
     printf("Image size   = (%d x %d)\n",gImageSize,gImageSize);
-    printf("Do gridding  = %d\n",gDoGridding);
+    printf("Do gridding  = %d\n",gDoGridding);    
     if( !gDoGridding ){
        printf("External REAL/IMAG FITS FILES : %s / %s\n",g_in_fits_file_uv_re.c_str(),g_in_fits_file_uv_im.c_str());
     }
     printf("Frequency           = %.4f [MHz]\n",gFrequencyMHz);
+    printf("Polarisation        = %s\n",PolarizationToString(gImagerParameters.pol_to_image));
     printf("Field of view (FoV) = %.4f [deg]\n",gFOV_degrees);
     printf("Pixel angular size  = %.8f [deg]\n",pixsize_deg);
     printf("Weighting           = %s\n",gUniformWeighting.c_str());
@@ -430,7 +474,7 @@ void print_parameters( CPacerImager& imager )
     }
 //    printf("MIRIAD compatibility = %d\n",CPacerImager::m_bCompareToMiriad);
 //    printf("Calibration solutions file = %s\n",gCalibrationSolutions.m_filename.c_str());
-    printf("Include auto-correlations  = %d\n",imager.m_bIncludeAutos);
+//    printf("Include auto-correlations  = %d\n",imager.m_bIncludeAutos);
     printf("Antenna positions XYZ      = %d\n",gImagerParameters.m_bAntennaPositionsXYZ);
     printf("Data start time            = %.8f\n",gImagerParameters.m_fUnixTime);   
     printf("Cable correction           = %d\n",gImagerParameters.m_bApplyCableCorr);
@@ -457,15 +501,17 @@ int main(int argc,char* argv[])
      in_basename = argv[1];
   }
 
+// parse and print parameters :
+  parse_cmdline( argc , argv );
+  print_parameters();
+
+
 #ifdef IMAGER_HIP
   CPacerImagerHip imager;   
 #else
-  CPacerImager imager( gImagerParameters.m_MetaDataFile.c_str(), gFlaggedAntennasList ) ;
+  printf("DEBUG0 : pol_to_image = %d\n", int(gImagerParameters.pol_to_image) );
+  CPacerImager imager( gImagerParameters.m_MetaDataFile.c_str(), gFlaggedAntennasList, false, gImagerParameters.pol_to_image ) ;
 #endif  
-  
-  // parse and print parameters :
-  parse_cmdline( argc , argv , imager );
-  print_parameters( imager );
   
   gImagerParameters.SetGlobalParameters( gAntennaPositionsFile.c_str(), (gZenithImage) ); // Constant UVW when zenith image (-Z)
   gImagerParameters.m_szOutputDirectory = gOutputDirectory.c_str();
@@ -488,9 +534,13 @@ int main(int argc,char* argv[])
   // this loop is just for testing purposes , if -P 100 specified it means the same image will be generated 100 times so 
   // that testing some initialisations, UVW relculation or profiling can be done
   
-  CBgFits re,im;
-  read_corr_matrix( in_basename.c_str(), re, im, gPostfix.c_str() );
+  CBgFits re_xx,im_xx;
+  read_corr_matrix( in_basename.c_str(), re_xx, im_xx, gPostfix.c_str(), 0 );
   
+  CBgFits re_yy, im_yy;
+  // try to read YY correlation matrix if possible
+  bool bYY=read_corr_matrix( in_basename.c_str(), re_yy, im_yy, gPostfix.c_str(), 3 );
+    
   ObservationInfo obsInfo;
 /*  obsInfo.nAntennas = re.GetXSize();
   obsInfo.nFrequencies = 1;
@@ -501,7 +551,12 @@ int main(int argc,char* argv[])
   // TODO : fill the rest 
   
   
-  Visibilities* xcorr = ConvertFits2XCorr( re, im, obsInfo );
+  Visibilities* xcorr = nullptr;
+  if( bYY ){
+     xcorr = ConvertFits2XCorr( re_xx, im_xx, obsInfo, &re_yy, &im_yy );
+  }else{
+     xcorr = ConvertFits2XCorr( re_xx, im_xx, obsInfo );
+  }
 //  int vis_size = re.GetXSize()*re.GetYSize();
 //  MemoryBuffer<std::complex<float>> vis_buffer( vis_size );
 //  Visibilities xcorr( std::move(vis_buffer), obsInfo, 1, 1 );
@@ -544,6 +599,7 @@ bool   CImagerParameters::m_bAntennaPositionsXYZ=false;
 bool   CImagerParameters::m_bCalcEarthXYZ=false; // for the MWA we require conversion from local (x,y,z) to Earth's (X,Y,Z) coordinates , for EDA2 we can keep using local (x,y,z)
 bool   CImagerParameters::m_bApplyGeomCorr=false;
 bool   CImagerParameters::m_bApplyCableCorr=false;
+
 
 CImagerParameters::CImagerParameters()
   : m_fUnixTime(0), m_fCenterFrequencyMHz(0), m_fBandwidthMHz(0), m_ImageSize(0), m_fMinUV(-1000), m_ImageFOV_degrees(180.00), m_integrationTime(1.00), m_nConvolvingKernelSize(-1)
@@ -661,7 +717,7 @@ void Initialise( CPacerImager& imager )
   }
 }
 
-Visibilities* ConvertFits2XCorr( CBgFits& vis_re, CBgFits& vis_im, ObservationInfo& obsInfo )
+Visibilities* ConvertFits2XCorr( CBgFits& vis_re, CBgFits& vis_im, ObservationInfo& obsInfo, CBgFits* vis_re_yy, CBgFits* vis_im_yy )
 {
 //   printf("ERROR : function CPacerImager::ConvertFits2XCorr not implemented yet !\n");   
 //   exit(-1); 
@@ -712,14 +768,26 @@ Visibilities* ConvertFits2XCorr( CBgFits& vis_re, CBgFits& vis_im, ObservationIn
 
    for(int i=0;i<n_ant;i++){ // loop over ant1          
      for(int j=0;j<=i;j++){ // loop over ant2 
-        std::complex<float>* vis = xcorr->at( time_step, fine_channel, i, j );
+        std::complex<float>* vis_xx = xcorr->at( time_step, fine_channel, i, j );
+        std::complex<float>* vis_yy = xcorr->at( time_step, fine_channel, i, j ) + 3;
         
-        if( vis ){        
+        if( vis_xx ){        
            double re = vis_re.getXY( j , i );
            double im = vis_im.getXY( j , i );
 
            std::complex<float> vis_value( re, im );
-           (*vis) = vis_value;
+           (*vis_xx) = vis_value;
+           
+           if( vis_re_yy && vis_im_yy ){
+              double re_yy = vis_re_yy->getXY( j , i );
+              double im_yy = vis_im_yy->getXY( j , i );
+              std::complex<float> vis_value_yy( re_yy, im_yy );
+              (*vis_yy) = vis_value_yy;
+           }else{
+              (*vis_yy) = std::complex<float>(0.0,0.0); // if no YY correlation matrix provided set YY visibilities to 0
+              // Can set 2x vis_xx for testing 
+              // (*vis_yy) = vis_value*std::complex<float>(2.00,0); // just to test if I get image YY = 2x image in XX 
+           }
         }else{
            printf("ERROR in code : no visibility at (%d,%d,%d,%d)\n",time_step, fine_channel, i, j );
            exit(-1);
@@ -735,7 +803,7 @@ Visibilities* ConvertFits2XCorr( CBgFits& vis_re, CBgFits& vis_im, ObservationIn
    return xcorr;
 }
 
-bool read_corr_matrix( const char* basename, CBgFits& fits_vis_real, CBgFits& fits_vis_imag, const char* szPostfix )
+bool read_corr_matrix( const char* basename, CBgFits& fits_vis_real, CBgFits& fits_vis_imag, const char* szPostfix, int pol )
 {
   // ensures initalisation of object structures 
 //  Initialise();
@@ -746,14 +814,17 @@ bool read_corr_matrix( const char* basename, CBgFits& fits_vis_real, CBgFits& fi
   if( strlen( szPostfix ) ){
      fits_file_real += szPostfix;
   }
-  fits_file_real += ".fits";
+  char szFitsFile[256];
+  sprintf(szFitsFile,"%s_pol%d.fits",fits_file_real.c_str(),pol);
+  fits_file_real = szFitsFile;
 
   string fits_file_imag = basename;
   fits_file_imag += "_vis_imag";
   if( strlen( szPostfix ) ){
      fits_file_imag += szPostfix;
   }
-  fits_file_imag += ".fits";
+  sprintf(szFitsFile,"%s_pol%d.fits",fits_file_imag.c_str(),pol);
+  fits_file_imag = szFitsFile;
 
 
   if(CPacerImager::m_ImagerDebugLevel>=IMAGER_INFO_LEVEL){
