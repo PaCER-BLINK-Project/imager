@@ -559,11 +559,8 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     
     images.ra_deg = m_MetaData.raHrs*15.00;
     images.dec_deg = m_MetaData.decDegs;
-    images.pixscale.resize(images.nFrequencies);
-    for(size_t f {0}; f < images.nFrequencies; f++){
-        double wavelength_m = VEL_LIGHT / frequencies[f];
-        images.pixscale[f] = (1.00/(2.00*u_max))*(180.00/M_PI); // pixscale in degrees is later used in WCS FITS keywords CDELT1,2 
-    }
+    images.pixscale_ra = (1.00/(2.00*u_max))*(180.00/M_PI); // MAX(u) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2 
+    images.pixscale_dec = (1.00/(2.00*v_max))*(180.00/M_PI); // MAX(v) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2 
     return images;
 }
 
