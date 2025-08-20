@@ -47,7 +47,7 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
     std::string vis_file {dataRootDir + "/mwa/1276619416/imager_stages/1s_ch000/input_visibilities.fits"};
     std::string antennaPositionsFile {""};
     std::string output_dir { is_cpu ? 
-        "/scratch/pawsey1154/cdipietrantonio/test_imager_cpu" : "/scratch/pawsey1154/cdipietrantonio/test_imager_gpu"};
+        "test_imager_cpu/" : "test_imager_gpu/"};
     std::string szWeighting {"N"};
     const int image_size = 256;
     bool bZenithImage {false};
