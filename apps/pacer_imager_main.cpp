@@ -542,6 +542,7 @@ int main(int argc,char* argv[])
   bool bYY=read_corr_matrix( in_basename.c_str(), re_yy, im_yy, gPostfix.c_str(), 3 );
     
   ObservationInfo obsInfo;
+  obsInfo = VCS_OBSERVATION_INFO;
 /*  obsInfo.nAntennas = re.GetXSize();
   obsInfo.nFrequencies = 1;
   obsInfo.nPolarizations = 1;
