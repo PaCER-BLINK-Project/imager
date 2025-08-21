@@ -541,7 +541,7 @@ int main(int argc,char* argv[])
   // try to read YY correlation matrix if possible
   bool bYY=read_corr_matrix( in_basename.c_str(), re_yy, im_yy, gPostfix.c_str(), 3 );
     
-  ObservationInfo obsInfo;
+  ObservationInfo obsInfo{ VCS_OBSERVATION_INFO };
 /*  obsInfo.nAntennas = re.GetXSize();
   obsInfo.nFrequencies = 1;
   obsInfo.nPolarizations = 1;
