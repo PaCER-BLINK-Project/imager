@@ -74,7 +74,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
       unsigned int m_idx = i / n_baselines;
       unsigned int fine_channel = m_idx % n_frequencies;
 
-      double re {0}, im {0};
+      float re {0}, im {0};
 
       if(pol == Polarization::XX){
          re = visibilities[i * 2 * n_pols_prod];
@@ -84,8 +84,8 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
          im = visibilities[i * 2 * n_pols_prod + 7];
       }else {
          // Stokes I
-         re = visibilities[i * 2 * n_pols_prod] + visibilities[i * 2 * n_pols_prod + 6];
-         im = visibilities[i * 2 * n_pols_prod + 1] + visibilities[i * 2 * n_pols_prod + 7];
+         re = (visibilities[i * 2 * n_pols_prod] + visibilities[i * 2 * n_pols_prod + 6]) / 2.0f;
+         im = (visibilities[i * 2 * n_pols_prod + 1] + visibilities[i * 2 * n_pols_prod + 7]) / 2.0f;
       }
       
       unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
