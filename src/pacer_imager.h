@@ -60,6 +60,7 @@ public :
   bool apply_geom_correction {true};
   bool apply_cable_correction {true};
   bool average_images {false};
+  float oversampling_factor {2.0f};
 
    // meta data :
    CObsMetadata m_MetaData;
@@ -87,7 +88,8 @@ public :
    double m_fFrequencyMHz {-1};
    
 
-   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false, Polarization pol_to_image = Polarization::XX);
+   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false,
+      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f);
    
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------

@@ -88,9 +88,11 @@ int CPacerImager::UpdateFlags()
 }
 
 
-CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images, Polarization pol_to_image) {
+CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images,
+        Polarization pol_to_image, float oversampling_factor) {
     this->average_images = average_images;
     this->pol_to_image = pol_to_image;
+    this->oversampling_factor = oversampling_factor;
      // read all information from metadata
     if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
         PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
@@ -527,14 +529,14 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     // be in meters here !!! It may all depend on calculation if
     // u_index see discussion in
     // /home/msok/Desktop/PAWSEY/PaCER/logbook/20240320_gridding_delta_u_meters_vs_wavelengths.odt
-    double delta_u = 2.00 * (u_max) / n_pixels; 
+    double delta_u = oversampling_factor * (u_max) / n_pixels;
 
-    double delta_v = 2.00 * (v_max) / n_pixels; // and it's not ok because then delta_u is different
+    double delta_v = oversampling_factor * (v_max) / n_pixels; // and it's not ok because then delta_u is different
                                              // for both of them, which causes exp/shrink with freq
 
     // automatic calculation of pixel size in radians 1/(2u_max) - see Rick
     // Perley or just Lambda/B_max divide by 2 for oversampling.
-    pixsize_in_radians = 1.00 / (2.00 * u_max); // does this one need to be /wavelength or not ???
+    pixsize_in_radians = 1.00 / (oversampling_factor * u_max); // does this one need to be /wavelength or not ???
 
     // NEW : based on desired image resolution
     // double delta_theta = (wavelength_m/35.0)/2.00; // 2 times oversampled
@@ -559,8 +561,10 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     
     images.ra_deg = m_MetaData.raHrs*15.00;
     images.dec_deg = m_MetaData.decDegs;
-    images.pixscale_ra = (1.00/(2.00*u_max))*(180.00/M_PI); // MAX(u) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2 
-    images.pixscale_dec = (1.00/(2.00*v_max))*(180.00/M_PI); // MAX(v) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2 
+    // MAX(u) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
+    images.pixscale_ra = (1.00/(oversampling_factor*u_max))*(180.00/M_PI);
+    // MAX(v) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
+    images.pixscale_dec = (1.00/(oversampling_factor*v_max))*(180.00/M_PI);
     return images;
 }
 
