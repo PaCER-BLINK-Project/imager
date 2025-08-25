@@ -319,7 +319,7 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
                             }
                         }
 
-                        double re {0}, im {0};
+                        float re {0}, im {0};
                         if(pol_to_image == Polarization::XX){
                             std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
                             re = vis_xx->real();
@@ -332,8 +332,8 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
                             // Stokes I
                             std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
                             std::complex<float> *vis_yy = vis_xx + 3;
-                            re = vis_xx->real() + vis_yy->real();
-                            im = vis_xx->imag() + vis_yy->imag();
+                            re = (vis_xx->real() + vis_yy->real()) / 2.0f;
+                            im = (vis_xx->imag() + vis_yy->imag()) / 2.0f;
                         }
 
                         if (!isnan(re) && !isnan(im))
