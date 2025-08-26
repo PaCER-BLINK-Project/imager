@@ -13,8 +13,9 @@
 
 #include "../utils.h"
 
-CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas, 
-   bool average_images, Polarization pol_to_image) : CPacerImager(metadata_file, flagged_antennas, average_images, pol_to_image) {}
+CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas,
+   bool average_images, Polarization pol_to_image, float oversampling_factor) : CPacerImager(
+      metadata_file, flagged_antennas, average_images, pol_to_image, oversampling_factor) {}
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
    if(!antenna_flags_gpu){
