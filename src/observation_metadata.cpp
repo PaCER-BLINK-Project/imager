@@ -245,9 +245,7 @@ bool CObsMetadata::ReadMetaFitsFile( const char* filename )
          }
       }
 
-      if( !parseKeyword( keyName, keyValueStr ) ){
-         printf("WARNING : could not parse keyword %s\n",keyName);
-      }
+      parseKeyword( keyName, keyValueStr );
    }
 
    correlationType = CObsMetadata::BothCorrelations;
@@ -441,7 +439,6 @@ bool CObsMetadata::parseKeyword( const std::string& keyName, const std::string& 
                  keyName == "FINECHAN" || keyName == "TIMEOFF" )
                 ; // Ignore these fields, they can be derived from others.
         else{
-                printf("Ignored keyword: %s\n",keyName.c_str());
                 return false;
         }
 
@@ -580,7 +577,6 @@ double CObsMetadata::parseFitsDateToMJD(const char* valueStr)
 
 bool CObsMetadata::parseIntArray(const char* valueStr, int* values, size_t count)
 {
-        printf("DEBUG : valueStr = %s , count = %d\n",valueStr,int(count));
         std::string str;
         if( !parseFitsString(valueStr,str) ){
            return false;
