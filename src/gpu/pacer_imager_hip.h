@@ -43,21 +43,17 @@ protected :
    //          - uv_grid_real, uv_grid_imag : visibilities on UV grid (real and imag arrays)
    //          - uv_grid_counter : visibility counter and 
    //-----------------------------------------------------------------------------------------------------------------------------
-   virtual Images gridding_imaging( Visibilities& xcorr, 
-                  double delta_u, double delta_v,
-                  int    n_pixels,
-                  double min_uv=-1000,    // minimum UV 
-                  const char* weighting="");
-
+   virtual void gridding(Visibilities& xcorr);
     // virtual function to NOT DO corrections in CPU but in GPU :
     virtual void ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies);
    
     virtual void ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies);
 
 
-public :
-   CPacerImagerHip(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false,
-      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f);
+public:
+   virtual Images image(ObservationInfo& obsInfo);
+   CPacerImagerHip(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images = false,
+      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv = -1000, const char* weighting = "");
 };
 
 

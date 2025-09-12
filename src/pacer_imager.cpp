@@ -23,6 +23,7 @@
 #include <fstream>
 #include <omp.h>
 
+#include "utils.h"
 
 namespace {
     int calc_fft_shift(int pos, int side){
@@ -88,11 +89,14 @@ int CPacerImager::UpdateFlags()
 }
 
 
-CPacerImager::CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images,
-        Polarization pol_to_image, float oversampling_factor) {
+CPacerImager::CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images,
+        Polarization pol_to_image, float oversampling_factor, double min_uv, const char* weighting) {
     this->average_images = average_images;
     this->pol_to_image = pol_to_image;
     this->oversampling_factor = oversampling_factor;
+    this->min_uv = min_uv;
+    this->weighting = weighting;
+    this->n_pixels = n_pixels;
      // read all information from metadata
     if (metadata_file.length() > 0 && MyFile::DoesFileExist(metadata_file.c_str())) {
         PRINTF_INFO("INFO : reading meta data from file %s\n", metadata_file.c_str());
@@ -128,15 +132,15 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
-void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters,
-    int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer) {
-
+Images CPacerImager::image(ObservationInfo& obsInfo) {
+    if(!grids_counters || !grids) throw std::runtime_error {"Grids are not initialised and cannot be imaged."};
+    size_t buffer_size {n_pixels * n_pixels * n_gridded_intervals * n_gridded_channels};
+    MemoryBuffer<std::complex<float>> images_buffer {buffer_size};
+    PRINTF_INFO("PROGRESS : executing dirty image\n");
     // TODO CRISTIAN: add check for overflows!
-    int width = grid_side;
-    int height = grid_side;
-    int grid_size = grid_side * grid_side;
-    int n_images = n_frequencies * n_integration_intervals;
-    const int n[2] {height, width};
+    int grid_size = n_pixels * n_pixels;
+    int n_images = n_gridded_channels * n_gridded_intervals;
+    const int n[2] {n_pixels, n_pixels};
 
     auto tstart = std::chrono::steady_clock::now();
     fftwf_init_threads();
@@ -149,14 +153,14 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryB
     fftwf_cleanup_threads();
     //images_buffer.dump("images_after_fft.bin");
     #pragma omp parallel for collapse(2) schedule(static)
-    for (size_t time_step = 0; time_step < n_integration_intervals; time_step++)
+    for (size_t time_step = 0; time_step < n_gridded_intervals; time_step++)
     {
-        for (size_t fine_channel = 0; fine_channel < n_frequencies; fine_channel++)
+        for (size_t fine_channel = 0; fine_channel < n_gridded_channels; fine_channel++)
         {
-            std::complex<float>* current_grid = grids.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
-            std::complex<float>* current_image = images_buffer.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_grid = grids.data() + time_step * n_gridded_channels * grid_size + fine_channel * grid_size;
+            std::complex<float>* current_image = images_buffer.data() + time_step * n_gridded_channels * grid_size + fine_channel * grid_size;
             
-            float* current_counter = grids_counters.data() + time_step * n_frequencies * grid_size + fine_channel * grid_size;
+            float* current_counter = grids_counters.data() + time_step * n_gridded_channels * grid_size + fine_channel * grid_size;
            
             // WARNING : this is image in l,m = cos(alpha), cos(beta) coordinates and
             // still needs to go to SKY COORDINATES !!!
@@ -170,21 +174,34 @@ void CPacerImager::dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryB
             // /home/msok/mwa_software/RTS_128t/src/newgridder.cu
             // SumVisibilityWeights and gridKernel.c:650 also
             // read TMS (Thomson, Moran, Swenson) about this
-            PRINTF_DEBUG("DEBUG : size = %d (%d x %d), fnorm = %e (counter sum = %.8f)\n", grid_size, width, height, fnorm, counter_sum);
             for (size_t i = 0; i < grid_size; i++) current_image[i] *= fnorm;
-            fft_shift(current_image, grid_side, grid_side);
+            fft_shift(current_image, n_pixels, n_pixels);
         }
     }
-
-    //images_buffer.dump("images_after_shift.bin");
 
     auto tstop = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(tstop - tstart).count();
     std::cout << "Imaging took " << duration << "s" << std::endl;
+    // Clear gridding buffers, reading for the next gridding round
+    memset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
+    memset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
     // TODO : re-grid to SKY COORDINATES !!!
     // convert cos(alpha) to alpha - see notes !!!
     // how to do it ???
+    Images images {std::move(images_buffer), obsInfo, static_cast<unsigned int>(n_gridded_intervals),
+        static_cast<unsigned int>(n_gridded_channels), static_cast<unsigned int>(n_pixels)};
 
+    images.ra_deg = m_MetaData.raHrs*15.00;
+    images.dec_deg = m_MetaData.decDegs;
+    // MAX(u) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
+    images.pixscale_ra = (1.00/(oversampling_factor*u_max))*(180.00/M_PI);
+    // MAX(v) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
+    images.pixscale_dec = (1.00/(oversampling_factor*v_max))*(180.00/M_PI);
+     if(average_images){
+          return image_averaging_cpu(images);
+     }else{
+          return images;
+     }
 }
 
 bool CPacerImager::CalculateUVW(){
@@ -225,12 +242,18 @@ inline int wrap_index(int i, int side){
     else return (side + i);
 }
 
-void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<float>> &grids,
-                                 MemoryBuffer<float> &grids_counters, double delta_u, double delta_v, int n_pixels,
-                                 double min_uv /*=-1000*/,
-                                 const char *weighting) {
+void CPacerImager::gridding(Visibilities &xcorr) {
     PRINTF_DEBUG("DEBUG : gridding : min_uv = %.4f\n", min_uv);
-
+    size_t buffer_size {n_pixels * n_pixels * n_gridded_intervals * n_gridded_channels};
+    if(!grids_counters){
+        grids_counters.allocate(buffer_size);
+        memset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
+    }
+    if(!grids){
+        grids.allocate(buffer_size);
+        memset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
+    }
+    // TODO: check: should the following be here?
     bool bStatisticsCalculated = false;
     if (m_bPrintImageStatistics)
     { // TODO : ? may require a separate flag in the
@@ -254,8 +277,6 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
 
         bStatisticsCalculated = true;
     }
-    memset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
-    memset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
     int grid_size = n_pixels * n_pixels;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
@@ -453,33 +474,18 @@ void CPacerImager::gridding_fast(Visibilities &xcorr, MemoryBuffer<std::complex<
     }
 }
 
-Images CPacerImager::gridding_imaging(Visibilities &xcorr, double delta_u, double delta_v, int n_pixels, double min_uv, const char *weighting) {
-    printf("DEBUG : gridding_imaging( Visibilities& xcorr ) in pacer_imager.cpp\n");
-    // allocates data structures for gridded visibilities:
-    if(xcorr.on_gpu()) xcorr.to_cpu();
-    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
-    size_t buffer_size{n_pixels * n_pixels * n_images};
-    if(!grids_counters) grids_counters.allocate(buffer_size);
-    if(!grids) grids.allocate(buffer_size);
-    // Should be long long int, but keeping float now for compatibility reasons
-    gridding_fast(xcorr, grids, grids_counters, delta_u, delta_v, n_pixels, min_uv, weighting);
-
-    MemoryBuffer<std::complex<float>> images_buffer_float(buffer_size, false, false);
-    PRINTF_INFO("PROGRESS : executing dirty image\n");
-    dirty_image(grids, grids_counters, n_pixels, xcorr.integration_intervals(), xcorr.nFrequencies, images_buffer_float);
-    return {std::move(images_buffer_float), xcorr.obsInfo, xcorr.nIntegrationSteps, xcorr.nAveragedChannels, static_cast<unsigned int>(n_pixels)};
-}
-
 
 /** 
     @brief run the imager
     
     @param xcorr: Visibilities to be imaged.
-    @param n_pixels: Image side size.
-    @param min_uv: mimimum UV length (what unit??)
-    @param weighting: U for uniform or N for natural.
 */
-Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv, const char *weighting){
+Images CPacerImager::run(Visibilities &xcorr){
+    grid(xcorr);
+    return image(xcorr.obsInfo);
+}
+
+void CPacerImager::grid(Visibilities& xcorr){
     // TODO: verify that the following function call can be safely removed.
     m_MetaData.fix_metafits(CObsMetadata::ux2gps(xcorr.obsInfo.startTime), 1.0);
 
@@ -529,9 +535,11 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
     // be in meters here !!! It may all depend on calculation if
     // u_index see discussion in
     // /home/msok/Desktop/PAWSEY/PaCER/logbook/20240320_gridding_delta_u_meters_vs_wavelengths.odt
-    double delta_u = oversampling_factor * (u_max) / n_pixels;
+    n_gridded_intervals = xcorr.integration_intervals();
+    n_gridded_channels = xcorr.nFrequencies;
+    delta_u = oversampling_factor * (u_max) / n_pixels;
 
-    double delta_v = oversampling_factor * (v_max) / n_pixels; // and it's not ok because then delta_u is different
+    delta_v = oversampling_factor * (v_max) / n_pixels; // and it's not ok because then delta_u is different
                                              // for both of them, which causes exp/shrink with freq
 
     // automatic calculation of pixel size in radians 1/(2u_max) - see Rick
@@ -557,15 +565,7 @@ Images CPacerImager::run_imager(Visibilities &xcorr, int n_pixels, double min_uv
 
     // virtual function calls gridding and imaging in GPU/HIP version it is
     // overwritten and both gridding and imaging are performed on GPU memory :
-    auto images = gridding_imaging(xcorr, delta_u, delta_v, n_pixels, min_uv, weighting);
-    
-    images.ra_deg = m_MetaData.raHrs*15.00;
-    images.dec_deg = m_MetaData.decDegs;
-    // MAX(u) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
-    images.pixscale_ra = (1.00/(oversampling_factor*u_max))*(180.00/M_PI);
-    // MAX(v) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
-    images.pixscale_dec = (1.00/(oversampling_factor*v_max))*(180.00/M_PI);
-    return images;
+    gridding(xcorr);
 }
 
 double CPacerImager::get_frequency_hz(const Visibilities &vis, int fine_channel, bool cotter_compatible)

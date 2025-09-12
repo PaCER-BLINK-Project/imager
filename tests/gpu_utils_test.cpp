@@ -107,7 +107,7 @@ void test_averaging_kernel(){
     }
     for(int i {0}; i < n_pixels; i++) reference_avg_data[i] /= n_images;
     input_images_data.to_gpu();
-    Images input_images  {std::move(input_images_data), VCS_OBSERVATION_INFO, VCS_OBSERVATION_INFO.nTimesteps, VCS_OBSERVATION_INFO.nFrequencies / n_images, image_side};
+    Images input_images  {std::move(input_images_data), VCS_OBSERVATION_INFO, 2, 2, image_side};
     Images avg_image = image_averaging_gpu(input_images);
     std::cerr << "Invocation over." << std::endl;
     avg_image.to_cpu();

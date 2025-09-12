@@ -129,17 +129,13 @@ void gridding_gpu(const Visibilities& xcorr,
       double delta_u, double delta_v,
       int n_pixels, double min_uv, Polarization pol, MemoryBuffer<float>& grids_counters,
       MemoryBuffer<std::complex<float>>& grids){
-  std::cout << "Running 'gridding' on GPU.." << std::endl;
 
   int n_ant = xcorr.obsInfo.nAntennas;
   int image_size {n_pixels * n_pixels}; 
 
    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
-   
-   gpuMemset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
-   gpuMemset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
-   
+      
    int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
    struct gpuDeviceProp_t props;
    int gpu_id = -1;
@@ -150,4 +146,5 @@ void gridding_gpu(const Visibilities& xcorr,
       n_ant, u_gpu.data(), v_gpu.data(), antenna_flags.data(), antenna_weights.data(), frequencies.data(), image_size,
       delta_u, delta_v, n_pixels, grids_counters.data(), min_uv, pol, (gpufftComplex*) grids.data());
    gpuGetLastError();
+   gpuDeviceSynchronize();
 }

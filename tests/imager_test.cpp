@@ -48,32 +48,33 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
     std::string antennaPositionsFile {""};
     std::string output_dir { is_cpu ? 
         "test_imager_cpu/" : "test_imager_gpu/"};
-    std::string szWeighting {"N"};
-    const int image_size = 256;
-    bool bZenithImage {false};
-    double fUnixTime {1592584200};
-    double MinUV = -1000;
-    double FOV_degrees = 30;
 
    ObservationInfo obs_info {VCS_OBSERVATION_INFO};
    auto xcorr = Visibilities::from_fits_file(vis_file, obs_info);
-   auto images = imager.run_imager(xcorr,image_size, MinUV, szWeighting.c_str());
+   if(!is_cpu) xcorr.to_gpu();
+   auto images = imager.run(xcorr);
    std::cout << "Saving images to disk..." << std::endl;
    images.to_fits_files(output_dir);
 }
 
 void test_imager_cpu(){
+    std::string szWeighting {"N"};
+    const int image_size = 256;
+    double MinUV = -1000;
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
-    CPacerImager imager {metadataFile, flagged_antennas};
+    CPacerImager imager {metadataFile, image_size, flagged_antennas, false, Polarization::XX, 2.0f, MinUV, szWeighting.c_str()};
     test_imager_common(imager, true);
 }
 
 #ifdef __GPU__
 void test_imager_gpu(){
+    std::string szWeighting {"N"};
+    const int image_size = 256;
+    double MinUV = -1000;
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
-    CPacerImagerHip imager {metadataFile, flagged_antennas};
+    CPacerImagerHip imager {metadataFile, image_size, flagged_antennas, false, Polarization::XX, 2.0f, MinUV, szWeighting.c_str()};
     test_imager_common(imager, false);
 }
 #endif
