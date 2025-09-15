@@ -17,7 +17,8 @@ Images image_averaging_cpu(const Images& images){
     for(size_t i {0}; i < image_size; i++){
         avg_image[i].real(avg_image[i].real() / static_cast<float>(n_images));
     }
-   return {std::move(avg_image), images.obsInfo, 1, 1, images.side_size};
+   return {std::move(avg_image), images.obsInfo, 1, 1, images.side_size, 
+    images.ra_deg, images.dec_deg, images.pixscale_ra, images.pixscale_dec};
 }
 
 

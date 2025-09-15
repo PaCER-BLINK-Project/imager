@@ -157,5 +157,5 @@ __global__ void averaging_kernel(const Complex<float> *data, size_t n_pixels, si
    unsigned int n_blocks {static_cast<unsigned int>((image_size + NTHREADS - 1) / NTHREADS)};
    averaging_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const Complex<float>*>(images.data()), image_size, n_images, reinterpret_cast<Complex<float>*>(avg_image.data()));
    gpuCheckLastError();
-   return {std::move(avg_image), images.obsInfo, 1, 1, images.side_size};
+   return {std::move(avg_image), images.obsInfo, 1, 1, images.side_size, images.ra_deg, images.dec_deg, images.pixscale_ra, images.pixscale_dec};
  }

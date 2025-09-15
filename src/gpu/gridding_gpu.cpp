@@ -136,7 +136,7 @@ void gridding_gpu(const Visibilities& xcorr,
    size_t n_images {xcorr.integration_intervals() * xcorr.nFrequencies};
    size_t buffer_size {image_size * n_images};
       
-   int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
+   int n_baselines = ((xcorr.obsInfo.nAntennas + 1) * xcorr.obsInfo.nAntennas) / 2;
    struct gpuDeviceProp_t props;
    int gpu_id = -1;
    gpuGetDevice(&gpu_id);

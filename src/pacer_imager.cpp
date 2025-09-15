@@ -132,7 +132,7 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 
 // Based on example :
 // https://github.com/AccelerateHS/accelerate-examples/blob/master/examples/fft/src-fftw/FFTW.c
-Images CPacerImager::image(ObservationInfo& obsInfo) {
+Images CPacerImager::image(ObservationInfo& obs_info) {
     if(!grids_counters || !grids) throw std::runtime_error {"Grids are not initialised and cannot be imaged."};
     size_t buffer_size {n_pixels * n_pixels * n_gridded_intervals * n_gridded_channels};
     MemoryBuffer<std::complex<float>> images_buffer {buffer_size};
@@ -188,15 +188,17 @@ Images CPacerImager::image(ObservationInfo& obsInfo) {
     // TODO : re-grid to SKY COORDINATES !!!
     // convert cos(alpha) to alpha - see notes !!!
     // how to do it ???
-    Images images {std::move(images_buffer), obsInfo, static_cast<unsigned int>(n_gridded_intervals),
-        static_cast<unsigned int>(n_gridded_channels), static_cast<unsigned int>(n_pixels)};
-
-    images.ra_deg = m_MetaData.raHrs*15.00;
-    images.dec_deg = m_MetaData.decDegs;
+    double ra_deg = m_MetaData.raHrs*15.00;
+     double dec_deg = m_MetaData.decDegs;
     // MAX(u) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
-    images.pixscale_ra = (1.00/(oversampling_factor*u_max))*(180.00/M_PI);
+    double pixscale_ra = (1.00/(oversampling_factor*u_max))*(180.00/M_PI);
     // MAX(v) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
-    images.pixscale_dec = (1.00/(oversampling_factor*v_max))*(180.00/M_PI);
+    double pixscale_dec = (1.00/(oversampling_factor*v_max))*(180.00/M_PI);
+
+     Images images {std::move(images_buffer), obs_info,static_cast<unsigned int>(n_gridded_intervals), 
+        static_cast<unsigned int>(n_gridded_channels), static_cast<unsigned int>(n_pixels),
+         ra_deg, dec_deg, pixscale_ra, pixscale_dec};
+    
      if(average_images){
           return image_averaging_cpu(images);
      }else{
@@ -554,7 +556,7 @@ void CPacerImager::grid(Visibilities& xcorr){
     // MWA TEST
     //     delta_u = 1.00/(n_pixels*delta_theta);
     //     delta_v = 1.00/(n_pixels*delta_theta);
-    PRINTF_DEBUG("delta_u = %.8f (u_max = %.8f), delta_v = %.8f (v_max = %.8f), "
+    printf("delta_u = %.8f (u_max = %.8f), delta_v = %.8f (v_max = %.8f), "
                     "calculated as 1/FoV = 1/(%d pixels * %.5f rad), delta_theta = %.5f "
                     "[deg]\n",
                     delta_u, u_max, delta_v, v_max, n_pixels, pixsize_in_radians, pixsize_in_radians * (180.00 / M_PI));

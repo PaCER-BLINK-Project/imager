@@ -111,16 +111,18 @@ Images CPacerImagerHip::image(ObservationInfo& obs_info){
      // reset grids for the next round of imaging
      gpuMemset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
      gpuMemset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
-   
-     Images images {std::move(images_buffer), obs_info,static_cast<unsigned int>(n_gridded_intervals), 
-        static_cast<unsigned int>(n_gridded_channels), static_cast<unsigned int>(n_pixels)};
-     
-    images.ra_deg = m_MetaData.raHrs*15.00;
-    images.dec_deg = m_MetaData.decDegs;
+
+     double ra_deg = m_MetaData.raHrs*15.00;
+     double dec_deg = m_MetaData.decDegs;
     // MAX(u) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
-    images.pixscale_ra = (1.00/(oversampling_factor*u_max))*(180.00/M_PI);
+    double pixscale_ra = (1.00/(oversampling_factor*u_max))*(180.00/M_PI);
     // MAX(v) , pixscale in degrees is later used in WCS FITS keywords CDELT1,2
-    images.pixscale_dec = (1.00/(oversampling_factor*v_max))*(180.00/M_PI);
+    double pixscale_dec = (1.00/(oversampling_factor*v_max))*(180.00/M_PI);
+
+     Images images {std::move(images_buffer), obs_info,static_cast<unsigned int>(n_gridded_intervals), 
+        static_cast<unsigned int>(n_gridded_channels), static_cast<unsigned int>(n_pixels),
+         ra_deg, dec_deg, pixscale_ra, pixscale_dec};
+     
      if(average_images){
           return image_averaging_gpu(images);
      }else{
