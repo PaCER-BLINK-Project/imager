@@ -510,7 +510,7 @@ int main(int argc,char* argv[])
   CPacerImagerHip imager;   
 #else
   printf("DEBUG0 : pol_to_image = %d\n", int(gImagerParameters.pol_to_image) );
-  CPacerImager imager( gImagerParameters.m_MetaDataFile.c_str(), gFlaggedAntennasList, false, gImagerParameters.pol_to_image ) ;
+  CPacerImager imager( gImagerParameters.m_MetaDataFile.c_str(), gImageSize, gFlaggedAntennasList, false, gImagerParameters.pol_to_image ) ;
 #endif  
   
   gImagerParameters.SetGlobalParameters( gAntennaPositionsFile.c_str(), (gZenithImage) ); // Constant UVW when zenith image (-Z)
@@ -574,7 +574,7 @@ int main(int argc,char* argv[])
      
      imager.m_nConvolvingKernelSize = gImagerParameters.m_nConvolvingKernelSize;
      imager.m_fFrequencyMHz = gFrequencyMHz;
-     Images image = imager.run_imager( (*xcorr), gImageSize, -1000, "" );
+     Images image = imager.run( (*xcorr));
      image.to_fits_files( gOutputDirectory.c_str() );
   
 /*       imager.run_imager( in_basename.c_str(),  gPostfix.c_str(), 

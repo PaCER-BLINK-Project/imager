@@ -30,11 +30,13 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 class CPacerImager {
 
 protected:
-MemoryBuffer<double> cable_lengths;
-    MemoryBuffer<double> frequencies;
-    MemoryBuffer<float> grids_counters;
-    MemoryBuffer<std::complex<float>> grids;
-    MemoryBuffer<float> u_cpu;
+   MemoryBuffer<double> cable_lengths;
+   MemoryBuffer<double> frequencies;
+   MemoryBuffer<float> grids_counters;
+   MemoryBuffer<std::complex<float>> grids;
+   size_t n_gridded_channels {0};
+   size_t n_gridded_intervals {0};
+   MemoryBuffer<float> u_cpu;
    MemoryBuffer<float> v_cpu;
    MemoryBuffer<float> w_cpu;
 
@@ -69,27 +71,30 @@ public :
    vector<int> m_FlaggedAntennas;
    
    // UVW for SKA-Low station zenith phase-centered all-sky imaging :
-   double u_min, u_max;
-   double v_min, v_max;
-   double w_min, w_max;
+   double u_min {0}, u_max {0};
+   double v_min {0}, v_max {0};
+   double w_min {0}, w_max {0};
+   double delta_u {0}, delta_v {0};
 
    int m_Baselines;
-   
+   int n_pixels;
+   double min_uv {-1000};
+   const char *weighting = "";
    // MemoryBuffer<double> frequencies;
    
    // values calculated for the current image :
-   double m_PixscaleAtZenith;
-   double pixsize_in_radians;
+   double m_PixscaleAtZenith {0};
+   double pixsize_in_radians {0};
    
-   Polarization pol_to_image;
+   Polarization pol_to_image {Polarization::XX};
    // TEMPORARY SOLUTION for imaging single frequency:
    // single frequency testing so that it is possible to pass frequency externally and do not calculate from channel (one channel per freq)
    // TODO : later use array of frequencies in MHz instead of channels to avoid calculation of frequency inside imager (get list as parameter)
    double m_fFrequencyMHz {-1};
    
 
-   CPacerImager(const std::string metadata_file, const std::vector<int>& flagged_antennas, bool average_images = false,
-      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f);
+   CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images = false,
+      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv=-1000, const char* weighting="");
    
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------
@@ -112,60 +117,17 @@ public :
    // U,V,W are calculated in meters (not wavelengths) -> have to be divided later by wavelength
    //-----------------------------------------------------------------------------------------------------------------------------
    bool CalculateUVW();
-   
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // 1st version producing a dirty image (tested on both MWA and SKA-Low).
-   // TODO : Test cases can be found in PaCER documentation 
-   //-----------------------------------------------------------------------------------------------------------------------------
-   void dirty_image(MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters,
-     int grid_side, int n_integration_intervals, int n_frequencies, MemoryBuffer<std::complex<float>>& images_buffer);
 
-   
-   //-----------------------------------------------------------------------------------------------------------------------------
-   // 
-   // GOAL   : fast version of gridding code which does not require fft_unshift
-   //
-   // INPUT  : 
-   //          fits_vis_real, fits_vis_imag : visibilities (REAL and IMAG 2D arrays as FITS class) 
-   //          fits_vis_u, fits_vis_v, fits_vis_w : UVW (real values baselines in units of wavelength - see TMS)
-   //          delta_u, delta_v : size of the UV cell 
-   //          frequency_mhz : frequency in MHz
-   //
-   // OUTPUT : 
-   //          - uv_grid_real, uv_grid_imag : visibilities on UV grid (real and imag arrays)
-   //          - uv_grid_counter : visibility counter and 
-   //-----------------------------------------------------------------------------------------------------------------------------
-
-
-   // same as above 
-   // TODO : only use the new one gridding_fast( Visibilities& xcorr, ... ) and use ConvertFits2XCorr in gridding_fast( CBgFits& fits_vis_real, CBgFits& fits_vis_imag, ... ) to
-   //        call this one :
-   void gridding_fast( Visibilities& xcorr,
-                  MemoryBuffer<std::complex<float>>& grids, MemoryBuffer<float>& grids_counters, double delta_u, double delta_v,
-                  int    n_pixels,
-                  double min_uv=-1000,    // minimum UV 
-                  const char* weighting="" // weighting : U for uniform (others not implemented)
-                );
-
-   
-   // same as above but using AstroIO Visibility as input
-   // TODO : at some point this one should stay and the other one should be a wrapper using ConvertFits2XCorr and calling this one:
-   virtual Images gridding_imaging( Visibilities& xcorr,               
-                  double delta_u, double delta_v,
-                  int    n_pixels,
-                  double min_uv=-1000,    // minimum UV 
-                  const char* weighting="");
-
+   virtual void gridding(Visibilities& xcorr);
 
 /** 
-    @brief run the imager
+    @brief run gridding + fft to produce an image.
     
     @param xcorr: Visibilities to be imaged.
-    @param n_pixels: Image side size.
-    @param min_uv: mimimum UV length (what unit??)
-    @param weighting: U for uniform or N for natural.
 */
-   Images run_imager( Visibilities& xcorr, int n_pixels, double min_uv=-1000, const char* weighting="");
+   Images run(Visibilities& xcorr);
+   void grid(Visibilities& xcorr);
+   virtual Images image(ObservationInfo& obsInfo);
 
 
    //-----------------------------------------------------------------------------------------------------------------------------

@@ -76,7 +76,7 @@ void apply_cable_lengths_corrections_gpu(Visibilities &xcorr, MemoryBuffer<doubl
    if(!xcorr.on_gpu()) xcorr.to_gpu();
    cable_lengths.to_gpu();
    frequencies.to_gpu();
-   int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
+   int n_baselines = ((xcorr.obsInfo.nAntennas + 1) * xcorr.obsInfo.nAntennas) / 2;
    struct gpuDeviceProp_t props;
    int gpu_id = -1;
    gpuGetDevice(&gpu_id);
@@ -90,7 +90,7 @@ void apply_cable_lengths_corrections_gpu(Visibilities &xcorr, MemoryBuffer<doubl
 void apply_geometric_corrections_gpu(Visibilities &xcorr, float *w_gpu, MemoryBuffer<double>& frequencies){
    xcorr.to_gpu();
    frequencies.to_gpu();
-   int n_baselines = (xcorr.obsInfo.nAntennas + 1) * (xcorr.obsInfo.nAntennas / 2);
+   int n_baselines = ((xcorr.obsInfo.nAntennas + 1) * xcorr.obsInfo.nAntennas) / 2;
    struct gpuDeviceProp_t props;
    int gpu_id = -1;
    gpuGetDevice(&gpu_id);
