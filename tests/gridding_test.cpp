@@ -37,8 +37,8 @@ void test_gridding_gpu(){
 
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size {n_pixels * n_pixels * n_images};
-    MemoryBuffer<float> grids_counters(buffer_size, true);
-    MemoryBuffer<std::complex<float>> grids(buffer_size,  true);
+    MemoryBuffer<float> grids_counters(buffer_size, MemoryType::DEVICE);
+    MemoryBuffer<std::complex<float>> grids(buffer_size,  MemoryType::DEVICE);
     gpuMemset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
     gpuMemset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
     gridding_gpu(xcorr, u_buff, v_buff, antenna_flags, antenna_weights, frequencies,

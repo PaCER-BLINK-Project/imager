@@ -153,7 +153,7 @@ __global__ void averaging_kernel(const Complex<float> *data, size_t n_pixels, si
  Images image_averaging_gpu(const Images& images){
    size_t image_size = images.image_size();
    size_t n_images = images.size();
-   MemoryBuffer<std::complex<float>> avg_image {image_size, true};
+   MemoryBuffer<std::complex<float>> avg_image {image_size, MemoryType::DEVICE};
    unsigned int n_blocks {static_cast<unsigned int>((image_size + NTHREADS - 1) / NTHREADS)};
    averaging_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const Complex<float>*>(images.data()), image_size, n_images, reinterpret_cast<Complex<float>*>(avg_image.data()));
    gpuCheckLastError();

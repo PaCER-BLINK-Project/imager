@@ -50,21 +50,21 @@ void CPacerImagerHip::gridding(Visibilities& xcorr){
   // update antenna flags before gridding which uses these flags or weights:
   UpdateAntennaFlags( n_ant );
   if(!u_gpu) {
-      u_gpu.allocate(xySize, true);
-      v_gpu.allocate(xySize, true);
+      u_gpu.allocate(xySize, MemoryType::DEVICE);
+      v_gpu.allocate(xySize, MemoryType::DEVICE);
    }
    gpuMemcpy(u_gpu.data(),  u_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
    gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
 
    if(!grids_counters) {
-      grids_counters.allocate(image_size * xcorr.nFrequencies, true);
+      grids_counters.allocate(image_size * xcorr.nFrequencies, MemoryType::DEVICE);
       gpuMemset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
    }
    if(!grids) {
-      grids.allocate(buffer_size, true);
+      grids.allocate(buffer_size, MemoryType::DEVICE);
       gpuMemset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
    }
-   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
+   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, MemoryType::DEVICE);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    
 
@@ -80,7 +80,7 @@ Images CPacerImagerHip::image(ObservationInfo& obs_info){
    size_t n_images {n_gridded_channels * n_gridded_intervals};
    size_t buffer_size {image_size * n_images};
 
-   MemoryBuffer<std::complex<float>> images_buffer(buffer_size, true);
+   MemoryBuffer<std::complex<float>> images_buffer(buffer_size, MemoryType::DEVICE);
    gpuEvent_t start, stop;
    gpuEventCreate(&start);
    gpuEventCreate(&stop);
@@ -105,7 +105,7 @@ Images CPacerImagerHip::image(ObservationInfo& obs_info){
     gpuEventDestroy(start);
      gpuEventDestroy(stop);
      
-     if(!fnorm) fnorm.allocate(n_gridded_channels, true);
+     if(!fnorm) fnorm.allocate(n_gridded_channels, MemoryType::DEVICE);
      vector_sum_gpu(grids_counters.data(), image_size, n_gridded_channels, fnorm);
      fft_shift_and_norm_gpu( (gpufftComplex*) images_buffer.data(), n_pixels, n_pixels, n_images, fnorm );
      // reset grids for the next round of imaging
@@ -133,18 +133,18 @@ Images CPacerImagerHip::image(ObservationInfo& obs_info){
 
 
 void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies){
-   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
+   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, MemoryType::DEVICE);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
     // TODO: improve the following
-   if(!w_gpu) w_gpu.allocate(xySize, true);
+   if(!w_gpu) w_gpu.allocate(xySize, MemoryType::DEVICE);
    gpuMemcpy(w_gpu.data(), w_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies_gpu);
 }
 
 
 void CPacerImagerHip::ApplyCableCorrections(Visibilities& xcorr, MemoryBuffer<double>& cable_lengths, MemoryBuffer<double>& frequencies){
-    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, true);
+    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, MemoryType::DEVICE);
     gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice); 
     apply_cable_lengths_corrections_gpu(xcorr, cable_lengths, frequencies_gpu);
 }

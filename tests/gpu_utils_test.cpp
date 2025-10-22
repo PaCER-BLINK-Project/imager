@@ -38,7 +38,7 @@ void test_vector_sum(){
     float* data_gpu;
     gpuMalloc(&data_gpu, sizeof(float) * n_images * image_size);
     gpuMemcpy(data_gpu, data_cpu, sizeof(float) * n_images * image_size, gpuMemcpyHostToDevice);
-    MemoryBuffer<float> results {n_images, true};
+    MemoryBuffer<float> results {n_images, MemoryType::DEVICE};
     vector_sum_gpu(data_gpu, image_size, n_images, results);
     results.to_cpu();
     // check the values
@@ -69,9 +69,9 @@ void test_fft_shift_and_norm(){
         {3, 0}, {2, 0}, {1, 0}, {0, 0}
     
     };
-    MemoryBuffer<std::complex<float>> input_gpu {12, false, false};
+    MemoryBuffer<std::complex<float>> input_gpu {12};
     for(int i {0}; i < 12; i++) input_gpu[i] = input_cpx_one[i];
-    MemoryBuffer<float> fnorm {3, false, false};
+    MemoryBuffer<float> fnorm {3};
     fnorm[0] = 1;
     fnorm[1] = 1;
     fnorm[2] = 1;
