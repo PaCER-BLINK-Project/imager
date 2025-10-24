@@ -143,14 +143,18 @@ Images CPacerImager::image(ObservationInfo& obs_info) {
     const int n[2] {n_pixels, n_pixels};
 
     auto tstart = std::chrono::steady_clock::now();
+    #ifdef _OPENMP
     fftwf_init_threads();
     std::cout << "dirty_image: n threads used = " << omp_get_max_threads() << std::endl;
     fftwf_plan_with_nthreads(omp_get_max_threads());
+    #endif
     fftwf_plan pFwd = fftwf_plan_many_dft(2, n, n_images, reinterpret_cast<fftwf_complex*>(grids.data()), NULL,
         1, grid_size, reinterpret_cast<fftwf_complex*>(images_buffer.data()), NULL, 1, grid_size, FFTW_BACKWARD, FFTW_ESTIMATE);
     fftwf_execute(pFwd);
     fftwf_destroy_plan(pFwd);
+    #ifdef _OPENMP
     fftwf_cleanup_threads();
+    #endif
     //images_buffer.dump("images_after_fft.bin");
     #pragma omp parallel for collapse(2) schedule(static)
     for (size_t time_step = 0; time_step < n_gridded_intervals; time_step++)
