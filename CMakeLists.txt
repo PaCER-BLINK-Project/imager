@@ -6,7 +6,7 @@
 cmake_minimum_required(VERSION 3.10.0)
 project(imaging VERSION 0.1 LANGUAGES CXX)
 include(CTest)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 option(USE_HIP "Enable the GPU acceleration for AMD GPUs." OFF)
 option(USE_CUDA "Enable the GPU acceleration for NVIDIA GPUs." OFF)
