@@ -123,6 +123,10 @@ add_executable(imager_test tests/imager_test.cpp)
 target_link_libraries(imager_test imaging)
 add_test(NAME imager_test COMMAND imager_test)
 
+add_executable(conv_test tests/conv_test.cpp)
+target_link_libraries(conv_test imaging)
+add_test(NAME conv_test COMMAND conv_test)
+
 add_executable(corrections_test tests/corrections_test.cpp)
 target_link_libraries(corrections_test imaging)
 add_test(NAME corrections_test COMMAND corrections_test)
