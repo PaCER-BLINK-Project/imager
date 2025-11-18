@@ -47,6 +47,7 @@ void test_imager_cpu(){
 
 #ifdef __GPU__
 void test_imager_gpu(){
+    std::cout << "This is a test with Nathan !!!!!!!!." << std::endl;
     std::string szWeighting {"N"};
     const int image_size = 512;
     double MinUV = -1000;

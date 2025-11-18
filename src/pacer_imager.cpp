@@ -318,10 +318,14 @@ void CPacerImager::gridding(Visibilities &xcorr) {
 
             int n_ant = xcorr.obsInfo.nAntennas;
             int added = 0, high_value = 0;
-            for (int ant1 = 0; ant1 < n_ant; ant1++)
-            {
-                for (int ant2 = 0; ant2 <= ant1; ant2++)
-                {
+            const unsigned int n_baselines = static_cast<unsigned int>( (n_ant * (n_ant + 1)) / 2 );
+
+
+            
+            for(unsigned int baseline = 0; baseline < n_baselines; baseline++){
+                unsigned int ant1 {static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2*baseline))};
+                unsigned int ant2 {baseline - ((ant1 + 1) * ant1)/2};
+
                     if (ant1 > ant2 || (m_bIncludeAutos && ant1 == ant2))
                     { // was ant1 > ant2
                         if (m_MetaData.m_AntennaPositions.size() > 0)
@@ -347,7 +351,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                 }
                             }
                         }
-
+            
                         float re {0}, im {0};
                         if(pol_to_image == Polarization::XX){
                             std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
@@ -364,14 +368,14 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                             re = (vis_xx->real() + vis_yy->real()) / 2.0f;
                             im = (vis_xx->imag() + vis_yy->imag()) / 2.0f;
                         }
-
+            
                         if (!isnan(re) && !isnan(im))
                         {
                             if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
                             {
                                 // TODO convert [m] -> wavelength
                                 double u = u_cpu[ant1 * n_ant + ant2] / wavelength_m;
-
+            
                                 // 2022-09-24 : - removed for a test on MWA data
                                 // 2022-09-09 - for now sticking to - sign here to have back
                                 // comatible test EDA2 data
@@ -389,7 +393,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                                          // both EDA2 and MWA
                                
                                 double uv_distance = sqrt(u * u + v * v);
-
+            
                                 /* this is in WSCLEAN, but here seems to have no effect ...
                                                  if (w < 0.0 ) { // && !_isComplex
                                                     u = -u;
@@ -398,7 +402,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                                     im = -im;
                                                  }
                                 */
-
+            
                                 if (ant1 == ant2)
                                 {
                                     PRINTF_DEBUG("Auto-correlation debug2 values %.4f / %.4f , "
@@ -406,17 +410,17 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                                  "%.8f , wavelength_m = %.8f [m])\n",
                                                  re, im, uv_distance, min_uv, u, v, wavelength_m);
                                 }
-
+            
                                 if (uv_distance > min_uv)
                                 { // check if larger than minimum UV distance
                                     int u_pix = static_cast<int>(round(u / delta_u));
                                     int v_pix = static_cast<int>(round(v / delta_v));
-
-
+            
+            
                                     int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
                                     int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
-
-
+            
+            
                                     // now fft shift
                                     //u_index = ::calc_fft_shift(u_index, n_pixels);
                                     //v_index = ::calc_fft_shift(v_index ,n_pixels);
@@ -433,7 +437,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                        current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im);
                                     }
                                     current_counter[v_index * n_pixels + u_index] += 1;
-
+            
                                     // add conjugates :
                                     u_index = wrap_index(-u_pix, n_pixels);
                                     v_index = wrap_index(-v_pix, n_pixels);
@@ -441,7 +445,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                     //u_index = calc_fft_shift(u_index, n_pixels);
                                     //v_index = calc_fft_shift(v_index ,n_pixels);
                                     
-
+            
                                     // Same for conjugates:
                                     // I believe that this is the gridding code (what used to be uv_grid_real.addXY( x_grid, y_grid, re );) 
                                     // not sure how to translate convolution kernel into the current code now that everything is different
@@ -465,7 +469,8 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                         }
                     }
                 }
-            }
+            
+            
              // This division is in fact UNIFORM weighting !!!! Not CELL-avareging
             // normalisation to make it indeed CELL-averaging :
             if (strcmp(weighting, "U") == 0)

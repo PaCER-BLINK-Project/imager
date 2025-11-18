@@ -84,7 +84,8 @@ process_build_script_input user
 echo "Loading required modules ..."
 echo "Loading modules for PAWSEY_CLUSTER = $PAWSEY_CLUSTER"
    module reset
-  module_load blink_test_data/devel cfitsio/4.4.0  msfitslib/master-ittkjmq  blink-astroio/master fftw/3.3.10  pal/0.9.8-n3thcaw  libnova/0.15.0-iwh6cpn rocm/6.4.1 # lfile2corrmatrix/devel
+   #  
+  module_load blink_test_data/devel cfitsio/4.4.0  msfitslib/master-ittkjmq blink-astroio/master fftw/3.3.10  pal/0.9.8-n3thcaw  libnova/0.15.0-iwh6cpn rocm/6.4.1 # lfile2corrmatrix/devel
    
    # cmake is only required at build time, so we use the normal module load
    module load cmake/3.30.5
@@ -93,7 +94,7 @@ echo "Building the software.."
 
 [ -d ${build_dir} ] || mkdir ${build_dir}
 cd ${build_dir}
-cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DUSE_HIP=ON  -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-O3 ${cmake_options}
+cmake .. -DCMAKE_INSTALL_PREFIX=${INSTALL_DIR} -DCMAKE_CXX_COMPILER=hipcc -DUSE_HIP=ON -DUSE_OPENMP=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-O3 ${cmake_options}
 make -j 12 VERBOSE=1
 make test
 # Install the software
