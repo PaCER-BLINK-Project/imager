@@ -53,63 +53,51 @@ int CAntennaPositions::CalculateUVW( MemoryBuffer<float>& u_cpu, MemoryBuffer<fl
       
       PacerGeometry::PrepareTimestepUVW( uvwInfo , *m_pMetaData );
    }
-   int n_baselines = 0;
-   
-   
-         
 
-  
+   for(unsigned int baseline = 0; baseline < n_baselines_total; baseline++){
+      unsigned int i {static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2*baseline))};
+      unsigned int j {baseline - ((i + 1) * i)/2};
 
 
-            
-         for(unsigned int baseline = 0; baseline < n_baselines_total; baseline++){
-             unsigned int i {static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2*baseline))};
-             unsigned int j {baseline - ((i + 1) * i)/2};
+      InputMapping& ant1 = (*this)[i];
+      InputMapping& ant2 = (*this)[j];
 
 
-             InputMapping& ant1 = (*this)[i];
-             InputMapping& ant2 = (*this)[j];
-
-
-         double u = 0.00, v = 0.00, w = 0.00;
-         if( m_pMetaData && m_pMetaData->m_bHasMetaFits ){
-            double u2=0.00,v2=0.00,w2=0.00;
-            double ha_rad = (m_pMetaData->haHrs*15.00)*(M_PI/180.00); // was - but testing with + was 313.37812500
+      double u = 0.00, v = 0.00, w = 0.00;
+      if( m_pMetaData && m_pMetaData->m_bHasMetaFits ){
+         double u2=0.00,v2=0.00,w2=0.00;
+         double ha_rad = (m_pMetaData->haHrs*15.00)*(M_PI/180.00); // was - but testing with + was 313.37812500
 //            double ha_rad = (313.37812500)*(M_PI/180.00);
-            double dec_rad = m_pMetaData->tilePointingDecRad; // is -0.205727 radians 
-            double lmst = lmst_local*(M_PI/180.00); // was 93.17821757
-            double lmst2000 = lmst;
+         double dec_rad = m_pMetaData->tilePointingDecRad; // is -0.205727 radians 
+         double lmst = lmst_local*(M_PI/180.00); // was 93.17821757
+         double lmst2000 = lmst;
 
 //            PacerGeometry::CalcUVW( ha_rad, lmst, dec_rad, lmst2000, ant1.x, ant1.y, ant1.z, u, v, w );
 //            PacerGeometry::CalcUVW( ha_rad, lmst, dec_rad, lmst2000, ant2.x, ant2.y, ant2.z, u2, v2, w2 );
-            // TEST:
-            
-            // TODO : uvwInfo.MJD + integrationtime/2 !!! 
-            PacerGeometry::CalcUVW_NEW( uvwInfo , ant1.x, ant1.y, ant1.z, u, v, w );
-            PacerGeometry::CalcUVW_NEW( uvwInfo , ant2.x, ant2.y, ant2.z, u2, v2, w2 );
-           
-            u = u - u2;
-            v = v - v2;
-            w = w - w2;
-            //PRINTF_DEBUG("DEBUG UVW : %d - %d : (%.3f,%.3f,%.3f) - (%.3f,%.3f,%.3f) = (%.4f,%.4f,%.4f)\n",i,j,ant1.x, ant1.y, ant1.z, ant2.x, ant2.y, ant2.z, u, v, w );
-         }else{
-            u = (ant1.x - ant2.x); // *(-1); TODO : image flip
-            v = (ant1.y - ant2.y);
-            w = (ant1.z - ant2.z);
-         }
+         // TEST:
          
-         // j,i (instead of i,j) to be consistent with CASA UVW array:
-         u_cpu[baseline] = u;
-         v_cpu[baseline] = v;
-         w_cpu[baseline] = w;
-
-        
-
-         n_baselines++;
+         // TODO : uvwInfo.MJD + integrationtime/2 !!! 
+         PacerGeometry::CalcUVW_NEW( uvwInfo , ant1.x, ant1.y, ant1.z, u, v, w );
+         PacerGeometry::CalcUVW_NEW( uvwInfo , ant2.x, ant2.y, ant2.z, u2, v2, w2 );
+         
+         u = u - u2;
+         v = v - v2;
+         w = w - w2;
+         //PRINTF_DEBUG("DEBUG UVW : %d - %d : (%.3f,%.3f,%.3f) - (%.3f,%.3f,%.3f) = (%.4f,%.4f,%.4f)\n",i,j,ant1.x, ant1.y, ant1.z, ant2.x, ant2.y, ant2.z, u, v, w );
+      }else{
+         u = (ant1.x - ant2.x); // *(-1); TODO : image flip
+         v = (ant1.y - ant2.y);
+         w = (ant1.z - ant2.z);
       }
+      
+      // j,i (instead of i,j) to be consistent with CASA UVW array:
+      u_cpu[baseline] = -u;
+      v_cpu[baseline] = -v;
+      w_cpu[baseline] = -w;
+   }
    
    
-   return n_baselines;
+   return n_baselines_total;
 }
 
 int CAntennaPositions::ReadAntennaPositions(const char* filename, bool bConvertToXYZ /*=false*/ )
