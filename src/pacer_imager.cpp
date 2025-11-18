@@ -374,7 +374,9 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                             if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
                             {
                                 // TODO convert [m] -> wavelength
-                                double u = u_cpu[ant1 * n_ant + ant2] / wavelength_m;
+                                double u = u_cpu[baseline] / wavelength_m;
+                                // goal: 
+                                // // double u = u_cpu[baseline] / wavelength_m;
             
                                 // 2022-09-24 : - removed for a test on MWA data
                                 // 2022-09-09 - for now sticking to - sign here to have back
@@ -382,7 +384,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                 //  but looks like this (-) should not be here at least does not
                                 //  match UV coverage from WSCEAN (it is flipped then see :
                                 //  /home/msok/Desktop/PAWSEY/PaCER/logbook/20220826_image_simulation_part3.odt
-                                double v = v_cpu[ant1 * n_ant + ant2] /
+                                double v = v_cpu[baseline] /
                                            wavelength_m; // the - sign here fixes the Y flip, but I am
                                                          // not sure why needed ??? check RTS :
                                                          // imagefromuv.c , LM_CopyFromFFT where some

@@ -29,10 +29,17 @@ int CAntennaPositions::CalculateUVW( MemoryBuffer<float>& u_cpu, MemoryBuffer<fl
    
    int n_ant = size();
 
+   const unsigned int n_baselines_total =  static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2);
+
+
    // initialise UVW arrays according to number of antennas :
-   if(!u_cpu) u_cpu.allocate(n_ant * n_ant);
-   if(!v_cpu) v_cpu.allocate(n_ant * n_ant);
-   if(!w_cpu) w_cpu.allocate(n_ant * n_ant);
+   if(!u_cpu) u_cpu.allocate(n_baselines_total);
+   if(!v_cpu) v_cpu.allocate(n_baselines_total);
+   if(!w_cpu) w_cpu.allocate(n_baselines_total);
+
+   //aLLOCATE MEMORY HERE
+   //i NNEDD TO CHANGE EVERYTHING  to baseline?  
+   
 
    double uxtime = 0.0; // TODO fix this hardcoding 
    double jd;
@@ -48,17 +55,22 @@ int CAntennaPositions::CalculateUVW( MemoryBuffer<float>& u_cpu, MemoryBuffer<fl
    }
    int n_baselines = 0;
    
-   for(int i=0;i<n_ant;i++){
-      InputMapping& ant1 = (*this)[i];
-      
-      int start_j = (i+1);
-      if( bIncludeAutos || true ){ // always calculate UVW for all including AUTOS 
-         start_j = i;
-      }
-      
-      for(int j=0;j<=start_j;j++){
-         InputMapping& ant2 = (*this)[j];         
+   
          
+
+  
+
+
+            
+         for(unsigned int baseline = 0; baseline < n_baselines_total; baseline++){
+             unsigned int i {static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2*baseline))};
+             unsigned int j {baseline - ((i + 1) * i)/2};
+
+
+             InputMapping& ant1 = (*this)[i];
+             InputMapping& ant2 = (*this)[j];
+
+
          double u = 0.00, v = 0.00, w = 0.00;
          if( m_pMetaData && m_pMetaData->m_bHasMetaFits ){
             double u2=0.00,v2=0.00,w2=0.00;
@@ -87,17 +99,15 @@ int CAntennaPositions::CalculateUVW( MemoryBuffer<float>& u_cpu, MemoryBuffer<fl
          }
          
          // j,i (instead of i,j) to be consistent with CASA UVW array:
-         u_cpu[n_ant*j + i] = u;
-         v_cpu[n_ant*j + i] = v;
-         w_cpu[n_ant*j + i] = w;
+         u_cpu[baseline] = u;
+         v_cpu[baseline] = v;
+         w_cpu[baseline] = w;
 
-         u_cpu[n_ant*i + j] = -u;
-         v_cpu[n_ant*i + j] = -v;
-         w_cpu[n_ant*i + j] = -w;
+        
 
          n_baselines++;
       }
-   }
+   
    
    return n_baselines;
 }
