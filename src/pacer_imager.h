@@ -77,6 +77,7 @@ public :
    double delta_u {0}, delta_v {0};
 
    int m_Baselines;
+   std::vector<bool> m_BaselineFlags;
    int n_pixels;
    double min_uv {-1000};
    const char *weighting = "";

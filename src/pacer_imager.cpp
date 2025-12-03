@@ -25,6 +25,8 @@
 
 #include "utils.h"
 
+
+
 namespace {
     int calc_fft_shift(int pos, int side){
         int is_odd = side % 2;
@@ -55,12 +57,21 @@ void CPacerImager::SetFileLevel(int filesave_level)
     CPacerImager::m_SaveFilesLevel = filesave_level;
 }
 
+
+
 int CPacerImager::UpdateFlags()
 {
-    int count_flagged = 0;
+
+    int count_flagged = 0; // checking the antennas
+    if (!m_MetaData.m_AntennaPositions.empty())
+    {
+        for (auto &ant : m_MetaData.m_AntennaPositions){ 
+            ant.flag = 0; //set the antanne flag as zero.
+        }
+    }
 
     if (m_FlaggedAntennas.size() > 0)
-    {
+ {
         if (m_MetaData.m_AntennaPositions.size() > 0)
         {
             // flagging antennas in the list :
@@ -84,10 +95,43 @@ int CPacerImager::UpdateFlags()
                          "m_MetaData.m_AntennaPositions\n");
         }
     }
+    m_BaselineFlags.clear(); //remove the previosly storesd stuuf
 
-    return count_flagged;
+    const int n_ant_global =
+        static_cast<int>(m_MetaData.m_AntennaPositions.size());  //
+
+    if (n_ant_global > 0)
+    {
+    const unsigned int n_baselines_global =
+            static_cast<unsigned int>((n_ant_global * (n_ant_global + 1)) / 2u);
+
+            m_BaselineFlags.assign(n_baselines_global, false);
+
+
+
+   
+  
+    for (unsigned int baseline = 0; baseline < n_baselines_global; ++baseline)
+    {
+        unsigned int ant1 = static_cast<unsigned int>( -0.5 + std::sqrt(0.25 + 2.0 * baseline));
+        unsigned int ant2 = baseline - ((ant1 + 1) * ant1) / 2u;
+
+        bool f1 = (ant1 < static_cast<unsigned int>(n_ant_global)) && (m_MetaData.m_AntennaPositions[ant1].flag > 0);
+        bool f2 = (ant2 < static_cast<unsigned int>(n_ant_global)) &&(m_MetaData.m_AntennaPositions[ant2].flag > 0);
+        
+        
+        m_BaselineFlags[baseline] = f1 || f2;
+
+        if (ant1 == ant2)
+    {
+        m_BaselineFlags[baseline] = true;
+    }
+
+
+    }
 }
-
+return count_flagged;
+}
 
 CPacerImager::CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images,
         Polarization pol_to_image, float oversampling_factor, double min_uv, const char* weighting) {
@@ -259,6 +303,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
         grids.allocate(buffer_size);
         memset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
     }
+
     // TODO: check: should the following be here?
     bool bStatisticsCalculated = false;
     if (m_bPrintImageStatistics)
@@ -283,6 +328,10 @@ void CPacerImager::gridding(Visibilities &xcorr) {
 
         bStatisticsCalculated = true;
     }
+    const int n_ant = xcorr.obsInfo.nAntennas;
+    const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2);
+    const bool use_baseline_flags = (m_BaselineFlags.size() == n_baselines);
+    
     int grid_size = n_pixels * n_pixels;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
@@ -316,60 +365,50 @@ void CPacerImager::gridding(Visibilities &xcorr) {
             //  double u_center = (u_min + u_max)/2.00;
             //  double v_center = (v_min + v_max)/2.00;
 
-            int n_ant = xcorr.obsInfo.nAntennas;
+             
             int added = 0, high_value = 0;
-            const unsigned int n_baselines = static_cast<unsigned int>( (n_ant * (n_ant + 1)) / 2 );
-
-
-            
             for(unsigned int baseline = 0; baseline < n_baselines; baseline++){
-                unsigned int ant1 {static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2*baseline))};
-                unsigned int ant2 {baseline - ((ant1 + 1) * ant1)/2};
-
-                    if (ant1 > ant2 || (m_bIncludeAutos && ant1 == ant2))
-                    { // was ant1 > ant2
-                        if (m_MetaData.m_AntennaPositions.size() > 0)
-                        {
-                            if (m_MetaData.m_AntennaPositions[ant1].flag > 0 ||
-                                m_MetaData.m_AntennaPositions[ant2].flag > 0)
+                
+                if (use_baseline_flags && m_BaselineFlags[baseline]) 
                             {
                                 // skip flagged antennas
                                 // printf("Fast flagging used\n");
                                 continue;
                             }
-                        }
-                        else
+                            
+               float re {0}, im {0}; // varaible we are using store the the temposry and the imaginarty visbity 
+               std::complex<float>* vis_xx = xcorr.at(time_step, fine_channel, baseline); // we are using baseline to run this isntead of ant1 and antg2, we are doing this to get the visbsiblty of the baslein
+
+
+                if(pol_to_image == Polarization::XX) // here we are searching for the xx combination this is thr vis_xx pointer
                         {
-                            if (m_FlaggedAntennas.size() > 0)
-                            {
-                                // WARNING : this is much less efficient so better to have
-                                // antenna positions and check flags there
-                                if (find_value(m_FlaggedAntennas, ant1) >= 0 ||
-                                    find_value(m_FlaggedAntennas, ant2) >= 0)
-                                {
-                                    continue;
-                                }
-                            }
-                        }
-            
-                        float re {0}, im {0};
-                        if(pol_to_image == Polarization::XX){
-                            std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
+                            
+                           
                             re = vis_xx->real();
                             im = vis_xx->imag();
-                        }else if(pol_to_image == Polarization::YY){
-                            std::complex<float> *vis_yy = xcorr.at(time_step, fine_channel, ant1, ant2) + 3;
+
+
+
+                }else if(pol_to_image == Polarization::YY){ //searching for the yy combination
+
+                            
+                            std::complex<float>* vis_yy = vis_xx + 3; // we need to make the pointer to move by 3 elements
                             re =  vis_yy->real();
                             im =  vis_yy->imag();
-                        }else {
+                }else {
+
+
+
                             // Stokes I
-                            std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
-                            std::complex<float> *vis_yy = vis_xx + 3;
-                            re = (vis_xx->real() + vis_yy->real()) / 2.0f;
-                            im = (vis_xx->imag() + vis_yy->imag()) / 2.0f;
+                            
+                            std::complex<float>* vis_yy = vis_xx + 3; // do the same thing to move to the yy pointer
+                            re = 0.5f * (vis_xx->real() + vis_yy->real()); // get the averga of the xx and rthe yy
+                            im = 0.5f * (vis_xx->imag() + vis_yy->imag()); // this is the imaginary
                         }
-            
-                        if (!isnan(re) && !isnan(im))
+
+
+
+                if (!isnan(re) && !isnan(im))
                         {
                             if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
                             {
@@ -404,14 +443,6 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                                     im = -im;
                                                  }
                                 */
-            
-                                if (ant1 == ant2)
-                                {
-                                    PRINTF_DEBUG("Auto-correlation debug2 values %.4f / %.4f , "
-                                                 "uv_distance = %.8f vs. min_uv = %.8f (u = %.8f , v = "
-                                                 "%.8f , wavelength_m = %.8f [m])\n",
-                                                 re, im, uv_distance, min_uv, u, v, wavelength_m);
-                                }
             
                                 if (uv_distance > min_uv)
                                 { // check if larger than minimum UV distance
@@ -469,9 +500,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                              re, im, MAX_VIS);
                             }
                         }
-                    }
-                }
-            
+                    }      
             
              // This division is in fact UNIFORM weighting !!!! Not CELL-avareging
             // normalisation to make it indeed CELL-averaging :
