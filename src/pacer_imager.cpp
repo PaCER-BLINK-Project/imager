@@ -369,42 +369,44 @@ void CPacerImager::gridding(Visibilities &xcorr) {
             int added = 0, high_value = 0;
             for(unsigned int baseline = 0; baseline < n_baselines; baseline++){
                 
-                if (use_baseline_flags && m_BaselineFlags[baseline]) 
-                            {
-                                // skip flagged antennas
-                                // printf("Fast flagging used\n");
-                                continue;
-                            }
+                if (use_baseline_flags && m_BaselineFlags[baseline]) {
+                    // skip flagged antennas
+                    // printf("Fast flagging used\n");
+                    continue;
+                }
                             
                float re {0}, im {0}; // varaible we are using store the the temposry and the imaginarty visbity 
                std::complex<float>* vis_xx = xcorr.at(time_step, fine_channel, baseline); // we are using baseline to run this isntead of ant1 and antg2, we are doing this to get the visbsiblty of the baslein
 
 
-                if(pol_to_image == Polarization::XX) // here we are searching for the xx combination this is thr vis_xx pointer
-                        {
-                            
-                           
-                            re = vis_xx->real();
-                            im = vis_xx->imag();
-
-
+               if(pol_to_image == Polarization::XX) {       
+                    re = vis_xx->real();
+                    im = vis_xx->imag();
 
                 }else if(pol_to_image == Polarization::YY){ //searching for the yy combination
 
                             
-                            std::complex<float>* vis_yy = vis_xx + 3; // we need to make the pointer to move by 3 elements
-                            re =  vis_yy->real();
-                            im =  vis_yy->imag();
+                    std::complex<float>* vis_yy = vis_xx + 3; // we need to make the pointer to move by 3 elements
+                    re =  vis_yy->real();
+                    im =  vis_yy->imag();
+
+
+                }else if (pol_to_image == Polarization::V)
+                {
+                    std::complex<float>* vis_xy = vis_xx + 1; //this is we need the array 1st element xy
+                    std::complex<float>* vis_yx = vis_xx + 2;// this is we need the array 2nd element yx
+                
+                    std::complex<float> mult {0, 0.5};
+                    std::complex<float> result = mult * (*vis_xy - *vis_yx);
+                    re = result.real(); // using this formula shortcut to  v= 2i  * (A + iB)
+                    im = result.imag();
+
                 }else {
-
-
-
-                            // Stokes I
-                            
-                            std::complex<float>* vis_yy = vis_xx + 3; // do the same thing to move to the yy pointer
-                            re = 0.5f * (vis_xx->real() + vis_yy->real()); // get the averga of the xx and rthe yy
-                            im = 0.5f * (vis_xx->imag() + vis_yy->imag()); // this is the imaginary
-                        }
+                    // Stokes I
+                    std::complex<float>* vis_yy = vis_xx + 3; // do the same thing to move to the yy pointer
+                    re = 0.5f * (vis_xx->real() + vis_yy->real()); // get the averga of the xx and rthe yy
+                    im = 0.5f * (vis_xx->imag() + vis_yy->imag()); // this is the imaginary
+                }
 
 
 
