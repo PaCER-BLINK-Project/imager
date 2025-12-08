@@ -55,10 +55,8 @@ __global__ void apply_geometric_corrections(float *visibilities, unsigned int n_
          double re = visibilities[i * 2 * n_pols_prod + 2*pol_idx];
          double im = visibilities[i * 2 * n_pols_prod + 2*pol_idx + 1];
          
-         unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
-         unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
          // TODO this will have to change once we save w on a lower triangular matrix basis
-         double angle = 2.0 * M_PI *  w[a1 * n_ant + a2] * frequencies[fine_channel] / speed_of_light;
+         double angle = 2.0 * M_PI *  w[baseline] * frequencies[fine_channel] / speed_of_light;
          double sin_angle,cos_angle;
          sincos(angle, &sin_angle, &cos_angle);
          

@@ -82,6 +82,8 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
       }else if(pol == Polarization::YY){
          re = visibilities[i * 2 * n_pols_prod + 6];
          im = visibilities[i * 2 * n_pols_prod + 7];
+
+      
       }else {
          // Stokes I
          re = (visibilities[i * 2 * n_pols_prod] + visibilities[i * 2 * n_pols_prod + 6]) / 2.0f;
@@ -94,7 +96,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
 
       // Checking for NaN values 
       if( !isnan(re) && !isnan(im) && antenna_flags[a2]<=0 && antenna_flags[a1]<=0 ) {
-         int pos = calculate_pos( u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
+         int pos = calculate_pos( u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
          if(pos>=0 && pos<image_size) {
             // Allocating in uv_grid       
             // WARNING: this might not give us the exact count for all time steps because of nan values, but it is a tradeoff for memory
@@ -106,7 +108,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
             atomicAdd(&m_in_buffer[image_size * m_idx + pos].y,im);
          }   
 
-         int pos2 = calculate_pos(u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
+         int pos2 = calculate_pos(u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
          if(pos2>=0 && pos2<image_size)
          {
             if(m_idx / n_frequencies == 0) atomicAdd(&uv_grid_counter[image_size * m_idx + pos2],1);
