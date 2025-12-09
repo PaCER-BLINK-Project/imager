@@ -18,23 +18,43 @@ CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, int n_pixels, 
       metadata_file, n_pixels, flagged_antennas, average_images, pol_to_image, oversampling_factor, min_uv, weighting) {}
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
-   if(!antenna_flags_gpu){
-       antenna_flags_gpu.allocate(n_ant);      
-      antenna_weights_gpu.allocate(n_ant);
-      int n_flagged=0;   
-      for(int ant=0;ant<n_ant;ant++){
-         InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
-         antenna_flags_gpu[ant] = ant1_info.flag;
-         antenna_weights_gpu[ant] = 1.00;
-         if( ant1_info.flag ){
-            antenna_weights_gpu[ant] = 0.00;
-            n_flagged++;
-         }
-      }
-      antenna_flags_gpu.to_gpu();
-      antenna_weights_gpu.to_gpu();
-   PRINTF_INFO("INFO : CPacerImagerHip::UpdateAntennaFlags there are %d flagged antennas passed to GPU imager\n", n_flagged);
+
+
+   const unsigned int n_baselines =
+   static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
+
+   if (m_BaselineFlags.size() != n_baselines)
+   {
+      UpdateFlags();
    }
+   if (m_BaselineFlags.size() != n_baselines)
+   {
+      throw std::runtime_error(
+         "CPacerImagerHip::UpdateAntennaFlags: m_BaselineFlags size mismatch");
+ }
+   if (!baseline_flags_gpu){
+   baseline_flags_gpu.allocate(n_baselines, MemoryType::DEVICE); 
+ }
+   std::vector<int> hostFlags(n_baselines);
+   int n_flagged = 0;
+   
+   for (unsigned int b = 0; b < n_baselines; ++b)
+   {
+      hostFlags[b] = m_BaselineFlags[b] ? 1 : 0;
+      if (hostFlags[b]) ++n_flagged;
+ }
+
+   gpuMemcpy(baseline_flags_gpu.data(),
+   hostFlags.data(),
+   n_baselines * sizeof(int),
+   gpuMemcpyHostToDevice);
+
+
+   PRINTF_INFO(
+   "INFO : CPacerImagerHip::UpdateAntennaFlags : there are %d flagged baselines "
+   "passed to GPU imager\n",
+   n_flagged);
+
 }
 
 
@@ -42,33 +62,42 @@ void CPacerImagerHip::gridding(Visibilities& xcorr){
   std::cout << "Running 'gridding' on GPU.." << std::endl;
 
   int n_ant = xcorr.obsInfo.nAntennas;
-  int xySize = n_ant * n_ant;
+  const unsigned int n_baselines =
+  static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
+
   int image_size {n_pixels * n_pixels};
    size_t n_images {n_gridded_channels * n_gridded_intervals};
    size_t buffer_size {image_size * n_images};
 
   // update antenna flags before gridding which uses these flags or weights:
   UpdateAntennaFlags( n_ant );
-  if(!u_gpu) {
-      u_gpu.allocate(xySize, MemoryType::DEVICE);
-      v_gpu.allocate(xySize, MemoryType::DEVICE);
-   }
-   gpuMemcpy(u_gpu.data(),  u_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
-   gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
 
-   if(!grids_counters) {
-      grids_counters.allocate(image_size * xcorr.nFrequencies, MemoryType::DEVICE);
-      gpuMemset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
+   if(!u_gpu) {
+      u_gpu.allocate(n_baselines, MemoryType::DEVICE);
+      v_gpu.allocate(n_baselines, MemoryType::DEVICE);
    }
-   if(!grids) {
+   gpuMemcpy(u_gpu.data(),  u_cpu.data(), sizeof (float) * n_baselines, gpuMemcpyHostToDevice);
+    gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)* n_baselines, gpuMemcpyHostToDevice);
+
+  if (!grids_counters)
+    {
+        grids_counters.allocate(buffer_size, MemoryType::DEVICE);
+        gpuMemset(grids_counters.data(), 0,
+        grids_counters.size() * sizeof(float));
+    }
+
+  if(!grids) {
       grids.allocate(buffer_size, MemoryType::DEVICE);
       gpuMemset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
    }
-   if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, MemoryType::DEVICE);
+
+   if(!frequencies_gpu){
+      frequencies_gpu.allocate(xcorr.nFrequencies, MemoryType::DEVICE);
+   }
+   
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    
-
-   gridding_gpu(xcorr, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
+   gridding_gpu(xcorr, u_gpu, v_gpu, baseline_flags_gpu, antenna_weights_gpu, frequencies_gpu,
       delta_u, delta_v, n_pixels, min_uv, pol_to_image, grids_counters, grids);   
 }
 

@@ -58,7 +58,7 @@ __device__ int calculate_pos(float u,
 __global__ void gridding_kernel(const float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
                                       int n_ant,
                                       const float *u, const float *v, 
-                                      const int* antenna_flags, const float* antenna_weights,
+                                      const int* baseline_flags_gpu, const float* antenna_weights,
                                       const double *frequencies, int image_size, double delta_u, double delta_v, 
                                       int n_pixels,
                                       float *uv_grid_counter, double min_uv, Polarization pol,
@@ -90,12 +90,9 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
          im = (visibilities[i * 2 * n_pols_prod + 1] + visibilities[i * 2 * n_pols_prod + 7]) / 2.0f;
       }
       
-      unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
-      unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
-      if(a1 == a2) continue;
 
       // Checking for NaN values 
-      if( !isnan(re) && !isnan(im) && antenna_flags[a2]<=0 && antenna_flags[a1]<=0 ) {
+      if( !isnan(re) && !isnan(im) && baseline_flags_gpu[baseline] <=0 ) {
          int pos = calculate_pos( u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
          if(pos>=0 && pos<image_size) {
             // Allocating in uv_grid       
@@ -144,9 +141,26 @@ void gridding_gpu(const Visibilities& xcorr,
    gpuGetDevice(&gpu_id);
    gpuGetDeviceProperties(&props, gpu_id);
    unsigned int n_blocks = props.multiProcessorCount * 2;
-   gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
-      n_ant, u_gpu.data(), v_gpu.data(), antenna_flags.data(), antenna_weights.data(), frequencies.data(), image_size,
-      delta_u, delta_v, n_pixels, grids_counters.data(), min_uv, pol, (gpufftComplex*) grids.data());
+   gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const float*>(xcorr.data()),
+      n_baselines,
+      xcorr.nFrequencies,
+      xcorr.integration_intervals(),
+      n_ant,
+      u_gpu.data(),
+      v_gpu.data(),
+      antenna_flags.data(),                  
+      antenna_weights.data(),
+      frequencies.data(),
+      image_size,
+      delta_u,
+      delta_v,
+      n_pixels,
+      grids_counters.data(),
+      min_uv,
+      pol,
+      (gpufftComplex*) grids.data()
+  );
+
    gpuGetLastError();
    gpuDeviceSynchronize();
 }
