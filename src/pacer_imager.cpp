@@ -134,11 +134,12 @@ return count_flagged;
 }
 
 CPacerImager::CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images,
-        Polarization pol_to_image, float oversampling_factor, double min_uv, const char* weighting) {
+        Polarization pol_to_image, float oversampling_factor, double min_uv, const char* weighting, double max_uv) {
     this->average_images = average_images;
     this->pol_to_image = pol_to_image;
     this->oversampling_factor = oversampling_factor;
     this->min_uv = min_uv;
+    this->max_uv = max_uv;
     this->weighting = weighting;
     this->n_pixels = n_pixels;
      // read all information from metadata
@@ -446,7 +447,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                                  }
                                 */
             
-                                if (uv_distance > min_uv)
+                                if (uv_distance > min_uv && uv_distance <= max_uv) // I need the min and the max for this.
                                 { // check if larger than minimum UV distance
                                     int u_pix = static_cast<int>(round(u / delta_u));
                                     int v_pix = static_cast<int>(round(v / delta_v));
@@ -454,6 +455,8 @@ void CPacerImager::gridding(Visibilities &xcorr) {
             
                                     int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
                                     int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
+
+
             
             
                                     // now fft shift

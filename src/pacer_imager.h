@@ -8,6 +8,10 @@
 #include <images.hpp>
 
 #include <string>
+
+#include <limits>
+
+
 using namespace std;
 
 // FFTW, math etc :
@@ -80,6 +84,9 @@ public :
    std::vector<bool> m_BaselineFlags;
    int n_pixels;
    double min_uv {-1000};
+
+   double max_uv {std::numeric_limits<double>::infinity()}; // initialte max
+
    const char *weighting = "";
    // MemoryBuffer<double> frequencies;
    
@@ -95,7 +102,7 @@ public :
    
 
    CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images = false,
-      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv=-1000, const char* weighting="");
+      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv=-1000, const char* weighting="", double max_uv = std::numeric_limits<double>::infinity());
    
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------
