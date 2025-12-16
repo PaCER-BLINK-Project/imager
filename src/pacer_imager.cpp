@@ -308,6 +308,15 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                     std::complex<float> *vis_yy = xcorr.at(time_step, fine_channel, baseline) + 3;
                     re =  vis_yy->real();
                     im =  vis_yy->imag();
+                } else if (pol_to_image == Polarization::V) {
+                    std::complex<float>* vis_xy = xcorr.at(time_step, fine_channel, baseline) + 1;
+                    std::complex<float>* vis_yx = xcorr.at(time_step, fine_channel, baseline) + 2;
+                
+                    std::complex<float> mult {0, 0.5};
+                    std::complex<float> result = mult * (*vis_xy - *vis_yx);
+                    re = result.real(); // using this formula shortcut to  v= 2i  * (A + iB)
+                    im = result.imag();
+
                 }else {
                     // Stokes I
                     std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, baseline);

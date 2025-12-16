@@ -13,7 +13,7 @@ https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-c
 
 #include "pacer_imager_hip_defines.h"
 #include "../gridding.hpp"
-
+#include <mycomplex.hpp>
 
 __device__ inline int wrap_index(int i, int side){
     if(i >= 0) return i % side;
@@ -82,6 +82,15 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
       }else if(pol == Polarization::YY){
          re = visibilities[i * 2 * n_pols_prod + 6];
          im = visibilities[i * 2 * n_pols_prod + 7];
+      }else if ( pol== Polarization::V){
+         const Complex<float>* vis_xx = reinterpret_cast<const Complex<float>*>(visibilities) + i * n_pols_prod;
+         const Complex<float>* vis_xy = vis_xx + 1;   //this is we need the array 1st element xy
+         const Complex<float>* vis_yx = vis_xx + 2;   // this is we need the array 2nd element yx
+      
+         Complex<float> mult {0, 0.5};
+         Complex<float>result = mult * (*vis_xy - *vis_yx);
+         re = result.real; // using this formula shortcut to  v= 2i  * (A + iB)
+         im = result.imag;
       }else {
          // Stokes I
          re = (visibilities[i * 2 * n_pols_prod] + visibilities[i * 2 * n_pols_prod + 6]) / 2.0f;
