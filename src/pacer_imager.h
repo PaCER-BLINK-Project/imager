@@ -69,6 +69,7 @@ public :
    
    // Flagged antennas , if list m_AntennaPositions is filled it will also be updated (field flag)
    vector<int> m_FlaggedAntennas;
+   vector<int> m_FlaggedBaselines;
    
    // UVW for SKA-Low station zenith phase-centered all-sky imaging :
    double u_min {0}, u_max {0};

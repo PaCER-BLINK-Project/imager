@@ -18,23 +18,17 @@ CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, int n_pixels, 
       metadata_file, n_pixels, flagged_antennas, average_images, pol_to_image, oversampling_factor, min_uv, weighting) {}
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
-   if(!antenna_flags_gpu){
-       antenna_flags_gpu.allocate(n_ant);      
+   const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
+   if(!baseline_flags_gpu){
+      baseline_flags_gpu.allocate(n_baselines);      
       antenna_weights_gpu.allocate(n_ant);
-      int n_flagged=0;   
-      for(int ant=0;ant<n_ant;ant++){
-         InputMapping& ant1_info = m_MetaData.m_AntennaPositions[ant]; 
-         antenna_flags_gpu[ant] = ant1_info.flag;
-         antenna_weights_gpu[ant] = 1.00;
-         if( ant1_info.flag ){
-            antenna_weights_gpu[ant] = 0.00;
-            n_flagged++;
-         }
-      }
-      antenna_flags_gpu.to_gpu();
-      antenna_weights_gpu.to_gpu();
-   PRINTF_INFO("INFO : CPacerImagerHip::UpdateAntennaFlags there are %d flagged antennas passed to GPU imager\n", n_flagged);
    }
+   UpdateFlags();
+   for (unsigned int b = 0; b < n_baselines; ++b){
+      baseline_flags_gpu[b] = m_FlaggedBaselines[b];
+   }
+   baseline_flags_gpu.to_gpu();
+   antenna_weights_gpu.to_gpu();
 }
 
 
@@ -42,7 +36,7 @@ void CPacerImagerHip::gridding(Visibilities& xcorr){
   std::cout << "Running 'gridding' on GPU.." << std::endl;
 
   int n_ant = xcorr.obsInfo.nAntennas;
-  int xySize = n_ant * n_ant;
+   const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
   int image_size {n_pixels * n_pixels};
    size_t n_images {n_gridded_channels * n_gridded_intervals};
    size_t buffer_size {image_size * n_images};
@@ -50,11 +44,11 @@ void CPacerImagerHip::gridding(Visibilities& xcorr){
   // update antenna flags before gridding which uses these flags or weights:
   UpdateAntennaFlags( n_ant );
   if(!u_gpu) {
-      u_gpu.allocate(xySize, MemoryType::DEVICE);
-      v_gpu.allocate(xySize, MemoryType::DEVICE);
+      u_gpu.allocate(n_baselines, MemoryType::DEVICE);
+      v_gpu.allocate(n_baselines, MemoryType::DEVICE);
    }
-   gpuMemcpy(u_gpu.data(),  u_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
-   gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
+   gpuMemcpy(u_gpu.data(),  u_cpu.data(), sizeof(float)*n_baselines, gpuMemcpyHostToDevice);
+   gpuMemcpy(v_gpu.data(),  v_cpu.data(), sizeof(float)*n_baselines, gpuMemcpyHostToDevice);
 
    if(!grids_counters) {
       grids_counters.allocate(image_size * xcorr.nFrequencies, MemoryType::DEVICE);
@@ -68,7 +62,7 @@ void CPacerImagerHip::gridding(Visibilities& xcorr){
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
    
 
-   gridding_gpu(xcorr, u_gpu, v_gpu, antenna_flags_gpu, antenna_weights_gpu, frequencies_gpu,
+   gridding_gpu(xcorr, u_gpu, v_gpu, baseline_flags_gpu, antenna_weights_gpu, frequencies_gpu,
       delta_u, delta_v, n_pixels, min_uv, pol_to_image, grids_counters, grids);   
 }
 
@@ -135,10 +129,11 @@ Images CPacerImagerHip::image(ObservationInfo& obs_info){
 void CPacerImagerHip::ApplyGeometricCorrections( Visibilities& xcorr, MemoryBuffer<float>& w_cpu, MemoryBuffer<double>& frequencies){
    if(!frequencies_gpu) frequencies_gpu.allocate(xcorr.nFrequencies, MemoryType::DEVICE);
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
-   int xySize = xcorr.obsInfo.nAntennas * xcorr.obsInfo.nAntennas;
+   int n_ant = xcorr.obsInfo.nAntennas;
+   const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
     // TODO: improve the following
-   if(!w_gpu) w_gpu.allocate(xySize, MemoryType::DEVICE);
-   gpuMemcpy(w_gpu.data(), w_cpu.data(), sizeof(float)*xySize, gpuMemcpyHostToDevice);
+   if(!w_gpu) w_gpu.allocate(n_baselines, MemoryType::DEVICE);
+   gpuMemcpy(w_gpu.data(), w_cpu.data(), sizeof(float)*n_baselines, gpuMemcpyHostToDevice);
    apply_geometric_corrections_gpu(xcorr, w_gpu.data(), frequencies_gpu);
 }
 

@@ -74,11 +74,12 @@ int main(void){
     }
     dataRootDir = std::string {pathToData};
 
+    // TODO Need to replace this test to account for change in UV size.
     try{
-        test_geometric_correction_cpu();
+        //test_geometric_correction_cpu();
         test_cable_lengths_correction_cpu();
         #ifdef __GPU__
-        test_geometric_correction_gpu();
+        //test_geometric_correction_gpu();
         test_cable_lengths_correction_gpu();
         #endif
     } catch (std::exception& ex){

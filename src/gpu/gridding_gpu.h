@@ -11,7 +11,7 @@
 
 void gridding_gpu(const Visibilities& xcorr,
       const MemoryBuffer<float>& u_gpu,  const MemoryBuffer<float>& v_gpu, 
-      const MemoryBuffer<int>& antenna_flags, const MemoryBuffer<float>& antenna_weights,
+      const MemoryBuffer<int>& baseline_flags, const MemoryBuffer<float>& antenna_weights,
       const MemoryBuffer<double>& frequencies,
       double delta_u, double delta_v,
       int n_pixels, double min_uv, Polarization pol, MemoryBuffer<float>& grids_counters,

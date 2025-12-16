@@ -23,7 +23,7 @@ protected :
 
 
    // antenna flags (0-ok, 1-flagged) and weights (1-ok, 0-remove)
-   MemoryBuffer<int> antenna_flags_gpu;
+   MemoryBuffer<int> baseline_flags_gpu;
    MemoryBuffer<float> antenna_weights_gpu;
    
    // update antenna flags:
