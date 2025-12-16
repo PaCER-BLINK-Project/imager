@@ -294,6 +294,8 @@ inline int wrap_index(int i, int side){
 }
 
 void CPacerImager::gridding(Visibilities &xcorr) {
+
+    
     PRINTF_DEBUG("DEBUG : gridding : min_uv = %.4f\n", min_uv);
     size_t buffer_size {n_pixels * n_pixels * n_gridded_intervals * n_gridded_channels};
     if(!grids_counters){
@@ -522,12 +524,106 @@ void CPacerImager::gridding(Visibilities &xcorr) {
 }
 
 
+
+void analyse_visibilities(Visibilities &xcorr){ //sending the &xcorr data
+    // TODO: compute some statistics on values across xcorr.
+    // option 1: look at each correlation matrix independently 
+    std::cout << " INIT analyse_visibilities " << std::endl; // printing the message
+
+
+    auto compute_iqr_rms = [](std::vector<float> values) -> std::pair<float, float> { // the lambada function returns a a air medin and rms
+        
+        std::sort(values.begin(), values.end()); 
+        const size_t count = values.size();
+        if (count == 0) {
+            return {std::numeric_limits<float>::infinity(),
+                    std::numeric_limits<float>::infinity()};
+        }
+        const size_t q75 = static_cast<size_t>(count * 0.75);// get the index for the 75th percent
+        const size_t q25 = static_cast<size_t>(count * 0.25); //get the index for the 25th percent
+        const float iqr = (values[q75] - values[q25]) / 1.35f; // this is the rms
+        const float median = values[count / 2]; //getting the median value
+        return {median, iqr};
+    };
+
+
+
+    const int n_ant = xcorr.obsInfo.nAntennas; //   I need this here beacuse I need to put baselines here
+    const unsigned int n_baselines =
+    static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
+
+
+     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++) {
+        for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++) {
+
+            std::vector<float> values;
+            values.reserve(n_baselines);
+
+            for(int baseline = 0; baseline < n_baselines; baseline++){
+                std::complex<float>* vis_xx = xcorr.at(time_step, fine_channel, baseline);
+                values.push_back(vis_xx->real());
+            
+            }
+
+            // compute statistics on values
+
+            values.erase(
+                std::remove_if(values.begin(), values.end(), //checkign if the values are infinite orthe value is a number 
+                               [](float x) { return !std::isfinite(x); }),
+                values.end()
+            );
+
+            if (values.empty())
+            {
+                std::cout << "flag_rfi - XX(real) t=" << time_step << " ch=" << fine_channel
+                          << " - min: nan, max: nan, median: inf, rms: inf\n";
+                continue;
+            }
+            
+
+            // we need to link the medium and the rms
+            auto median_rms_of_values = compute_iqr_rms(values);
+
+            std::string name = "XX(real) t=" + std::to_string(time_step) +
+                               " ch=" + std::to_string(fine_channel);
+
+             // pruinting everything
+           std::cout << "flag_rfi - " << name << " - "
+                     << "min: " << *std::min_element(values.begin(), values.end()) << ", "
+                     << "max: " << *std::max_element(values.begin(), values.end()) << ", "
+                     << "median: " << median_rms_of_values.first <<  ", "
+                     << "rms: " << median_rms_of_values.second
+                     << std::endl;
+
+
+
+            
+            
+            
+            
+            
+            
+            
+            
+      
+
+
+           
+        }
+    }
+
+    
+  
+}
+
+
 /** 
     @brief run the imager
     
     @param xcorr: Visibilities to be imaged.
 */
 Images CPacerImager::run(Visibilities &xcorr){
+    analyse_visibilities(xcorr);
     grid(xcorr);
     return image(xcorr.obsInfo);
 }
