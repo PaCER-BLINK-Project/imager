@@ -57,35 +57,8 @@ void CPacerImager::SetFileLevel(int filesave_level)
     CPacerImager::m_SaveFilesLevel = filesave_level;
 }
 
-int CPacerImager::UpdateFlags()
-{
+int CPacerImager::UpdateFlags() {
     int count_flagged = 0;
-
-    if (m_FlaggedAntennas.size() > 0)
-    {
-        if (m_MetaData.m_AntennaPositions.size() > 0)
-        {
-            // flagging antennas in the list :
-            for (int i = 0; i < m_FlaggedAntennas.size(); i++)
-            {
-                int ant_index = m_FlaggedAntennas[i];
-
-                if (ant_index >= 0 && ant_index < m_MetaData.m_AntennaPositions.size())
-                {
-                    m_MetaData.m_AntennaPositions[ant_index].flag = 1;
-                    count_flagged++;
-                }
-            }
-            PRINTF_DEBUG("CPacerImager::SetFlaggedAntennas : Flagged %d antennas in the "
-                         "imager object\n",
-                         count_flagged);
-        }
-        else
-        {
-            PRINTF_DEBUG("CPacerImager::SetFlaggedAntennas : No antennas in object "
-                         "m_MetaData.m_AntennaPositions\n");
-        }
-    }
 
     m_FlaggedBaselines.clear();
     const int n_ant = static_cast<int>(m_MetaData.m_AntennaPositions.size());
@@ -95,13 +68,23 @@ int CPacerImager::UpdateFlags()
     for (unsigned int baseline = 0; baseline < n_baselines; ++baseline){
         unsigned int ant1 = static_cast<unsigned int>( -0.5 + std::sqrt(0.25 + 2.0 * baseline));
         unsigned int ant2 = baseline - ((ant1 + 1) * ant1) / 2u;
+        
+        bool antennas_in_flagged_list {false};
+        
+        for(int a : m_FlaggedAntennas){
+            if(a == ant1 || a == ant2){
+                antennas_in_flagged_list = true;
+                break;
+            }
+        }
 
-        bool is_flagged = m_MetaData.m_AntennaPositions[ant1].flag > 0 || m_MetaData.m_AntennaPositions[ant2].flag > 0 || ant1 == ant2;
+        bool is_flagged = antennas_in_flagged_list || ant1 == ant2;
         m_FlaggedBaselines[baseline] = is_flagged ? 1 : 0;
     }
 
     return count_flagged;
 }
+
 
 
 CPacerImager::CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images,
