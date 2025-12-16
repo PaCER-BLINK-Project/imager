@@ -12,6 +12,8 @@
 #include <libnova_interface.h>
 #include <myfile.h>
 
+#include <limits>
+
 #ifdef _PACER_PROFILER_ON_
 #include <mydate.h>
 #endif
@@ -226,12 +228,14 @@ Images CPacerImager::image(ObservationInfo& obs_info) {
 bool CPacerImager::CalculateUVW(){
     m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW(u_cpu, v_cpu, w_cpu, m_bIncludeAutos);
     PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines\n", m_Baselines);
-    u_max = std::abs(u_cpu[0]);
-    v_max = std::abs(v_cpu[0]);
+    u_max = -std::numeric_limits<double>::infinity();
+    v_max = -std::numeric_limits<double>::infinity();
 
-    for(int i {1}; i < u_cpu.size(); i++){
-    if(u_max < std::abs(u_cpu[i])) u_max = std::abs(u_cpu[i]);
-    if(v_max < std::abs(v_cpu[i])) v_max = std::abs(v_cpu[i]);
+    for(int i {0}; i < u_cpu.size(); i++){
+        if(m_FlaggedBaselines[i] == 0){
+            if(u_max < std::abs(u_cpu[i])) u_max = std::abs(u_cpu[i]);
+            if(v_max < std::abs(v_cpu[i])) v_max = std::abs(v_cpu[i]);
+        }
     }
     // Bacause we are also including conjugates at (-u,-v) UV point in gridding
     // u_min = -u_max and v_min = -v_max : was -35 / +35
