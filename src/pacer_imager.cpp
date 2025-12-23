@@ -88,11 +88,12 @@ int CPacerImager::UpdateFlags() {
 
 
 CPacerImager::CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images,
-        Polarization pol_to_image, float oversampling_factor, double min_uv, const char* weighting) {
+        Polarization pol_to_image, float oversampling_factor, double min_uv, double max_uv, const char* weighting) {
     this->average_images = average_images;
     this->pol_to_image = pol_to_image;
     this->oversampling_factor = oversampling_factor;
     this->min_uv = min_uv;
+    this->max_uv = max_uv;
     this->weighting = weighting;
     this->n_pixels = n_pixels;
      // read all information from metadata
@@ -155,10 +156,8 @@ Images CPacerImager::image(ObservationInfo& obs_info) {
     #endif
     //images_buffer.dump("images_after_fft.bin");
     #pragma omp parallel for collapse(2) schedule(static)
-    for (size_t time_step = 0; time_step < n_gridded_intervals; time_step++)
-    {
-        for (size_t fine_channel = 0; fine_channel < n_gridded_channels; fine_channel++)
-        {
+    for (size_t time_step = 0; time_step < n_gridded_intervals; time_step++) {
+        for (size_t fine_channel = 0; fine_channel < n_gridded_channels; fine_channel++) {
             std::complex<float>* current_grid = grids.data() + time_step * n_gridded_channels * grid_size + fine_channel * grid_size;
             std::complex<float>* current_image = images_buffer.data() + time_step * n_gridded_channels * grid_size + fine_channel * grid_size;
             

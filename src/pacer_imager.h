@@ -79,7 +79,8 @@ public :
 
    int m_Baselines;
    int n_pixels;
-   double min_uv {-1000};
+   double min_uv {-std::numeric_limits<double>::infinity()};
+   double max_uv {std::numeric_limits<double>::infinity()};
    const char *weighting = "";
    // MemoryBuffer<double> frequencies;
    
@@ -95,7 +96,8 @@ public :
    
 
    CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images = false,
-      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv=-1000, const char* weighting="");
+      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv=-std::numeric_limits<double>::infinity(),
+      double max_uv=std::numeric_limits<double>::infinity(), const char* weighting="");
    
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------

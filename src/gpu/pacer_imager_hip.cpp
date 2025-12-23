@@ -14,8 +14,9 @@
 #include "../utils.h"
 
 CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas,
-   bool average_images, Polarization pol_to_image, float oversampling_factor, double min_uv, const char *weighting) : CPacerImager(
-      metadata_file, n_pixels, flagged_antennas, average_images, pol_to_image, oversampling_factor, min_uv, weighting) {}
+   bool average_images, Polarization pol_to_image, float oversampling_factor, double min_uv, double max_uv,
+   const char *weighting) : CPacerImager(
+      metadata_file, n_pixels, flagged_antennas, average_images, pol_to_image, oversampling_factor, min_uv, max_uv, weighting) {}
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
    const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
