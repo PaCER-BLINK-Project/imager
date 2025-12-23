@@ -13,7 +13,7 @@ https://stackoverflow.com/questions/17489017/can-we-declare-a-variable-of-type-c
 
 #include "pacer_imager_hip_defines.h"
 #include "../gridding.hpp"
-
+#include <mycomplex.hpp>
 
 __device__ inline int wrap_index(int i, int side){
     if(i >= 0) return i % side;
@@ -58,7 +58,7 @@ __device__ int calculate_pos(float u,
 __global__ void gridding_kernel(const float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
                                       int n_ant,
                                       const float *u, const float *v, 
-                                      const int* antenna_flags, const float* antenna_weights,
+                                      const int* baseline_flags, const float* antenna_weights,
                                       const double *frequencies, int image_size, double delta_u, double delta_v, 
                                       int n_pixels,
                                       float *uv_grid_counter, double min_uv, Polarization pol,
@@ -82,19 +82,24 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
       }else if(pol == Polarization::YY){
          re = visibilities[i * 2 * n_pols_prod + 6];
          im = visibilities[i * 2 * n_pols_prod + 7];
+      }else if ( pol== Polarization::V){
+         const Complex<float>* vis_xx = reinterpret_cast<const Complex<float>*>(visibilities) + i * n_pols_prod;
+         const Complex<float>* vis_xy = vis_xx + 1;   //this is we need the array 1st element xy
+         const Complex<float>* vis_yx = vis_xx + 2;   // this is we need the array 2nd element yx
+      
+         Complex<float> mult {0, 0.5};
+         Complex<float>result = mult * (*vis_xy - *vis_yx);
+         re = result.real; // using this formula shortcut to  v= 2i  * (A + iB)
+         im = result.imag;
       }else {
          // Stokes I
          re = (visibilities[i * 2 * n_pols_prod] + visibilities[i * 2 * n_pols_prod + 6]) / 2.0f;
          im = (visibilities[i * 2 * n_pols_prod + 1] + visibilities[i * 2 * n_pols_prod + 7]) / 2.0f;
       }
       
-      unsigned int a1 {static_cast<unsigned int>(-0.5 + sqrt(0.25 + 2*baseline))};
-      unsigned int a2 {baseline - ((a1 + 1) * a1)/2};
-      if(a1 == a2) continue;
-
       // Checking for NaN values 
-      if( !isnan(re) && !isnan(im) && antenna_flags[a2]<=0 && antenna_flags[a1]<=0 ) {
-         int pos = calculate_pos( u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
+      if( !isnan(re) && !isnan(im) && baseline_flags[baseline] <= 0) {
+         int pos = calculate_pos(u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
          if(pos>=0 && pos<image_size) {
             // Allocating in uv_grid       
             // WARNING: this might not give us the exact count for all time steps because of nan values, but it is a tradeoff for memory
@@ -106,7 +111,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
             atomicAdd(&m_in_buffer[image_size * m_idx + pos].y,im);
          }   
 
-         int pos2 = calculate_pos(u[a1 * n_ant + a2], v[a1 * n_ant + a2], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
+         int pos2 = calculate_pos(u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
          if(pos2>=0 && pos2<image_size)
          {
             if(m_idx / n_frequencies == 0) atomicAdd(&uv_grid_counter[image_size * m_idx + pos2],1);
@@ -124,7 +129,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
 
 void gridding_gpu(const Visibilities& xcorr,
       const MemoryBuffer<float>& u_gpu,  const MemoryBuffer<float>& v_gpu, 
-      const MemoryBuffer<int>& antenna_flags, const MemoryBuffer<float>& antenna_weights,
+      const MemoryBuffer<int>& baseline_flags, const MemoryBuffer<float>& antenna_weights,
       const MemoryBuffer<double>& frequencies,
       double delta_u, double delta_v,
       int n_pixels, double min_uv, Polarization pol, MemoryBuffer<float>& grids_counters,
@@ -143,7 +148,7 @@ void gridding_gpu(const Visibilities& xcorr,
    gpuGetDeviceProperties(&props, gpu_id);
    unsigned int n_blocks = props.multiProcessorCount * 2;
    gridding_kernel<<<n_blocks, NTHREADS>>>(reinterpret_cast<const float*>(xcorr.data()), n_baselines, xcorr.nFrequencies, xcorr.integration_intervals(),
-      n_ant, u_gpu.data(), v_gpu.data(), antenna_flags.data(), antenna_weights.data(), frequencies.data(), image_size,
+      n_ant, u_gpu.data(), v_gpu.data(), baseline_flags.data(), antenna_weights.data(), frequencies.data(), image_size,
       delta_u, delta_v, n_pixels, grids_counters.data(), min_uv, pol, (gpufftComplex*) grids.data());
    gpuGetLastError();
    gpuDeviceSynchronize();

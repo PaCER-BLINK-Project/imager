@@ -63,7 +63,7 @@ void test_imager_cpu(){
     double MinUV = -1000;
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
-    CPacerImager imager {metadataFile, image_size, flagged_antennas, false, Polarization::XX, 2.0f, MinUV, szWeighting.c_str()};
+    CPacerImager imager {metadataFile, image_size, flagged_antennas, false, Polarization::XX, 2.0f, MinUV, std::numeric_limits<double>::infinity(), szWeighting.c_str()};
     test_imager_common(imager, true);
 }
 
@@ -74,7 +74,7 @@ void test_imager_gpu(){
     double MinUV = -1000;
     std::string metadataFile {dataRootDir + "/mwa/1276619416/20200619163000.metafits"};
     std::vector<int> flagged_antennas {21, 25, 58, 71, 80, 81, 92, 101, 108, 114, 119, 125};
-    CPacerImagerHip imager {metadataFile, image_size, flagged_antennas, false, Polarization::XX, 2.0f, MinUV, szWeighting.c_str()};
+    CPacerImagerHip imager {metadataFile, image_size, flagged_antennas, false, Polarization::XX, 2.0f, MinUV, std::numeric_limits<double>::infinity(), szWeighting.c_str()};
     test_imager_common(imager, false);
 }
 #endif

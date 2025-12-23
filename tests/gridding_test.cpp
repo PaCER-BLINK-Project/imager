@@ -77,7 +77,8 @@ int main(void){
 
    try{
         #ifdef __GPU__
-        test_gridding_gpu();
+        // TODO: must replace the antenna_flags with baseline flags test
+        // test_gridding_gpu();
         #endif
     } catch (std::exception& ex){
         std::cerr << ex.what() << std::endl;

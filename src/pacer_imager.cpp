@@ -12,6 +12,8 @@
 #include <libnova_interface.h>
 #include <myfile.h>
 
+#include <limits>
+
 #ifdef _PACER_PROFILER_ON_
 #include <mydate.h>
 #endif
@@ -55,46 +57,43 @@ void CPacerImager::SetFileLevel(int filesave_level)
     CPacerImager::m_SaveFilesLevel = filesave_level;
 }
 
-int CPacerImager::UpdateFlags()
-{
+int CPacerImager::UpdateFlags() {
     int count_flagged = 0;
 
-    if (m_FlaggedAntennas.size() > 0)
-    {
-        if (m_MetaData.m_AntennaPositions.size() > 0)
-        {
-            // flagging antennas in the list :
-            for (int i = 0; i < m_FlaggedAntennas.size(); i++)
-            {
-                int ant_index = m_FlaggedAntennas[i];
+    m_FlaggedBaselines.clear();
+    const int n_ant = static_cast<int>(m_MetaData.m_AntennaPositions.size());
+    const int n_baselines = (n_ant * (n_ant + 1)) / 2;
+    m_FlaggedBaselines.assign(n_baselines, 0);
 
-                if (ant_index >= 0 && ant_index < m_MetaData.m_AntennaPositions.size())
-                {
-                    m_MetaData.m_AntennaPositions[ant_index].flag = 1;
-                    count_flagged++;
-                }
+    for (unsigned int baseline = 0; baseline < n_baselines; ++baseline){
+        unsigned int ant1 = static_cast<unsigned int>( -0.5 + std::sqrt(0.25 + 2.0 * baseline));
+        unsigned int ant2 = baseline - ((ant1 + 1) * ant1) / 2u;
+        
+        bool antennas_in_flagged_list {false};
+        
+        for(int a : m_FlaggedAntennas){
+            if(a == ant1 || a == ant2){
+                antennas_in_flagged_list = true;
+                break;
             }
-            PRINTF_DEBUG("CPacerImager::SetFlaggedAntennas : Flagged %d antennas in the "
-                         "imager object\n",
-                         count_flagged);
         }
-        else
-        {
-            PRINTF_DEBUG("CPacerImager::SetFlaggedAntennas : No antennas in object "
-                         "m_MetaData.m_AntennaPositions\n");
-        }
+
+        bool is_flagged = antennas_in_flagged_list || ant1 == ant2;
+        m_FlaggedBaselines[baseline] = is_flagged ? 1 : 0;
     }
 
     return count_flagged;
 }
 
 
+
 CPacerImager::CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images,
-        Polarization pol_to_image, float oversampling_factor, double min_uv, const char* weighting) {
+        Polarization pol_to_image, float oversampling_factor, double min_uv, double max_uv, const char* weighting) {
     this->average_images = average_images;
     this->pol_to_image = pol_to_image;
     this->oversampling_factor = oversampling_factor;
     this->min_uv = min_uv;
+    this->max_uv = max_uv;
     this->weighting = weighting;
     this->n_pixels = n_pixels;
      // read all information from metadata
@@ -157,10 +156,8 @@ Images CPacerImager::image(ObservationInfo& obs_info) {
     #endif
     //images_buffer.dump("images_after_fft.bin");
     #pragma omp parallel for collapse(2) schedule(static)
-    for (size_t time_step = 0; time_step < n_gridded_intervals; time_step++)
-    {
-        for (size_t fine_channel = 0; fine_channel < n_gridded_channels; fine_channel++)
-        {
+    for (size_t time_step = 0; time_step < n_gridded_intervals; time_step++) {
+        for (size_t fine_channel = 0; fine_channel < n_gridded_channels; fine_channel++) {
             std::complex<float>* current_grid = grids.data() + time_step * n_gridded_channels * grid_size + fine_channel * grid_size;
             std::complex<float>* current_image = images_buffer.data() + time_step * n_gridded_channels * grid_size + fine_channel * grid_size;
             
@@ -213,12 +210,14 @@ Images CPacerImager::image(ObservationInfo& obs_info) {
 bool CPacerImager::CalculateUVW(){
     m_Baselines = m_MetaData.m_AntennaPositions.CalculateUVW(u_cpu, v_cpu, w_cpu, m_bIncludeAutos);
     PRINTF_INFO("INFO : calculated UVW coordinates of %d baselines\n", m_Baselines);
-    u_max = u_cpu[0];
-    v_max = v_cpu[0];
+    u_max = -std::numeric_limits<double>::infinity();
+    v_max = -std::numeric_limits<double>::infinity();
 
-    for(int i {1}; i < u_cpu.size(); i++){
-    if(u_max < u_cpu[i]) u_max = u_cpu[i];
-    if(v_max < v_cpu[i]) v_max = v_cpu[i];
+    for(int i {0}; i < u_cpu.size(); i++){
+        if(m_FlaggedBaselines[i] == 0){
+            if(u_max < std::abs(u_cpu[i])) u_max = std::abs(u_cpu[i]);
+            if(v_max < std::abs(v_cpu[i])) v_max = std::abs(v_cpu[i]);
+        }
     }
     // Bacause we are also including conjugates at (-u,-v) UV point in gridding
     // u_min = -u_max and v_min = -v_max : was -35 / +35
@@ -259,30 +258,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
         grids.allocate(buffer_size);
         memset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
     }
-    // TODO: check: should the following be here?
-    bool bStatisticsCalculated = false;
-    if (m_bPrintImageStatistics)
-    { // TODO : ? may require a separate flag in the
-      // future, for now just using a single
-      // Statistics switch ON/OFF flag
-    if(v_cpu){
-        u_max = u_cpu[0];
-        v_max = v_cpu[0];
 
-      for(int i {1}; i < u_cpu.size(); i++){
-        if(u_max < u_cpu[i]) u_max = u_cpu[i];
-        if(v_max < v_cpu[i]) v_max = v_cpu[i];
-      }
-      // Bacause we are also including conjugates at (-u,-v) UV point in gridding
-        // u_min = -u_max and v_min = -v_max : was -35 / +35
-        u_min = -u_max;
-        //  u_max = +35;
-        v_min = -v_max;
-        //  v_max = +35;
-    } 
-
-        bStatisticsCalculated = true;
-    }
     int grid_size = n_pixels * n_pixels;
     #pragma omp parallel for collapse(2) schedule(static)
     for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++)
@@ -317,156 +293,130 @@ void CPacerImager::gridding(Visibilities &xcorr) {
             //  double v_center = (v_min + v_max)/2.00;
 
             int n_ant = xcorr.obsInfo.nAntennas;
-            int added = 0, high_value = 0;
-            for (int ant1 = 0; ant1 < n_ant; ant1++)
-            {
-                for (int ant2 = 0; ant2 <= ant1; ant2++)
+            const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2);
+            for(unsigned int baseline = 0; baseline < n_baselines; baseline++){
+                
+                if (m_FlaggedBaselines[baseline]) continue;
+  
+                float re {0}, im {0};
+                if(pol_to_image == Polarization::XX){
+                    std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, baseline);
+                    re = vis_xx->real();
+                    im = vis_xx->imag();
+                }else if(pol_to_image == Polarization::YY){
+                    std::complex<float> *vis_yy = xcorr.at(time_step, fine_channel, baseline) + 3;
+                    re =  vis_yy->real();
+                    im =  vis_yy->imag();
+                } else if (pol_to_image == Polarization::V) {
+                    std::complex<float>* vis_xy = xcorr.at(time_step, fine_channel, baseline) + 1;
+                    std::complex<float>* vis_yx = xcorr.at(time_step, fine_channel, baseline) + 2;
+                
+                    std::complex<float> mult {0, 0.5};
+                    std::complex<float> result = mult * (*vis_xy - *vis_yx);
+                    re = result.real(); // using this formula shortcut to  v= 2i  * (A + iB)
+                    im = result.imag();
+
+                }else {
+                    // Stokes I
+                    std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, baseline);
+                    std::complex<float> *vis_yy = vis_xx + 3;
+                    re = (vis_xx->real() + vis_yy->real()) / 2.0f;
+                    im = (vis_xx->imag() + vis_yy->imag()) / 2.0f;
+                }
+
+                if (!isnan(re) && !isnan(im))
                 {
-                    if (ant1 > ant2 || (m_bIncludeAutos && ant1 == ant2))
-                    { // was ant1 > ant2
-                        if (m_MetaData.m_AntennaPositions.size() > 0)
-                        {
-                            if (m_MetaData.m_AntennaPositions[ant1].flag > 0 ||
-                                m_MetaData.m_AntennaPositions[ant2].flag > 0)
-                            {
-                                // skip flagged antennas
-                                // printf("Fast flagging used\n");
-                                continue;
+                    if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
+                    {
+                        // TODO convert [m] -> wavelength
+                        double u = u_cpu[baseline] / wavelength_m;
+
+                        // 2022-09-24 : - removed for a test on MWA data
+                        // 2022-09-09 - for now sticking to - sign here to have back
+                        // comatible test EDA2 data
+                        //  but looks like this (-) should not be here at least does not
+                        //  match UV coverage from WSCEAN (it is flipped then see :
+                        //  /home/msok/Desktop/PAWSEY/PaCER/logbook/20220826_image_simulation_part3.odt
+                        double v = v_cpu[baseline] /
+                                    wavelength_m; // the - sign here fixes the Y flip, but I am
+                                                    // not sure why needed ??? check RTS :
+                                                    // imagefromuv.c , LM_CopyFromFFT where some
+                                                    // interesting re-shuffling happens too !
+                                                    // - was for EDA2 data, but + is ok for MWA
+                                                    // data - it may be consistent once I start
+                                                    // using TMS equation 4.1 consistently for
+                                                    // both EDA2 and MWA
+                        
+                        double uv_distance = sqrt(u * u + v * v);
+
+                        /* this is in WSCLEAN, but here seems to have no effect ...
+                                            if (w < 0.0 ) { // && !_isComplex
+                                            u = -u;
+                                            v = -v;
+                                            w = -w;
+                                            im = -im;
+                                            }
+                        */
+
+
+                        if (uv_distance > min_uv)
+                        { // check if larger than minimum UV distance
+                            int u_pix = static_cast<int>(round(u / delta_u));
+                            int v_pix = static_cast<int>(round(v / delta_v));
+
+
+                            int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
+                            int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
+
+
+                            // now fft shift
+                            //u_index = ::calc_fft_shift(u_index, n_pixels);
+                            //v_index = ::calc_fft_shift(v_index ,n_pixels);
+                            
+                            // I believe that this is the gridding code (what used to be uv_grid_real.addXY( x_grid, y_grid, re );) 
+                            // not sure how to translate convolution kernel into the current code now that everything is different
+                            if( m_nConvolvingKernelSize > 0 ){
+                                // convolve visibiity value with a kernel 
+                                // original code : convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
+                                convolve_with_kernel( current_grid, u_index, v_index, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
+                            }else{ // normal code without convolution kernel
+                                // Using CELL averaging method or setXY ?
+                                current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
+                                current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im);
                             }
-                        }
-                        else
-                        {
-                            if (m_FlaggedAntennas.size() > 0)
-                            {
-                                // WARNING : this is much less efficient so better to have
-                                // antenna positions and check flags there
-                                if (find_value(m_FlaggedAntennas, ant1) >= 0 ||
-                                    find_value(m_FlaggedAntennas, ant2) >= 0)
-                                {
-                                    continue;
-                                }
+                            current_counter[v_index * n_pixels + u_index] += 1;
+
+                            // add conjugates :
+                            u_index = wrap_index(-u_pix, n_pixels);
+                            v_index = wrap_index(-v_pix, n_pixels);
+                            // now fft shift
+                            //u_index = calc_fft_shift(u_index, n_pixels);
+                            //v_index = calc_fft_shift(v_index ,n_pixels);
+                            
+
+                            // Same for conjugates:
+                            // I believe that this is the gridding code (what used to be uv_grid_real.addXY( x_grid, y_grid, re );) 
+                            // not sure how to translate convolution kernel into the current code now that everything is different
+                            if( m_nConvolvingKernelSize > 0 ){
+                                // convolve visibiity value with a kernel 
+                                // original code : convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
+                                convolve_with_kernel( current_grid, u_index, v_index, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
+                            }else{
+                                current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
+                                current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
                             }
+                            current_counter[v_index * n_pixels + u_index] += 1;
                         }
-
-                        float re {0}, im {0};
-                        if(pol_to_image == Polarization::XX){
-                            std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
-                            re = vis_xx->real();
-                            im = vis_xx->imag();
-                        }else if(pol_to_image == Polarization::YY){
-                            std::complex<float> *vis_yy = xcorr.at(time_step, fine_channel, ant1, ant2) + 3;
-                            re =  vis_yy->real();
-                            im =  vis_yy->imag();
-                        }else {
-                            // Stokes I
-                            std::complex<float> *vis_xx = xcorr.at(time_step, fine_channel, ant1, ant2);
-                            std::complex<float> *vis_yy = vis_xx + 3;
-                            re = (vis_xx->real() + vis_yy->real()) / 2.0f;
-                            im = (vis_xx->imag() + vis_yy->imag()) / 2.0f;
-                        }
-
-                        if (!isnan(re) && !isnan(im))
-                        {
-                            if (fabs(re) < MAX_VIS && fabs(im) < MAX_VIS)
-                            {
-                                // TODO convert [m] -> wavelength
-                                double u = u_cpu[ant1 * n_ant + ant2] / wavelength_m;
-
-                                // 2022-09-24 : - removed for a test on MWA data
-                                // 2022-09-09 - for now sticking to - sign here to have back
-                                // comatible test EDA2 data
-                                //  but looks like this (-) should not be here at least does not
-                                //  match UV coverage from WSCEAN (it is flipped then see :
-                                //  /home/msok/Desktop/PAWSEY/PaCER/logbook/20220826_image_simulation_part3.odt
-                                double v = v_cpu[ant1 * n_ant + ant2] /
-                                           wavelength_m; // the - sign here fixes the Y flip, but I am
-                                                         // not sure why needed ??? check RTS :
-                                                         // imagefromuv.c , LM_CopyFromFFT where some
-                                                         // interesting re-shuffling happens too !
-                                                         // - was for EDA2 data, but + is ok for MWA
-                                                         // data - it may be consistent once I start
-                                                         // using TMS equation 4.1 consistently for
-                                                         // both EDA2 and MWA
-                               
-                                double uv_distance = sqrt(u * u + v * v);
-
-                                /* this is in WSCLEAN, but here seems to have no effect ...
-                                                 if (w < 0.0 ) { // && !_isComplex
-                                                    u = -u;
-                                                    v = -v;
-                                                    w = -w;
-                                                    im = -im;
-                                                 }
-                                */
-
-                                if (ant1 == ant2)
-                                {
-                                    PRINTF_DEBUG("Auto-correlation debug2 values %.4f / %.4f , "
-                                                 "uv_distance = %.8f vs. min_uv = %.8f (u = %.8f , v = "
-                                                 "%.8f , wavelength_m = %.8f [m])\n",
-                                                 re, im, uv_distance, min_uv, u, v, wavelength_m);
-                                }
-
-                                if (uv_distance > min_uv)
-                                { // check if larger than minimum UV distance
-                                    int u_pix = static_cast<int>(round(u / delta_u));
-                                    int v_pix = static_cast<int>(round(v / delta_v));
-
-
-                                    int u_index = wrap_index(u_pix, n_pixels); //+ n_pixels / 2;
-                                    int v_index = wrap_index(v_pix, n_pixels); //+ n_pixels / 2;
-
-
-                                    // now fft shift
-                                    //u_index = ::calc_fft_shift(u_index, n_pixels);
-                                    //v_index = ::calc_fft_shift(v_index ,n_pixels);
-                                    
-                                    // I believe that this is the gridding code (what used to be uv_grid_real.addXY( x_grid, y_grid, re );) 
-                                    // not sure how to translate convolution kernel into the current code now that everything is different
-                                    if( m_nConvolvingKernelSize > 0 ){
-                                       // convolve visibiity value with a kernel 
-                                       // original code : convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
-                                       convolve_with_kernel( current_grid, u_index, v_index, re, im, u, v, delta_u, delta_v, n_pixels, 1.00 );
-                                    }else{ // normal code without convolution kernel
-                                       // Using CELL averaging method or setXY ?
-                                       current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
-                                       current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() + im);
-                                    }
-                                    current_counter[v_index * n_pixels + u_index] += 1;
-
-                                    // add conjugates :
-                                    u_index = wrap_index(-u_pix, n_pixels);
-                                    v_index = wrap_index(-v_pix, n_pixels);
-                                    // now fft shift
-                                    //u_index = calc_fft_shift(u_index, n_pixels);
-                                    //v_index = calc_fft_shift(v_index ,n_pixels);
-                                    
-
-                                    // Same for conjugates:
-                                    // I believe that this is the gridding code (what used to be uv_grid_real.addXY( x_grid, y_grid, re );) 
-                                    // not sure how to translate convolution kernel into the current code now that everything is different
-                                    if( m_nConvolvingKernelSize > 0 ){
-                                       // convolve visibiity value with a kernel 
-                                       // original code : convolve_with_kernel( uv_grid_real, uv_grid_imag, x_grid, y_grid, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
-                                       convolve_with_kernel( current_grid, u_index, v_index, re, im, u, v, delta_u, delta_v, n_pixels, -1.00 );
-                                    }else{
-                                       current_grid[v_index * n_pixels + u_index].real(current_grid[v_index * n_pixels + u_index].real() + re);
-                                       current_grid[v_index * n_pixels + u_index].imag(current_grid[v_index * n_pixels + u_index].imag() - im);
-                                    }
-                                    current_counter[v_index * n_pixels + u_index] += 1;
-                                }
-                            }
-                            else
-                            {
-                                PRINTF_DEBUG("DEBUG : visibility value %e +j%e higher than limit %e -> "
-                                             "skipped\n",
-                                             re, im, MAX_VIS);
-                            }
-                        }
+                    }
+                    else
+                    {
+                        PRINTF_DEBUG("DEBUG : visibility value %e +j%e higher than limit %e -> "
+                                        "skipped\n",
+                                        re, im, MAX_VIS);
                     }
                 }
             }
-             // This division is in fact UNIFORM weighting !!!! Not CELL-avareging
+                // This division is in fact UNIFORM weighting !!!! Not CELL-avareging
             // normalisation to make it indeed CELL-averaging :
             if (strcmp(weighting, "U") == 0)
             {
@@ -478,6 +428,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
             }
         }
     }
+    
 }
 
 
