@@ -24,6 +24,8 @@
 #include <omp.h>
 
 #include "utils.h"
+#include <set>
+
 
 
 
@@ -32,6 +34,34 @@ namespace {
         int is_odd = side % 2;
         return (pos + side/2 + is_odd) % (side);
     }
+
+
+
+    static inline std::pair<float, float> compute_iqr_sigma(std::vector<float> values)
+    {
+
+        values.erase(
+            std::remove_if(values.begin(), values.end(),
+                           [](float x){ return !std::isfinite(x); }),
+            values.end()
+
+
+
+        );if (values.empty()) {
+            return {std::numeric_limits<float>::infinity(),
+                    std::numeric_limits<float>::infinity()};
+        }
+
+
+        std::sort(values.begin(), values.end());
+        const size_t n = values.size();
+        const size_t q75 = static_cast<size_t>(n * 0.75);
+        const size_t q25 = static_cast<size_t>(n * 0.25);
+
+        const float median = values[n / 2];
+        const float sigma  = (values[q75] - values[q25]) / 1.35f;
+        return {median, sigma};
+}
 }
 
 
@@ -334,6 +364,11 @@ void CPacerImager::gridding(Visibilities &xcorr) {
     const int n_ant = xcorr.obsInfo.nAntennas;
     const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2);
     const bool use_baseline_flags = (m_BaselineFlags.size() == n_baselines);
+
+
+    const bool use_anomalous_baselines = !m_AnomalousBaselines.empty();
+
+
     
     int grid_size = n_pixels * n_pixels;
     #pragma omp parallel for collapse(2) schedule(static)
@@ -377,6 +412,13 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                     // printf("Fast flagging used\n");
                     continue;
                 }
+
+
+                if (use_anomalous_baselines &&  m_AnomalousBaselines.find(baseline) != m_AnomalousBaselines.end())
+                {
+                    continue;
+                }
+
                             
                float re {0}, im {0}; // varaible we are using store the the temposry and the imaginarty visbity 
                std::complex<float>* vis_xx = xcorr.at(time_step, fine_channel, baseline); // we are using baseline to run this isntead of ant1 and antg2, we are doing this to get the visbsiblty of the baslein
@@ -525,27 +567,13 @@ void CPacerImager::gridding(Visibilities &xcorr) {
 
 
 
-void analyse_visibilities(Visibilities &xcorr){ //sending the &xcorr data
+void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xcorr data
     // TODO: compute some statistics on values across xcorr.
     // option 1: look at each correlation matrix independently 
     std::cout << " INIT analyse_visibilities " << std::endl; // printing the message
 
 
-    auto compute_iqr_rms = [](std::vector<float> values) -> std::pair<float, float> { // the lambada function returns a a air medin and rms
-        
-        std::sort(values.begin(), values.end()); 
-        const size_t count = values.size();
-        if (count == 0) {
-            return {std::numeric_limits<float>::infinity(),
-                    std::numeric_limits<float>::infinity()};
-        }
-        const size_t q75 = static_cast<size_t>(count * 0.75);// get the index for the 75th percent
-        const size_t q25 = static_cast<size_t>(count * 0.25); //get the index for the 25th percent
-        const float iqr = (values[q75] - values[q25]) / 1.35f; // this is the rms
-        const float median = values[count / 2]; //getting the median value
-        return {median, iqr};
-    };
-
+    
 
 
     const int n_ant = xcorr.obsInfo.nAntennas; //   I need this here beacuse I need to put baselines here
@@ -553,17 +581,34 @@ void analyse_visibilities(Visibilities &xcorr){ //sending the &xcorr data
     static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
 
 
+
+    const int n_t = xcorr.integration_intervals(); //I will put a variable
+    const int n_f = xcorr.nFrequencies; //I will put the frequencies here
+
+    const float sigma_threshold = 5.0f; //this is t he sigma threshold
+    const float frac_threshold  = 0.02f;  //this is thwe frac threshold
+    std::set<unsigned int> anomalous_baselines;
+
+
+    for (unsigned int baseline = 0; baseline < n_baselines; ++baseline)  //getting all the baselines
+    { 
+        
+        unsigned int ant1 = static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2.0 * baseline)); //get the basline to the top
+        unsigned int ant2 = baseline - ((ant1 + 1) * ant1) / 2u;
+
+
+        std::vector<float> values;
+        values.reserve(static_cast<size_t>(n_t) * static_cast<size_t>(n_f)); 
+
+
      for (int time_step = 0; time_step < xcorr.integration_intervals(); time_step++) {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++) {
 
-            std::vector<float> values;
-            values.reserve(n_baselines);
-
-            for(int baseline = 0; baseline < n_baselines; baseline++){
-                std::complex<float>* vis_xx = xcorr.at(time_step, fine_channel, baseline);
-                values.push_back(vis_xx->real());
-            
-            }
+           
+            std::complex<float>* vis_xx = xcorr.at(time_step, fine_channel, baseline); 
+            values.push_back(vis_xx->real());
+          }
+        }
 
             // compute statistics on values
 
@@ -573,30 +618,93 @@ void analyse_visibilities(Visibilities &xcorr){ //sending the &xcorr data
                 values.end()
             );
 
+
+            std::string name = "XX(real) b=" + std::to_string(baseline) +
+            " a1=" + std::to_string(ant1) +
+            " a2=" + std::to_string(ant2);
+        
+
             if (values.empty())
             {
-                std::cout << "flag_rfi - XX(real) t=" << time_step << " ch=" << fine_channel
-                          << " - min: nan, max: nan, median: inf, rms: inf\n";
+                std::cout << "flag_rfi - " << name
+                << " - min: nan, max: nan, median: inf, rms: inf\n";
+
                 continue;
             }
             
 
             // we need to link the medium and the rms
-            auto median_rms_of_values = compute_iqr_rms(values);
+            auto median_rms_of_values = compute_iqr_sigma(values);
 
-            std::string name = "XX(real) t=" + std::to_string(time_step) +
-                               " ch=" + std::to_string(fine_channel);
+
+           
+           
 
              // pruinting everything
-           std::cout << "flag_rfi - " << name << " - "
+            std::cout << "flag_rfi - " << name << " - "
                      << "min: " << *std::min_element(values.begin(), values.end()) << ", "
                      << "max: " << *std::max_element(values.begin(), values.end()) << ", "
                      << "median: " << median_rms_of_values.first <<  ", "
                      << "rms: " << median_rms_of_values.second
                      << std::endl;
 
+            
+            
+            const float median = median_rms_of_values.first; // get the median
+            const float sigma  = median_rms_of_values.second; //get the rms
 
 
+            if (!std::isfinite(median) || !std::isfinite(sigma) || sigma <= 0.0f) {
+                continue;
+            }
+
+        
+            const float up = median + sigma_threshold * sigma;  //we have to get the up abd the down values
+            const float dn = median - sigma_threshold * sigma;
+
+            size_t outliers = 0;  // we are getting ther anomalous values
+            for (float x : values) {
+                if (x > up || x < dn) outliers++;
+            }
+
+            const float frac = static_cast<float>(outliers) / static_cast<float>(values.size());
+
+            std::cout << "anomaly_check - " << name  // everything print
+                          << " - outliers: " << outliers << "/" << values.size()
+                          << " frac=" << frac
+                          << " (thr=" << frac_threshold
+                          << ", k=" << sigma_threshold << ")\n";
+
+                         
+                      
+
+
+
+
+            if (frac >= frac_threshold) {  //we have to now get the fraction
+                                anomalous_baselines.insert(baseline);
+
+            }
+        }
+
+            std::cout << "SUMMARY: anomalous baselines = " << anomalous_baselines.size() 
+             << " / " << n_baselines << "\n";
+
+
+
+
+
+             m_AnomalousBaselines = anomalous_baselines;
+
+
+    }
+                           
+            
+
+            
+            
+             
+        
             
             
             
@@ -609,12 +717,6 @@ void analyse_visibilities(Visibilities &xcorr){ //sending the &xcorr data
 
 
            
-        }
-    }
-
-    
-  
-}
 
 
 /** 
@@ -623,7 +725,8 @@ void analyse_visibilities(Visibilities &xcorr){ //sending the &xcorr data
     @param xcorr: Visibilities to be imaged.
 */
 Images CPacerImager::run(Visibilities &xcorr){
-    analyse_visibilities(xcorr);
+    this->analyse_visibilities(xcorr);
+
     grid(xcorr);
     return image(xcorr.obsInfo);
 }

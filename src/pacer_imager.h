@@ -10,7 +10,7 @@
 #include <string>
 
 #include <limits>
-
+#include <set>
 
 using namespace std;
 
@@ -99,10 +99,14 @@ public :
    // single frequency testing so that it is possible to pass frequency externally and do not calculate from channel (one channel per freq)
    // TODO : later use array of frequencies in MHz instead of channels to avoid calculation of frequency inside imager (get list as parameter)
    double m_fFrequencyMHz {-1};
+
+   void analyse_visibilities(Visibilities &xcorr);
+
+   private: std::set<unsigned int> m_AnomalousBaselines;
+
    
 
-   CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images = false,
-      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv=-1000, const char* weighting="", double max_uv = std::numeric_limits<double>::infinity());
+   public:  CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images = false, Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv=-1000, const char* weighting="", double max_uv = std::numeric_limits<double>::infinity());
    
    // Set / Get functions :
    //-----------------------------------------------------------------------------------------------------------------------------
