@@ -5,6 +5,8 @@
 #include <astroio.hpp>
 #include <memory_buffer.hpp>
 #include <gpu_fft.hpp>
+#include <limits>
+
 
 #include "../pacer_imager.h"
 
@@ -23,6 +25,11 @@ protected :
    // antenna flags (0-ok, 1-flagged) and weights (1-ok, 0-remove)
    MemoryBuffer<int> baseline_flags_gpu;
    MemoryBuffer<float> antenna_weights_gpu;
+
+   MemoryBuffer<int> anomalous_baseline_flags_gpu;
+
+   MemoryBuffer<int> anomalous_channel_flags_gpu;
+
    
    // update antenna flags:
    void UpdateAntennaFlags( int n_ant );
@@ -51,8 +58,12 @@ protected :
 public:
    virtual Images image(ObservationInfo& obsInfo);
    CPacerImagerHip(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images = false,
-      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv = -1000, const char* weighting = "");
+      Polarization pol_to_image = Polarization::XX, float oversampling_factor = 2.0f, double min_uv = -1000,  const char* weighting = "");
+
+    
+
 };
+
 
 
 #endif

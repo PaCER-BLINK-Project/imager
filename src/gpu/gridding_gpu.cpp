@@ -27,6 +27,7 @@ __device__ int calculate_pos(float u,
                              double delta_v,
                              double wavelength,
                              double min_uv,
+                             double max_uv,
                              int n_pixels,
                              int uv_sign) // will be called with +1 and -1 
 {
@@ -37,7 +38,7 @@ __device__ int calculate_pos(float u,
    // Calculating distance between the two antennas 
    double uv_distance = sqrt(u_lambda*u_lambda + v_lambda*v_lambda);
 
-   if( uv_distance > min_uv )
+   if( uv_distance > min_uv && uv_distance <= max_uv )//I need to put both the min and the max uv
    {            
       // (For all the rows of the Correlation Matrix)
       // Operation 2: uv_index()
@@ -58,10 +59,10 @@ __device__ int calculate_pos(float u,
 __global__ void gridding_kernel(const float *visibilities, unsigned int n_baselines, unsigned int n_frequencies, unsigned int n_intervals,
                                       int n_ant,
                                       const float *u, const float *v, 
-                                      const int* baseline_flags_gpu, const float* antenna_weights,
+                                      const int* baseline_flags_gpu,const int* anom_baseline_flags_gpu, const int* anom_channel_flags_gpu, const float* antenna_weights,
                                       const double *frequencies, int image_size, double delta_u, double delta_v, 
                                       int n_pixels,
-                                      float *uv_grid_counter, double min_uv, Polarization pol,
+                                      float *uv_grid_counter, double min_uv, double max_uv, Polarization pol,
                                       gpufftComplex *m_in_buffer) {
 
    unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -73,6 +74,14 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
       unsigned int baseline = i % n_baselines;
       unsigned int m_idx = i / n_baselines;
       unsigned int fine_channel = m_idx % n_frequencies;
+
+      if (anom_channel_flags_gpu && anom_channel_flags_gpu[fine_channel] != 0) {
+         continue;
+      }
+
+      if (anom_baseline_flags_gpu && anom_baseline_flags_gpu[baseline] != 0) {
+         continue;
+      }
 
       float re {0}, im {0};
 
@@ -106,7 +115,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
 
       // Checking for NaN values 
       if( !isnan(re) && !isnan(im) && baseline_flags_gpu[baseline] <=0 ) {
-         int pos = calculate_pos( u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels,  +1 );
+         int pos = calculate_pos( u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, max_uv, n_pixels,  +1 );
          if(pos>=0 && pos<image_size) {
             // Allocating in uv_grid       
             // WARNING: this might not give us the exact count for all time steps because of nan values, but it is a tradeoff for memory
@@ -118,7 +127,7 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
             atomicAdd(&m_in_buffer[image_size * m_idx + pos].y,im);
          }   
 
-         int pos2 = calculate_pos(u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv, n_pixels, -1 );
+         int pos2 = calculate_pos(u[baseline], v[baseline], delta_u, delta_v, VEL_LIGHT / frequencies[fine_channel], min_uv,max_uv, n_pixels, -1 );
          if(pos2>=0 && pos2<image_size)
          {
             if(m_idx / n_frequencies == 0) atomicAdd(&uv_grid_counter[image_size * m_idx + pos2],1);
@@ -136,11 +145,20 @@ __global__ void gridding_kernel(const float *visibilities, unsigned int n_baseli
 
 void gridding_gpu(const Visibilities& xcorr,
       const MemoryBuffer<float>& u_gpu,  const MemoryBuffer<float>& v_gpu, 
-      const MemoryBuffer<int>& antenna_flags, const MemoryBuffer<float>& antenna_weights,
+      const MemoryBuffer<int>& antenna_flags,
+      
+      const MemoryBuffer<int>& anomalous_baseline_flags,
+
+      const MemoryBuffer<int>& anomalous_channel_flags,
+
+      const MemoryBuffer<float>& antenna_weights,
       const MemoryBuffer<double>& frequencies,
       double delta_u, double delta_v,
-      int n_pixels, double min_uv, Polarization pol, MemoryBuffer<float>& grids_counters,
+      int n_pixels, double min_uv, double max_uv, Polarization pol, MemoryBuffer<float>& grids_counters,
       MemoryBuffer<std::complex<float>>& grids){
+
+         MemoryBuffer<int> empty_baseline_flags;
+      MemoryBuffer<int> empty_channel_flags;
 
   int n_ant = xcorr.obsInfo.nAntennas;
   int image_size {n_pixels * n_pixels}; 
@@ -161,7 +179,12 @@ void gridding_gpu(const Visibilities& xcorr,
       n_ant,
       u_gpu.data(),
       v_gpu.data(),
-      antenna_flags.data(),                  
+      antenna_flags.data(), 
+
+      anomalous_baseline_flags.data(),
+
+      anomalous_channel_flags.data(),
+
       antenna_weights.data(),
       frequencies.data(),
       image_size,
@@ -170,10 +193,16 @@ void gridding_gpu(const Visibilities& xcorr,
       n_pixels,
       grids_counters.data(),
       min_uv,
+      max_uv,
       pol,
       (gpufftComplex*) grids.data()
   );
 
-   gpuGetLastError();
+  (void)gpuGetLastError();
    gpuDeviceSynchronize();
+
+
+
+
 }
+

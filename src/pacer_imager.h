@@ -102,7 +102,15 @@ public :
 
    void analyse_visibilities(Visibilities &xcorr);
 
+   void analyse_channels(Visibilities &xcorr);
+
+   const std :: set<unsigned int>& GetAnomalousBaselines() const{ return m_AnomalousBaselines;}
+
+   const std :: set<unsigned int>& GetAnomalousChannels() const { return m_AnomalousChannels;}
+
    private: std::set<unsigned int> m_AnomalousBaselines;
+
+   private: std::set<unsigned int> m_AnomalousChannels;
 
    
 

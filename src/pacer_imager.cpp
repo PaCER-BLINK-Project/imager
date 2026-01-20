@@ -367,6 +367,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
 
 
     const bool use_anomalous_baselines = !m_AnomalousBaselines.empty();
+    const bool use_anomalous_channels = !m_AnomalousChannels.empty();
 
 
     
@@ -376,6 +377,12 @@ void CPacerImager::gridding(Visibilities &xcorr) {
     {
         for (int fine_channel = 0; fine_channel < xcorr.nFrequencies; fine_channel++)
         {
+
+            if(use_anomalous_channels && m_AnomalousChannels.find(static_cast<unsigned int>(fine_channel)) != m_AnomalousChannels.end())
+            {
+                continue;
+            }
+
             std::complex<float>* current_grid = grids.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
             float* current_counter = grids_counters.data() + time_step * xcorr.nFrequencies * grid_size + fine_channel * grid_size;
             // calculate using CASA formula from image_tile_auto.py :
@@ -418,6 +425,8 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                 {
                     continue;
                 }
+
+           
 
                             
                float re {0}, im {0}; // varaible we are using store the the temposry and the imaginarty visbity 
@@ -549,8 +558,7 @@ void CPacerImager::gridding(Visibilities &xcorr) {
                                              re, im, MAX_VIS);
                             }
                         }
-                    }      
-            
+                    }           
              // This division is in fact UNIFORM weighting !!!! Not CELL-avareging
             // normalisation to make it indeed CELL-averaging :
             if (strcmp(weighting, "U") == 0)
@@ -705,7 +713,160 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
             
              
         
+    void CPacerImager::analyse_channels(Visibilities &xcorr)
+    {
+        std::cout << " INIT analyse_channels " << std::endl;
+    
+        const int n_ant = xcorr.obsInfo.nAntennas;
+        const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
+
+        const int n_t = xcorr.integration_intervals();
+        const int n_f = xcorr.nFrequencies;
+
+        const float sigma_threshold = 10.5f;
+        const float frac_threshold  = 0.5f;
+
+
+
+        std::set<unsigned int> anomalous_channels;
+
+
+
+        for (int fine_channel = 0; fine_channel < n_f; ++fine_channel)
+        {
+
+            std::string name = "CH=" + std::to_string(fine_channel) + " XX(real)";
+
+
+            std::vector<float> values;
+            values.reserve(static_cast<size_t>(n_t) * static_cast<size_t>(n_baselines));
+
+            const bool use_baseline_flags = (m_BaselineFlags.size() == n_baselines);
+            const bool use_anomalous_baselines = !m_AnomalousBaselines.empty();
+
+            for (int time_step = 0; time_step < n_t; ++time_step) {
+
+
+                for (unsigned int baseline = 0; baseline < n_baselines; ++baseline) {
+
+
+                    if (use_anomalous_baselines && m_AnomalousBaselines.find(baseline) != m_AnomalousBaselines.end()) { //already if the basleine is anomalous i neeed tos skip it
+
+
+                        continue;
+
+                    }
+
+                    if (use_baseline_flags && m_BaselineFlags[baseline]) {// if the baseline isa flaggesd i need to remove that as well
+
+
+                        continue;
+
+                    }
+
+                    unsigned int ant1 = static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2.0 * baseline));
+                    unsigned int ant2 = baseline - ((ant1 + 1) * ant1) / 2u;
+
+                    if (ant1 == ant2) { //i need to remove if the ant 1 and the ant 2 are equal
+
+                        continue;
+
+                    }
+
+                    std::complex<float>* vis_xx = xcorr.at(time_step, fine_channel, baseline);
+                    values.push_back(vis_xx->real());
+
+                }
+            }
+
+
+
+
+                values.erase( std::remove_if(values.begin(), values.end(),[](float x) { return !std::isfinite(x); }),values.end() );
+
+            if (values.empty())
+            {
+                std::cout << "channel_stats - " << name << " - min: nan, max: nan, median: inf, rms: inf\n";
+                continue;
+            }
+
             
+            
+            
+            auto median_rms_of_values = compute_iqr_sigma(values);
+
+             std::cout << "channel_stats - " << name << " - "
+             << "min: " << *std::min_element(values.begin(), values.end()) << ", "
+             << "max: " << *std::max_element(values.begin(), values.end()) << ", "
+             << "median: " << median_rms_of_values.first << ", "
+             << "rms: " << median_rms_of_values.second
+             << std::endl;
+
+
+             const float median = median_rms_of_values.first;
+             const float sigma  = median_rms_of_values.second;
+
+
+
+             if (!std::isfinite(median) || !std::isfinite(sigma) || sigma <= 0.0f) {
+                continue;
+            }
+
+             float up = median + sigma_threshold * sigma;  //we have to get the up abd the down values.
+           float dn = median - sigma_threshold * sigma;
+
+
+
+            size_t outliers = 0;  // we are getting ther anomalous values
+            for (float x : values) {
+                if (x > up || x < dn) outliers++;
+            }
+
+            
+
+            float frac = static_cast<float>(outliers) / static_cast<float>(values.size());
+
+
+
+  
+
+            std::cout << "anomaly_check - " << name  // everything print
+            << " - outliers: " << outliers << "/" << values.size()
+            << " frac=" << frac
+            << " (thr=" << frac_threshold
+            << ", k=" << sigma_threshold << ")\n";
+
+
+
+            if (frac >= frac_threshold) {
+                                                      
+                anomalous_channels.insert(static_cast<unsigned int>(fine_channel)); //what is the fraction threshold. Is this causing the issue
+
+            }
+        }
+
+
+
+                std::cout << "SUMMARY: anomalous channels = " << anomalous_channels.size() << " / " << n_f << "\n";
+
+    
+                m_AnomalousChannels = anomalous_channels;
+    }
+
+
+
+//is the variable names that are causing the problem. 
+//put new variable name for up and dopwn. That is cauing the issue i thnk. upp dnn fracc
+
+//
+
+
+
+
+
+
+
+
             
             
             
@@ -726,6 +887,8 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
 */
 Images CPacerImager::run(Visibilities &xcorr){
     this->analyse_visibilities(xcorr);
+
+    this->analyse_channels(xcorr);
 
     grid(xcorr);
     return image(xcorr.obsInfo);

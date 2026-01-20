@@ -14,8 +14,15 @@
 #include "../utils.h"
 
 CPacerImagerHip::CPacerImagerHip(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas,
-   bool average_images, Polarization pol_to_image, float oversampling_factor, double min_uv, const char *weighting) : CPacerImager(
-      metadata_file, n_pixels, flagged_antennas, average_images, pol_to_image, oversampling_factor, min_uv, weighting) {}
+   bool average_images,
+   Polarization pol_to_image,
+   float oversampling_factor,
+   double min_uv,
+   const char* weighting)
+: CPacerImager(metadata_file, n_pixels, flagged_antennas, average_images, pol_to_image, oversampling_factor, min_uv, weighting)
+{}
+
+     
 
 void CPacerImagerHip::UpdateAntennaFlags(int n_ant) {
 
@@ -62,8 +69,7 @@ void CPacerImagerHip::gridding(Visibilities& xcorr){
   std::cout << "Running 'gridding' on GPU.." << std::endl;
 
   int n_ant = xcorr.obsInfo.nAntennas;
-  const unsigned int n_baselines =
-  static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
+  const unsigned int n_baselines = static_cast<unsigned int>((n_ant * (n_ant + 1)) / 2u);
 
   int image_size {n_pixels * n_pixels};
    size_t n_images {n_gridded_channels * n_gridded_intervals};
@@ -96,9 +102,53 @@ void CPacerImagerHip::gridding(Visibilities& xcorr){
    }
    
    gpuMemcpy(frequencies_gpu.data(), frequencies.data(), frequencies.size() * sizeof(double), gpuMemcpyHostToDevice);
+
+  MemoryBuffer<int> empty_anom_baseline_flags;
+  MemoryBuffer<int> empty_anom_channel_flags;
+
+  if(!anomalous_baseline_flags_gpu || anomalous_baseline_flags_gpu.size() != n_baselines) //baseline checking if gpu not done for anomalous baslines or the size is wrong
+  {
+   anomalous_baseline_flags_gpu.allocate(n_baselines, MemoryType:: DEVICE); //allocate gpu memory in an array 0 is normal 1 is anomalous baseline
+
+   std:: vector<int> hostAnomBaseline(n_baselines, 0); //allocate a cpu array with n baseline oviously initially it has to be 0 inside the array
+
+   for(unsigned int b : GetAnomalousBaselines()){ // now i have to go through the anomalous baselines on the cpu. The getAnomalousBaselines retutns them
    
-   gridding_gpu(xcorr, u_gpu, v_gpu, baseline_flags_gpu, antenna_weights_gpu, frequencies_gpu,
-      delta_u, delta_v, n_pixels, min_uv, pol_to_image, grids_counters, grids);   
+      if(b< n_baselines) hostAnomBaseline[b] = 1; // i need to ensure that b is valid. If it is valid i need to mark it as 1.
+   
+  }
+
+  gpuMemcpy(anomalous_baseline_flags_gpu.data(), hostAnomBaseline.data(), n_baselines * sizeof(int), gpuMemcpyHostToDevice);  // Now I will copy the cpu to the gpu
+
+  const unsigned int n_f = static_cast<unsigned int>(xcorr. nFrequencies); //n_f is the number of frequency channels
+
+  if(!anomalous_channel_flags_gpu || anomalous_channel_flags_gpu.size() != n_f) //channel just like the baseline
+  {
+   anomalous_channel_flags_gpu.allocate(n_f, MemoryType:: DEVICE); // allocatimg the gpu memory like the baselie 
+  }
+
+  
+
+
+
+  std::vector<int> hostAnomChannel(n_f, 0 ); // I will create a cpu array called n_f
+
+  for(unsigned int ch : GetAnomalousChannels()) // get all the anomalousn channels from the cpu
+   {
+
+      if( ch < n_f) hostAnomChannel[ch] = 1; // the channel index has to valid as well. If it is valid mark it as 1.
+
+   }
+  
+
+  gpuMemcpy(anomalous_channel_flags_gpu.data(), hostAnomChannel.data(), n_f * sizeof(int), gpuMemcpyHostToDevice); // i will copy the cpu channel flags to the gpu.
+
+  }
+
+   
+   
+   gridding_gpu(xcorr, u_gpu, v_gpu, baseline_flags_gpu, anomalous_baseline_flags_gpu, anomalous_channel_flags_gpu, antenna_weights_gpu, frequencies_gpu,
+      delta_u, delta_v, n_pixels, min_uv,max_uv, pol_to_image, grids_counters, grids);   // At the end i will call the gridding function
 }
 
 
