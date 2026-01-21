@@ -37,11 +37,11 @@ void test_imager_common(CPacerImager& imager, bool is_cpu){
 
 void test_imager_cpu(){
     std::string szWeighting {"N"};
-    const int image_size = 512;
+    const int image_size = 4096;
     double MinUV = -1000;
     std::string metadataFile {dataRootDir + "/mwa/1192477696/1192477696.metafits"};
     std::vector<int> flagged_antennas {};
-    CPacerImager imager {metadataFile, image_size, flagged_antennas, true, Polarization::XX, 2.0f, MinUV, szWeighting.c_str()};
+    CPacerImager imager {metadataFile, image_size, flagged_antennas, true, Polarization::I, 2.0f, MinUV, szWeighting.c_str()};
     test_imager_common(imager, true);
 }
 
@@ -49,11 +49,11 @@ void test_imager_cpu(){
 void test_imager_gpu(){
     std::cout << "This is a test with Nathan !!!!!!!!." << std::endl;
     std::string szWeighting {"N"};
-    const int image_size = 512;
+    const int image_size = 4096;
     double MinUV = -1000;
     std::string metadataFile {dataRootDir + "/mwa/1192477696/1192477696.metafits"};
     std::vector<int> flagged_antennas {};
-    CPacerImagerHip imager {metadataFile, image_size, flagged_antennas, true, Polarization::XX, 2.0f, MinUV, szWeighting.c_str()};
+    CPacerImagerHip imager {metadataFile, image_size, flagged_antennas, true, Polarization::I, 2.0f, MinUV, szWeighting.c_str()};
     test_imager_common(imager, false);
 }
 #endif

@@ -34,6 +34,7 @@ void test_gridding_gpu(){
     double delta_u = 39.10328674, delta_v = 35.32881927;
     int n_pixels = 256;
     int min_uv = -1000;
+    double max_uv = 1e99; 
 
     size_t n_images{xcorr.integration_intervals() * xcorr.nFrequencies};
     size_t buffer_size {n_pixels * n_pixels * n_images};
@@ -41,8 +42,13 @@ void test_gridding_gpu(){
     MemoryBuffer<std::complex<float>> grids(buffer_size,  MemoryType::DEVICE);
     gpuMemset(grids_counters.data(), 0, grids_counters.size() * sizeof(float));
     gpuMemset(grids.data(), 0, grids.size() * sizeof(std::complex<float>));
-    gridding_gpu(xcorr, u_buff, v_buff, antenna_flags, antenna_weights, frequencies,
-      delta_u, delta_v, n_pixels, min_uv, Polarization::XX, grids_counters, grids);
+
+    MemoryBuffer<int> empty_anom_baseline_flags;
+    MemoryBuffer<int> empty_anom_channel_flags;
+     
+    
+    gridding_gpu(xcorr, u_buff, v_buff, antenna_flags, empty_anom_baseline_flags, empty_anom_channel_flags, antenna_weights, frequencies,
+      delta_u, delta_v, n_pixels, min_uv, max_uv, Polarization::XX, grids_counters, grids);
 
     grids_counters.to_cpu();
     grids.to_cpu();
