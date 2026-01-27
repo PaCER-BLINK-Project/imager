@@ -627,11 +627,11 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
             );
 
 
-            std::string name = "XX(real) b=" + std::to_string(baseline) +
-            " a1=" + std::to_string(ant1) +
-            " a2=" + std::to_string(ant2);
-        
+            std::string name;
 
+           
+            
+             
             if (values.empty())
             {
                 std::cout << "flag_rfi - " << name
@@ -679,9 +679,8 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
 
             std::cout << "anomaly_check - " << name  // everything print
                           << " - outliers: " << outliers << "/" << values.size()
-                          << " frac=" << frac
-                          << " (thr=" << frac_threshold
-                          << ", k=" << sigma_threshold << ")\n";
+                          <<std:: endl;
+                       
 
                          
                       
@@ -723,8 +722,8 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
         const int n_t = xcorr.integration_intervals();
         const int n_f = xcorr.nFrequencies;
 
-        const float sigma_threshold = 10.5f;
-        const float frac_threshold  = 0.5f;
+        const float sigma_threshold = 10.1f;
+        const float frac_threshold  = 0.2f;
 
 
 
@@ -832,9 +831,9 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
 
             std::cout << "anomaly_check - " << name  // everything print
             << " - outliers: " << outliers << "/" << values.size()
-            << " frac=" << frac
-            << " (thr=" << frac_threshold
-            << ", k=" << sigma_threshold << ")\n";
+            <<std:: endl;
+
+          
 
 
 
@@ -886,10 +885,6 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
     @param xcorr: Visibilities to be imaged.
 */
 Images CPacerImager::run(Visibilities &xcorr){
-    this->analyse_visibilities(xcorr);
-
-    this->analyse_channels(xcorr);
-
     grid(xcorr);
     return image(xcorr.obsInfo);
 }
@@ -897,7 +892,9 @@ Images CPacerImager::run(Visibilities &xcorr){
 void CPacerImager::grid(Visibilities& xcorr){
     // TODO: verify that the following function call can be safely removed.
     m_MetaData.fix_metafits(CObsMetadata::ux2gps(xcorr.obsInfo.startTime), 1.0);
+    //this->analyse_visibilities(xcorr);
 
+    //this->analyse_channels(xcorr);
     // calculate UVW (if required)
     CalculateUVW();
 
