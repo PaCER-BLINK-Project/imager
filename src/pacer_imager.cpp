@@ -593,13 +593,13 @@ void CPacerImager::analyse_visibilities(Visibilities &xcorr){ //sending the &xco
     const int n_t = xcorr.integration_intervals(); //I will put a variable
     const int n_f = xcorr.nFrequencies; //I will put the frequencies here
 
-    const float sigma_threshold = 5.0f; //this is t he sigma threshold
+    const float sigma_threshold = 10.2f; //this is t he sigma threshold
     const float frac_threshold  = 0.02f;  //this is thwe frac threshold
     std::set<unsigned int> anomalous_baselines;
 
 
     for (unsigned int baseline = 0; baseline < n_baselines; ++baseline)  //getting all the baselines
-    { 
+    {  
         
         unsigned int ant1 = static_cast<unsigned int>(-0.5 + std::sqrt(0.25 + 2.0 * baseline)); //get the basline to the top
         unsigned int ant2 = baseline - ((ant1 + 1) * ant1) / 2u;
