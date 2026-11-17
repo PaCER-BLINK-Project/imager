@@ -54,7 +54,7 @@ if [[ -n "$6" && "$6" != "-" ]]; then
    PROGRAM_NAME="$6"
 fi
 
-PROGRAM_VERSION=main
+PROGRAM_VERSION=injections
 if [[ -n "$7" && "$7" != "-" ]]; then
    PROGRAM_VERSION="$7"
 fi
@@ -84,10 +84,10 @@ process_build_script_input user
 echo "Loading required modules ..."
 echo "Loading modules for PAWSEY_CLUSTER = $PAWSEY_CLUSTER"
    module reset
-  module_load blink_test_data/devel cfitsio/4.4.0  msfitslib/master-ittkjmq  blink-astroio/master fftw/3.3.10  pal/0.9.8-n3thcaw  libnova/0.15.0-iwh6cpn rocm/6.4.1 # lfile2corrmatrix/devel
+  module_load blink_test_data/devel cfitsio/4.4.0  msfitslib/master  blink-astroio/master fftw/3.3.10  pal/0.9.8  libnova/0.15.0 rocm/7.0.1 # lfile2corrmatrix/devel
    
    # cmake is only required at build time, so we use the normal module load
-   module load cmake/3.30.5
+   module load cmake/3.31.9
 # build your software..
 echo "Building the software.."
 

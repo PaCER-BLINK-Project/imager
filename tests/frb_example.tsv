@@ -1,0 +1,2 @@
+# obs_id id ra_deg dec_deg arrival_unix_s dm width_s peak_jy ref_mhz units_per_jy phase_sign tsub fsub
+1276619416 demo 92.0 -13.0 1592584200.25 100 0.080 10 155 1 -1 0 32

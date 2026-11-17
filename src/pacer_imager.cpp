@@ -1,4 +1,7 @@
 #include "pacer_imager.h"
+#include "frb_injection_astroio.hpp"
+#include <cstdlib>
+#include <utility>
 #include "pacer_common.h"
 #include <bg_fits.h>
 // FFTW, math etc :
@@ -89,6 +92,10 @@ int CPacerImager::UpdateFlags() {
 
 CPacerImager::CPacerImager(const std::string metadata_file, int n_pixels, const std::vector<int>& flagged_antennas, bool average_images,
         Polarization pol_to_image, float oversampling_factor, double min_uv, double max_uv, const char* weighting) {
+    // Optional environment configuration, usable by existing BLINK executables.
+    if (const char* path = std::getenv("BLINK_FRB_CATALOGUE")) {
+        if (*path) load_frb_injections(path);
+    }
     this->average_images = average_images;
     this->pol_to_image = pol_to_image;
     this->oversampling_factor = oversampling_factor;
@@ -442,6 +449,13 @@ Images CPacerImager::run(Visibilities &xcorr){
     return image(xcorr.obsInfo);
 }
 
+void CPacerImager::set_frb_injections(blink_frb::Catalogue catalogue) {
+    for (const auto& event : catalogue) blink_frb::validate(event);
+    frb_catalogue = std::move(catalogue);
+}
+void CPacerImager::load_frb_injections(const std::string& path) {
+    set_frb_injections(blink_frb::load_catalogue(path));
+}
 void CPacerImager::grid(Visibilities& xcorr){
     // TODO: verify that the following function call can be safely removed.
     m_MetaData.fix_metafits(CObsMetadata::ux2gps(xcorr.obsInfo.startTime), 1.0);
@@ -522,6 +536,11 @@ void CPacerImager::grid(Visibilities& xcorr){
 
     // virtual function calls gridding and imaging in GPU/HIP version it is
     // overwritten and both gridding and imaging are performed on GPU memory :
+    if (!frb_catalogue.empty()) {
+        blink_frb::inject(xcorr, frb_catalogue, m_MetaData.raHrs * 15.0,
+                          m_MetaData.decDegs, u_cpu, v_cpu, w_cpu,
+                          frequencies, m_FlaggedBaselines);
+    }
     gridding(xcorr);
 }
 
