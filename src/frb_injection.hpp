@@ -14,7 +14,11 @@ struct Event {
     long double arrival_unix_s;
     double dm, width_s, peak_jy, ref_hz, units_per_jy;
     int phase_sign; // -1: inverse-FFT convention; +1: Andy's exponent
-    int tsub, fsub; // tsub=0: exact boxcar overlap in time; otherwise midpoint sampling
+    int tsub, fsub; // tsub=0: exact integration in time; otherwise midpoint sampling
+    // Optional scattering parameters; peak_jy is the intrinsic boxcar peak.
+    double scattering_tau_s = 0.0;
+    double scattering_ref_hz = 150e6; // separate from dispersion ref_hz
+    double scattering_index = -4.0;
 };
 using Catalogue = std::vector<Event>;
 Catalogue load_catalogue(const std::string& path);

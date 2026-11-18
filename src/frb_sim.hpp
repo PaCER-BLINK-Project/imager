@@ -60,6 +60,48 @@ struct BoxCarBurst {
     }
 };
 
+// Unit-height intrinsic boxcar convolved with a normalized, causal
+// exponential. x is time since the dispersed leading edge (seconds).
+// Values are relative to the intrinsic peak; the fluence is width (seconds).
+// Truncate after 25 e-foldings beyond the intrinsic end to keep sparse plans
+// finite. The omitted fraction of intrinsic fluence is <= exp(-25).
+struct ScatteredBoxCar {
+    static constexpr double tail_efolds = 25.0;
+    static double duration(double width, double tau) {
+        return width + tail_efolds*tau;
+    }
+    static double evaluate(double x, double width, double tau) {
+        if (x < 0.0) return 0.0;
+        if (tau == 0.0) return x <= width ? 1.0 : 0.0;
+        if (x >= duration(width,tau)) return 0.0;
+        if (x <= width) return -std::expm1(-x/tau);
+        return -std::expm1(-width/tau)*std::exp(-(x-width)/tau);
+    }
+    // Mean over [x, x+dt]. Split at the end of the intrinsic boxcar.
+    // Integrate each part directly to avoid cancellation between CDFs.
+    static double average(double x, double dt, double width, double tau) {
+        if (tau == 0.0)
+            return std::fmax(0.0,std::fmin(x+dt,width)-std::fmax(x,0.0))/dt;
+        const double a=std::fmax(0.0,x), b=std::fmin(x+dt,duration(width,tau));
+        if (b <= a) return 0.0;
+        double area=0.0;
+        if (a < width) {
+            const double h=std::fmin(b,width)-a, z=h/tau;
+            // 1 - (1-exp(-z))/z; series prevents cancellation for small z.
+            const double loss=z<1e-3 ? z*(0.5+z*(-1.0/6+z*(1.0/24+z*(-1.0/120))))
+                                     : 1.0+std::expm1(-z)/z;
+            area+=h*(-std::expm1(-a/tau)+std::exp(-a/tau)*loss);
+        }
+        if (b > width) {
+            const double start=std::fmax(a,width), h=b-start, z=h/tau;
+            const double integ=z>1.0 ? -tau*std::expm1(-z)
+                                     : h*(z==0.0 ? 1.0 : -std::expm1(-z)/z);
+            area+=-std::expm1(-width/tau)*std::exp(-(start-width)/tau)*integ;
+        }
+        return area/dt;
+    }
+};
+
 struct Source {
     BoxCarBurst lightcurve;
     double ra_deg, dec_deg;

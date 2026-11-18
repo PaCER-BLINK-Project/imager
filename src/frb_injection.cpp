@@ -13,6 +13,13 @@ void require(bool ok, const char* message) {
     if (!ok) throw std::invalid_argument(message);
 }
 bool positive(double x) { return std::isfinite(x) && x > 0; }
+double scattering_tau(const Event& e, double hz) {
+    if (e.scattering_tau_s==0.0) return 0.0;
+    const double tau=e.scattering_tau_s*std::pow(hz/e.scattering_ref_hz,e.scattering_index);
+    require(positive(tau) && std::isfinite(frbsim::ScatteredBoxCar::duration(e.width_s,tau)),
+            "FRB: scattering timescale/duration outside representable range");
+    return tau;
+}
 double number(const std::string& s) {
     std::size_t n=0; const double v=std::stod(s,&n);
     require(n==s.size(),"FRB catalogue: invalid number"); return v;
@@ -34,6 +41,9 @@ void validate(const Event& e) {
     require(std::isfinite(e.dm) && e.dm>=0,"FRB: invalid DM");
     require(positive(e.width_s) && positive(e.peak_jy) && positive(e.units_per_jy),"FRB: invalid width/peak/conversion");
     require(positive(e.ref_hz) || e.ref_hz==std::numeric_limits<double>::infinity(),"FRB: invalid reference frequency");
+    require(std::isfinite(e.scattering_tau_s) && e.scattering_tau_s>=0,"FRB: invalid scattering timescale");
+    require(positive(e.scattering_ref_hz),"FRB: invalid scattering reference frequency");
+    require(std::isfinite(e.scattering_index),"FRB: invalid scattering index");
     require(e.phase_sign==1 || e.phase_sign==-1,"FRB: phase sign must be +1 or -1");
     require(e.tsub>=0 && e.tsub<=4096 && e.fsub>0 && e.fsub<=4096,"FRB: invalid subsampling counts");
     require(std::isfinite(e.peak_jy*e.units_per_jy) && e.peak_jy*e.units_per_jy <= std::numeric_limits<float>::max(),"FRB: amplitude outside float range");
@@ -48,10 +58,16 @@ Catalogue load_catalogue(const std::string& path) {
         while(row>>field) fields.push_back(field);
         if(fields.empty()) continue;
         try {
-            require(fields.size()==13,"expected 13 whitespace-separated fields");
+            require(fields.size()==13 || fields.size()==15 || fields.size()==16,
+                    "expected 13 fields, or 15/16 with scattering_tau_s scattering_ref_mhz [scattering_index]");
             Event e{fields[0],fields[1],number(fields[2]),number(fields[3]),timestamp(fields[4]),
                 number(fields[5]),number(fields[6]),number(fields[7]),number(fields[8])*1e6,
                 number(fields[9]),integer(fields[10]),integer(fields[11]),integer(fields[12])};
+            if(fields.size()>=15) {
+                e.scattering_tau_s=number(fields[13]);
+                e.scattering_ref_hz=number(fields[14])*1e6;
+                if(fields.size()==16) e.scattering_index=number(fields[15]);
+            }
             validate(e);
             require(ids.insert(e.id).second,"duplicate injection ID");
             out.push_back(e);
@@ -87,29 +103,42 @@ Plan make_plan(const Catalogue& catalogue, const Geometry& g) {
             const double fc=g.frequencies_hz[f];
             // Delay monotonic for nonnegative DM. Reject inactive channels before scanning time bins.
             const double lo=t0+source.lightcurve.delay(fc+g.df_hz/2);
-            const double hi=t0+source.lightcurve.delay(fc-g.df_hz/2)+e.width_s;
+            // The dispersion delay and scattering duration need not have the
+            // same monotonicity. Bound the end using the largest tau at either edge.
+            double hi=t0+source.lightcurve.delay(fc-g.df_hz/2)+e.width_s;
+            if(e.scattering_tau_s>0) {
+                const double tau_max=std::max(scattering_tau(e,fc-g.df_hz/2),
+                                              scattering_tau(e,fc+g.df_hz/2));
+                hi+=frbsim::ScatteredBoxCar::tail_efolds*tau_max;
+            }
             require(std::isfinite(lo) && std::isfinite(hi),"FRB: nonfinite dispersed arrival");
             if(hi<=0 || lo>=end) continue;
             // Conservative range with a one-bin margin for floating-point rounding.
             const auto first=static_cast<std::size_t>(std::max(0.0,std::floor(lo/g.dt_s)-1));
             const auto last=static_cast<std::size_t>(std::min(static_cast<double>(g.nt),std::ceil(hi/g.dt_s)+1));
-            std::vector<double> delays; delays.reserve(e.fsub);
+            struct Subchannel { double delay, tau; };
+            std::vector<Subchannel> subchannels; subchannels.reserve(e.fsub);
             for(int k=0;k<e.fsub;++k) {
                 const double fs=fc+((double(k)+0.5)/e.fsub-0.5)*g.df_hz;
-                delays.push_back(source.lightcurve.delay(fs));
+                subchannels.push_back({source.lightcurve.delay(fs),scattering_tau(e,fs)});
             }
             for(std::size_t t=first;t<last;++t) {
                 double fraction=0;
                 const double begin=double(t)*g.dt_s, centre=(double(t)+0.5)*g.dt_s;
-                for(double d:delays) {
+                for(const auto& sub:subchannels) {
+                    const double d=sub.delay;
                     if(e.tsub==0) {
                         const double x=(begin-t0)-d;
-                        fraction+=std::max(0.0,std::min(x+g.dt_s,e.width_s)-std::max(x,0.0))/g.dt_s;
+                        fraction+=frbsim::ScatteredBoxCar::average(x,g.dt_s,e.width_s,sub.tau);
                     } else {
                         for(int k=0;k<e.tsub;++k) {
                             const double off=((double(k)+0.5)/e.tsub-0.5)*g.dt_s;
                             const double x=(centre+off-t0)-d;
-                            if(x>=0 && x<=e.width_s) fraction+=1.0/e.tsub;
+                            if(sub.tau==0.0) {
+                                if(x>=0 && x<=e.width_s) fraction+=1.0/e.tsub;
+                            } else {
+                                fraction+=frbsim::ScatteredBoxCar::evaluate(x,e.width_s,sub.tau)/e.tsub;
+                            }
                         }
                     }
                 }
