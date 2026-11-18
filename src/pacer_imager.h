@@ -18,6 +18,7 @@ using namespace std;
 #include <memory_buffer.hpp>
 
 #include "gridding.hpp"
+#include "frb_injection.hpp"
 // #define VISIBILITY_TYPE double // visibility type currently double but may be float 
 // forward declaration of class  Visibilities, the header file is included in pacer_imager.cpp
 // class  Visibilities;
@@ -30,6 +31,7 @@ void fft_shift(std::complex<float>* image, size_t image_x_side, size_t image_y_s
 class CPacerImager {
 
 protected:
+   blink_frb::Catalogue frb_catalogue;
    MemoryBuffer<double> cable_lengths;
    MemoryBuffer<double> frequencies;
    MemoryBuffer<float> grids_counters;
@@ -122,6 +124,9 @@ public :
    bool CalculateUVW();
 
    virtual void gridding(Visibilities& xcorr);
+   // Configure once per imager before processing; empty catalogue disables injection.
+   void set_frb_injections(blink_frb::Catalogue catalogue);
+   void load_frb_injections(const std::string& path);
 
 /** 
     @brief run gridding + fft to produce an image.

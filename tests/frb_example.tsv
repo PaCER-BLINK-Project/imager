@@ -1,0 +1,4 @@
+# obs_id id ra_deg dec_deg arrival_unix_s dm width_s peak_jy ref_mhz units_per_jy phase_sign tsub fsub [scattering_tau_s scattering_ref_mhz [scattering_index]]
+1276619416 demo 92.0 -13.0 1592584200.25 100 0.080 10 155 1 -1 0 32
+1276619416 demo_scattered 92.0 -13.0 1592584201.25 100 0.080 10 170.36 1 -1 0 32 0.050 150
+1276619416 demo_scattered2 92.0 -13.0 1592584202.25 100 0.080 10 170.36 1 -1 0 32 0.120 155 -4.4
